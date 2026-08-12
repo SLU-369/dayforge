@@ -18,5 +18,13 @@ test("renderiza o painel Dayforge", async () => {
   const html = await response.text();
   assert.match(html, /<title>Dayforge<\/title>/i);
   assert.match(html, /Preparando seu painel/);
+  assert.match(html, /<html[^>]*data-theme="night"[^>]*>/i);
+  assert.match(html, /dayforge:theme:v1/);
+  assert.match(html, /theme-backdrop-day/);
+  assert.match(html, /theme-backdrop-night/);
+  assert.ok(
+    html.indexOf("dayforge:theme:v1") < html.indexOf("<body"),
+    "o bootstrap do tema deve executar no head, antes da hidratação",
+  );
   assert.doesNotMatch(html, /codex-preview|react-loading-skeleton/i);
 });

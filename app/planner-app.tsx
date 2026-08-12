@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FlowButton } from "@/components/ui/flow-button";
 import {
   CATEGORIES,
   CategoryKey,
@@ -19,9 +20,11 @@ import {
   PlannerState,
   RoutineItem,
 } from "./planner-data";
+import DayforgeNavigation, { type DayforgeView } from "./dayforge-navigation";
+import ThemeToggle from "./theme-toggle";
 
 const STORAGE_KEY = "rotina-369:data:v1";
-type View = "hoje" | "mes" | "rotina";
+type View = DayforgeView;
 type EditorTarget = { type: "day" | "routine"; item?: RoutineItem; index?: number } | null;
 
 function cloneDay(state: PlannerState, date: string): DailyRecord {
@@ -209,26 +212,26 @@ export default function PlannerApp() {
 
   return (
     <div className="app-shell">
-      <aside className="sidebar">
-        <div className="brand"><span className="brand-mark">DF</span><div><strong>Dayforge</strong><small>controle pessoal</small></div></div>
-        <nav className="main-nav" aria-label="Navegação principal">
-          <NavButton active={view === "hoje"} icon="◉" label="Hoje" onClick={() => setView("hoje")} />
-          <NavButton active={view === "mes"} icon="▦" label="Visão mensal" onClick={() => setView("mes")} />
-          <NavButton active={view === "rotina"} icon="≡" label="Rotina-base" onClick={() => setView("rotina")} />
-        </nav>
-        <div className="sidebar-status"><span className="status-dot" /><div><strong>Salvo neste PC</strong><small>backup recomendado</small></div></div>
-        <div className="sidebar-actions">
-          <button onClick={exportBackup}>↓ Exportar backup</button>
-          <button onClick={() => importRef.current?.click()}>↑ Importar backup</button>
-          <button className="danger-text" onClick={resetData}>Restaurar padrão</button>
-          <input ref={importRef} hidden type="file" accept="application/json" onChange={importBackup} />
-        </div>
-      </aside>
+      <DayforgeNavigation
+        activeView={view}
+        onViewChange={setView}
+        onExportBackup={exportBackup}
+        onImportBackup={() => importRef.current?.click()}
+        onResetData={resetData}
+      />
 
       <main className="main-content">
         <header className="mobile-header">
           <div className="brand"><span className="brand-mark">DF</span><strong>Dayforge</strong></div>
-          <div className="saved-pill"><span className="status-dot" /> salvo</div>
+          <div className="mobile-header-actions">
+            <div className="saved-pill"><span className="status-dot" /> salvo</div>
+            <div className="mobile-data-actions" aria-label="Backup local">
+              <button type="button" aria-label="Exportar backup" title="Exportar backup" onClick={exportBackup}>↓</button>
+              <button type="button" aria-label="Importar backup" title="Importar backup" onClick={() => importRef.current?.click()}>↑</button>
+              <button type="button" className="danger-text" aria-label="Restaurar padrão" title="Restaurar padrão" onClick={resetData}>↺</button>
+            </div>
+            <ThemeToggle compact />
+          </div>
         </header>
         <nav className="mobile-nav" aria-label="Navegação principal">
           <NavButton active={view === "hoje"} icon="◉" label="Hoje" onClick={() => setView("hoje")} />
@@ -236,43 +239,46 @@ export default function PlannerApp() {
           <NavButton active={view === "rotina"} icon="≡" label="Rotina" onClick={() => setView("rotina")} />
         </nav>
 
-        {view === "hoje" && (
-          <TodayView
-            record={record!}
-            selectedDate={selectedDateObject}
-            todayISO={todayISO}
-            metrics={metrics}
-            onDate={(date) => setSelectedDate(localISO(date))}
-            onToggle={toggleItem}
-            onEdit={(item, index) => setEditor({ type: "day", item, index })}
-            onDelete={(index) => deleteItem(index, "day")}
-            onAdd={() => setEditor({ type: "day" })}
-            onNote={(note) => updateRecord((current) => ({ ...current, note }))}
-            onEnergy={(energy) => updateRecord((current) => ({ ...current, energy }))}
-          />
-        )}
-        {view === "mes" && (
-          <MonthView
-            state={state}
-            monthDate={monthDate}
-            todayISO={todayISO}
-            onMonth={(date) => setMonthDate(date)}
-            onOpenDay={(date) => { setSelectedDate(date); setView("hoje"); }}
-            onGoal={(goal) => setState((current) => ({ ...current, monthlyGoals: { ...current.monthlyGoals, [monthKey(monthDate)]: goal } }))}
-          />
-        )}
-        {view === "rotina" && (
-          <RoutineView
-            state={state}
-            day={routineDay}
-            onDay={setRoutineDay}
-            onEdit={(item, index) => setEditor({ type: "routine", item, index })}
-            onDelete={(index) => deleteItem(index, "routine")}
-            onAdd={() => setEditor({ type: "routine" })}
-          />
-        )}
+        <div className="view-stage" key={view}>
+          {view === "hoje" && (
+            <TodayView
+              record={record!}
+              selectedDate={selectedDateObject}
+              todayISO={todayISO}
+              metrics={metrics}
+              onDate={(date) => setSelectedDate(localISO(date))}
+              onToggle={toggleItem}
+              onEdit={(item, index) => setEditor({ type: "day", item, index })}
+              onDelete={(index) => deleteItem(index, "day")}
+              onAdd={() => setEditor({ type: "day" })}
+              onNote={(note) => updateRecord((current) => ({ ...current, note }))}
+              onEnergy={(energy) => updateRecord((current) => ({ ...current, energy }))}
+            />
+          )}
+          {view === "mes" && (
+            <MonthView
+              state={state}
+              monthDate={monthDate}
+              todayISO={todayISO}
+              onMonth={(date) => setMonthDate(date)}
+              onOpenDay={(date) => { setSelectedDate(date); setView("hoje"); }}
+              onGoal={(goal) => setState((current) => ({ ...current, monthlyGoals: { ...current.monthlyGoals, [monthKey(monthDate)]: goal } }))}
+            />
+          )}
+          {view === "rotina" && (
+            <RoutineView
+              state={state}
+              day={routineDay}
+              onDay={setRoutineDay}
+              onEdit={(item, index) => setEditor({ type: "routine", item, index })}
+              onDelete={(index) => deleteItem(index, "routine")}
+              onAdd={() => setEditor({ type: "routine" })}
+            />
+          )}
+        </div>
       </main>
 
+      <input ref={importRef} hidden type="file" accept="application/json" onChange={importBackup} />
       {editor && <ItemEditor target={editor} onClose={() => setEditor(null)} onSave={saveEditor} />}
       {toast && <div className="toast" role="status">{toast}</div>}
     </div>
@@ -280,7 +286,7 @@ export default function PlannerApp() {
 }
 
 function NavButton({ active, icon, label, onClick }: { active: boolean; icon: string; label: string; onClick: () => void }) {
-  return <button className={active ? "active" : ""} onClick={onClick}><span>{icon}</span>{label}</button>;
+  return <button type="button" className={active ? "active" : ""} aria-current={active ? "page" : undefined} onClick={onClick}><span>{icon}</span>{label}</button>;
 }
 
 function TodayView({ record, selectedDate, todayISO, metrics, onDate, onToggle, onEdit, onDelete, onAdd, onNote, onEnergy }: {
@@ -302,7 +308,7 @@ function TodayView({ record, selectedDate, todayISO, metrics, onDate, onToggle, 
 
   return (
     <div className="page-wrap">
-      <div className="page-topline"><div><span className="eyebrow">{"// CONTROLE DIÁRIO"}</span><h1>{isToday ? "Seu dia, em uma visão" : dateTitle(selectedDate)}</h1><p>{isToday ? dateTitle(selectedDate) : "Revise e ajuste o registro deste dia."}</p></div><button className="primary-button" onClick={onAdd}>＋ Nova atividade</button></div>
+      <div className="page-topline"><div><span className="eyebrow">{"// CONTROLE DIÁRIO"}</span><h1>{isToday ? "Seu dia, em uma visão" : dateTitle(selectedDate)}</h1><p>{isToday ? dateTitle(selectedDate) : "Revise e ajuste o registro deste dia."}</p></div><FlowButton className="primary-button" text="＋ Nova atividade" onClick={onAdd} /></div>
       <div className="date-control">
         <button aria-label="Dia anterior" onClick={() => onDate(addDays(selectedDate, -1))}>‹</button>
         <button className="date-main" onClick={() => onDate(new Date())}>{isToday ? "Hoje" : dateTitle(selectedDate)}</button>
@@ -310,9 +316,9 @@ function TodayView({ record, selectedDate, todayISO, metrics, onDate, onToggle, 
       </div>
 
       <section className="metric-grid" aria-label="Resumo do dia">
-        <MetricCard label="Progresso" value={`${percentage}%`} helper={`${metrics.done} de ${metrics.count} atividades`} accent="#38bdf8" />
-        <MetricCard label="Tempo concluído" value={hoursLabel(metrics.completed)} helper={`de ${hoursLabel(metrics.planned)} planejadas`} accent="#4ade80" />
-        <MetricCard label="Foco AI / LLM" value={hoursLabel(metrics.focus)} helper="tempo efetivamente concluído" accent="#a78bfa" />
+        <MetricCard label="Progresso" value={`${percentage}%`} helper={`${metrics.done} de ${metrics.count} atividades`} accent="var(--accent)" />
+        <MetricCard label="Tempo concluído" value={hoursLabel(metrics.completed)} helper={`de ${hoursLabel(metrics.planned)} planejadas`} accent="var(--success)" />
+        <MetricCard label="Foco AI / LLM" value={hoursLabel(metrics.focus)} helper="tempo efetivamente concluído" accent="var(--focus-accent)" />
         <div className="metric-card energy-card"><span>Energia do dia</span><div className="energy-row">{([1, 2, 3, 4, 5] as const).map((level) => <button key={level} className={record.energy === level ? "selected" : ""} onClick={() => onEnergy(level)} aria-label={`Energia ${level}`}>{level}</button>)}</div><small>1 baixa · 5 excelente</small></div>
       </section>
 
@@ -332,7 +338,7 @@ function TodayView({ record, selectedDate, todayISO, metrics, onDate, onToggle, 
                 </article>
               );
             })}
-            <button className="add-inline" onClick={onAdd}>＋ Adicionar atividade a este dia</button>
+            <FlowButton className="add-inline" tone="neutral" text="＋ Adicionar atividade a este dia" onClick={onAdd} />
           </div>
         </section>
 
@@ -414,10 +420,10 @@ function MonthView({ state, monthDate, todayISO, onMonth, onOpenDay, onGoal }: {
     <div className="page-wrap">
       <div className="page-topline"><div><span className="eyebrow">{"// VISÃO MENSAL"}</span><h1>Seu ritmo ao longo do mês</h1><p>Resultados reais, sem culpa e sem maquiagem.</p></div><div className="month-control"><button onClick={() => onMonth(new Date(monthDate.getFullYear(), monthDate.getMonth() - 1, 1))}>‹</button><strong>{monthTitle(monthDate)}</strong><button onClick={() => onMonth(new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 1))}>›</button></div></div>
       <section className="metric-grid month-metrics">
-        <MetricCard label="Aproveitamento" value={`${safePercent(monthMetrics.completed, monthMetrics.planned)}%`} helper={`${hoursLabel(monthMetrics.completed)} de ${hoursLabel(monthMetrics.planned)}`} accent="#38bdf8" />
-        <MetricCard label="Atividades" value={`${monthMetrics.done}`} helper={`de ${monthMetrics.activities} planejadas`} accent="#4ade80" />
-        <MetricCard label="Sequência" value={`${monthMetrics.streak} dias`} helper="dias com ao menos 60%" accent="#fb923c" />
-        <MetricCard label="Foco AI / LLM" value={hoursLabel(monthMetrics.byCategory.foco)} helper="tempo concluído no mês" accent="#a78bfa" />
+        <MetricCard label="Aproveitamento" value={`${safePercent(monthMetrics.completed, monthMetrics.planned)}%`} helper={`${hoursLabel(monthMetrics.completed)} de ${hoursLabel(monthMetrics.planned)}`} accent="var(--accent)" />
+        <MetricCard label="Atividades" value={`${monthMetrics.done}`} helper={`de ${monthMetrics.activities} planejadas`} accent="var(--success)" />
+        <MetricCard label="Sequência" value={`${monthMetrics.streak} dias`} helper="dias com ao menos 60%" accent="var(--accent-strong)" />
+        <MetricCard label="Foco AI / LLM" value={hoursLabel(monthMetrics.byCategory.foco)} helper="tempo concluído no mês" accent="var(--focus-accent)" />
       </section>
 
       <div className="monthly-grid">
@@ -462,10 +468,10 @@ function RoutineView({ state, day, onDay, onEdit, onDelete, onAdd }: {
 
   return (
     <div className="page-wrap">
-      <div className="page-topline"><div><span className="eyebrow">{"// ROTINA-BASE"}</span><h1>O molde da sua semana</h1><p>Alterações aqui valem para novos dias. Seu histórico permanece intacto.</p></div><button className="primary-button" onClick={onAdd}>＋ Nova atividade</button></div>
+      <div className="page-topline"><div><span className="eyebrow">{"// ROTINA-BASE"}</span><h1>O molde da sua semana</h1><p>Alterações aqui valem para novos dias. Seu histórico permanece intacto.</p></div><FlowButton className="primary-button" text="＋ Nova atividade" onClick={onAdd} /></div>
       <div className="day-tabs">{DAY_ORDER.map((dayKey) => <button className={day === dayKey ? "active" : ""} key={dayKey} onClick={() => onDay(dayKey)}><span>{DAY_NAMES[dayKey].slice(0, 3)}</span><small>{hoursLabel(state.routine[dayKey].reduce((sum, entry) => sum + itemMinutes(entry), 0))}</small></button>)}</div>
       <div className="routine-layout">
-        <section className="panel routine-panel"><div className="panel-heading"><div><span className="eyebrow">{DAY_NAMES[day].toUpperCase()}</span><h2>{state.routine[day].length} blocos planejados</h2></div><button className="secondary-button" onClick={onAdd}>＋ adicionar</button></div><div className="routine-list">{state.routine[day].map((entry, index) => {
+        <section className="panel routine-panel"><div className="panel-heading"><div><span className="eyebrow">{DAY_NAMES[day].toUpperCase()}</span><h2>{state.routine[day].length} blocos planejados</h2></div><FlowButton className="secondary-button" tone="neutral" text="＋ adicionar" onClick={onAdd} /></div><div className="routine-list">{state.routine[day].map((entry, index) => {
           const category = CATEGORIES[entry.category];
           return <article key={entry.id} style={{ "--item-color": category.color, "--item-soft": category.soft } as React.CSSProperties}><div className="routine-time"><strong>{entry.start}</strong><span>{entry.end}</span></div><span className="category-initial">{category.short}</span><div><h3>{entry.title}</h3><p>{entry.notes || category.label}</p></div><span className="duration-pill">{hoursLabel(itemMinutes(entry))}</span><div className="item-actions"><button onClick={() => onEdit(entry, index)}>Editar</button><button onClick={() => onDelete(index)}>×</button></div></article>;
         })}</div></section>
@@ -511,7 +517,7 @@ function ItemEditor({ target, onClose, onSave }: { target: NonNullable<EditorTar
         <label className="full-field"><span>Categoria</span><select value={category} onChange={(event) => setCategory(event.target.value as CategoryKey)}>{(Object.keys(CATEGORIES) as CategoryKey[]).map((key) => <option key={key} value={key}>{CATEGORIES[key].label}</option>)}</select></label>
         {target.type === "day" && <label className="full-field"><span>Minutos realizados (opcional)</span><input type="number" min="0" max="1440" value={actual} onChange={(event) => setActual(event.target.value)} placeholder="Preenchido automaticamente ao concluir" /></label>}
         <label className="full-field"><span>Observação</span><textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Detalhe opcional" /></label>
-        <div className="modal-actions"><button type="button" className="secondary-button" onClick={onClose}>Cancelar</button><button className="primary-button" type="submit">Salvar atividade</button></div>
+        <div className="modal-actions"><FlowButton className="secondary-button" tone="neutral" text="Cancelar" onClick={onClose} /><FlowButton className="primary-button" text="Salvar atividade" type="submit" /></div>
       </form>
     </div>
   );
