@@ -177,7 +177,7 @@ export default function PlannerApp() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `rotina-369-backup-${localISO(new Date())}.json`;
+    link.download = `dayforge-backup-${localISO(new Date())}.json`;
     link.click();
     URL.revokeObjectURL(url);
     setToast("Backup exportado.");
@@ -192,7 +192,7 @@ export default function PlannerApp() {
       setState(parsed);
       setToast("Backup importado com sucesso.");
     } catch {
-      setToast("Esse arquivo não é um backup válido do Rotina 369.");
+    setToast("Esse arquivo não é um backup válido do Dayforge.");
     }
     event.target.value = "";
   }
@@ -210,7 +210,7 @@ export default function PlannerApp() {
   return (
     <div className="app-shell">
       <aside className="sidebar">
-        <div className="brand"><span className="brand-mark">369</span><div><strong>Rotina</strong><small>controle pessoal</small></div></div>
+        <div className="brand"><span className="brand-mark">DF</span><div><strong>Dayforge</strong><small>controle pessoal</small></div></div>
         <nav className="main-nav" aria-label="Navegação principal">
           <NavButton active={view === "hoje"} icon="◉" label="Hoje" onClick={() => setView("hoje")} />
           <NavButton active={view === "mes"} icon="▦" label="Visão mensal" onClick={() => setView("mes")} />
@@ -227,7 +227,7 @@ export default function PlannerApp() {
 
       <main className="main-content">
         <header className="mobile-header">
-          <div className="brand"><span className="brand-mark">369</span><strong>Rotina</strong></div>
+          <div className="brand"><span className="brand-mark">DF</span><strong>Dayforge</strong></div>
           <div className="saved-pill"><span className="status-dot" /> salvo</div>
         </header>
         <nav className="mobile-nav" aria-label="Navegação principal">

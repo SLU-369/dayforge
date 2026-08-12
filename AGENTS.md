@@ -2,7 +2,7 @@
 
 ## Project overview
 
-Rotina 369 is a local-first personal planning dashboard. It turns a reusable weekly routine into independent daily records, tracks completed and actual minutes, and summarizes monthly consistency, category time, energy, notes, and goals. The current source of truth is versioned browser `localStorage`; JSON export/import provides backup and restore.
+Dayforge is a local-first personal planning dashboard. It turns a reusable weekly routine into independent daily records, tracks completed and actual minutes, and summarizes monthly consistency, category time, energy, notes, and goals. The current source of truth is versioned browser `localStorage`; JSON export/import provides backup and restore.
 
 The product UI and user-facing copy are in Brazilian Portuguese.
 

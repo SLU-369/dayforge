@@ -6,7 +6,7 @@ const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Rotina 369",
+  title: "Dayforge",
   description: "Planejamento diário, rotina semanal e acompanhamento mensal em um só lugar.",
   icons: { icon: "/favicon.svg", shortcut: "/favicon.svg" },
 };

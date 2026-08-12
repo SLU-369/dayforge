@@ -12,11 +12,11 @@ async function render() {
   );
 }
 
-test("renderiza o painel Rotina 369", async () => {
+test("renderiza o painel Dayforge", async () => {
   const response = await render();
   assert.equal(response.status, 200);
   const html = await response.text();
-  assert.match(html, /<title>Rotina 369<\/title>/i);
+  assert.match(html, /<title>Dayforge<\/title>/i);
   assert.match(html, /Preparando seu painel/);
   assert.doesNotMatch(html, /codex-preview|react-loading-skeleton/i);
 });
