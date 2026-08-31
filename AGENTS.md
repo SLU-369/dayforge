@@ -161,3 +161,16 @@ If a future OpenAI API integration is added, use the environment name `OPENAI_AP
 - Do not add a backend, D1 persistence, authentication gates, or OpenAI calls speculatively. Add them only for a concrete product requirement.
 - Never commit secrets. Before staging, review `git status`, ignored files, and a secret-pattern scan. Keep local data, backups, generated output, and credentials out of Git.
 - Run lint, build, and tests before committing behavior changes.
+
+## Versionamento e Boas Práticas (Git)
+
+- **Commits Significativos**: Crie commits apenas quando houver uma alteração relevante e concluída.
+- **Mensagens Claras**: Use mensagens claras, padronizadas e objetivas para evitar poluir o histórico.
+- **Branches Temporárias**: Para cada nova funcionalidade ou correção, crie uma branch temporária a partir da `main` atualizada.
+- **Nomenclatura de Branch**: Use nomes curtos, explícitos e seguindo boas práticas (ex: `feature/nova-funcionalidade`, `fix/correcao-bug`).
+- **Foco da Branch**: Mantenha na branch apenas o trabalho relacionado ao seu objetivo.
+- **Validação Antes da Integração**: Execute e valide os testes antes de iniciar a integração.
+- **Aprovação de Commits**: Informe sempre qual commit foi criado para aprovação do usuário.
+- **Autorização Explícita**: Nunca faça push ou merge sem a autorização explícita do usuário.
+- **Limpeza de Branches**: Após o merge aprovado e validado na `main`, exclua a branch utilizada local e remotamente.
+
