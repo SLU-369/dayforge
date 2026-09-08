@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-async function render() {
+async function render(pathname = "/") {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
   workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}`);
   const { default: worker } = await import(workerUrl.href);
   return worker.fetch(
-    new Request("http://localhost/", { headers: { accept: "text/html" } }),
+    new Request(`http://localhost${pathname}`, { headers: { accept: "text/html" } }),
     { ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) } },
     { waitUntil() {}, passThroughOnException() {} },
   );
@@ -22,9 +22,31 @@ test("renderiza o painel Dayforge", async () => {
   assert.match(html, /dayforge:theme:v1/);
   assert.match(html, /theme-backdrop-day/);
   assert.match(html, /theme-backdrop-night/);
+  assert.match(html, /Navegação principal/);
+  assert.match(html, /Planejamento/);
+  assert.match(html, /Formação/);
+  assert.match(html, /Academia/);
+  assert.match(html, /Progresso/);
   assert.ok(
     html.indexOf("dayforge:theme:v1") < html.indexOf("<body"),
     "o bootstrap do tema deve executar no head, antes da hidratação",
   );
-  assert.doesNotMatch(html, /codex-preview|react-loading-skeleton/i);
+  assert.doesNotMatch(html, /Barra lateral|Obter StandUp|Nenhum gerente|codex-preview|react-loading-skeleton/i);
+});
+
+test("renderiza rotas principais do novo shell", async () => {
+  const routes = [
+    ["/planejamento/agenda", /Preparando seu painel/],
+    ["/planejamento/rotina", /Preparando seu painel/],
+    ["/formacao/academico", /Faculdade com contexto/],
+    ["/academia", /Treino como prática/],
+    ["/progresso", /Uma leitura clara da sua evolução/],
+    ["/configuracoes/dados-e-backup", /Dados e backup/],
+  ];
+
+  for (const [pathname, expected] of routes) {
+    const response = await render(pathname);
+    assert.equal(response.status, 200, pathname);
+    assert.match(await response.text(), expected, pathname);
+  }
 });
