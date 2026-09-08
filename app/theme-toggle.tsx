@@ -11,7 +11,7 @@ export default function ThemeToggle({ compact = false }: { compact?: boolean }) 
       type="button"
       className={`theme-toggle${compact ? " compact" : ""}`}
       role="switch"
-      aria-label="Tema noturno"
+      aria-label={`Tema ${theme === "night" ? "noturno" : "claro"}. Ativar tema ${nextTheme}`}
       aria-checked={theme === "night"}
       title={`Ativar tema ${nextTheme}`}
       onClick={toggleTheme}
