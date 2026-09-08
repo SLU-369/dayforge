@@ -87,7 +87,7 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
     <div className={styles.shell}>
       <header className={styles.header} ref={headerRef}>
         <div className={styles.headerInner}>
-          <Link href="/" className={styles.brand} aria-label="Dayforge — Hoje" onClick={closeNavigation}>
+          <Link href="/hoje" className={styles.brand} aria-label="Dayforge — Hoje" onClick={closeNavigation}>
             <span className={styles.brandMark}>DF</span>
             <span>Dayforge</span>
           </Link>
@@ -110,6 +110,7 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
                     type="button"
                     className={styles.navLink}
                     data-active={active || undefined}
+                    data-open={expanded || undefined}
                     aria-expanded={expanded}
                     aria-controls={`menu-${section.label}`}
                     onClick={() => {
@@ -141,7 +142,7 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
           </nav>
 
           <div className={styles.headerActions}>
-            <Link className={styles.addAction} href="/?new=activity" aria-label="Adicionar atividade" onClick={closeNavigation}>
+            <Link className={styles.addAction} href="/hoje?new=activity" aria-label="Adicionar atividade" onClick={closeNavigation}>
               <Plus size={18} aria-hidden="true" /><span>Adicionar</span>
             </Link>
             <ThemeToggle compact />

@@ -96,14 +96,18 @@
 }
 
 .navLink:hover,
-.navLink[data-active],
-.navLink[aria-expanded="true"] {
+.navLink[data-active] {
   background: var(--accent-soft);
   color: var(--text);
 }
 
-.navLink[data-active]::after,
-.navLink[aria-expanded="true"]::after {
+.navLink[data-open] {
+  background: var(--control);
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--text);
+}
+
+.navLink[data-active]::after {
   opacity: 1;
   transform: scaleX(1);
 }

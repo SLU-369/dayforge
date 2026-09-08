@@ -1,5 +1,7 @@
 import {
   Activity,
+  Apple,
+  Calculator,
   CalendarCheck,
   CalendarDays,
   ChartNoAxesCombined,
@@ -12,6 +14,7 @@ import {
   SlidersHorizontal,
   Target,
   TrendingUp,
+  UtensilsCrossed,
   type LucideIcon,
 } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -29,6 +32,9 @@ type PlannedArea =
   | "workouts"
   | "exercises"
   | "gym-progress"
+  | "nutrition"
+  | "nutrition-plan"
+  | "nutrition-calculators"
   | "progress"
   | "preferences";
 
@@ -44,6 +50,9 @@ const areas: Record<PlannedArea, { eyebrow: string; title: string; description: 
   workouts: { eyebrow: "Academia · Fichas · Em preparação", title: "Fichas claras durante o treino", description: "Exercícios, séries, repetições e cargas ficarão disponíveis em uma estrutura direta para execução.", icon: ClipboardList },
   exercises: { eyebrow: "Academia · Exercícios", title: "Cada exercício com histórico", description: "Execução, carga e evolução ficarão conectadas às sessões de treino.", icon: Activity },
   "gym-progress": { eyebrow: "Academia · Evolução · Em preparação", title: "Evolução que responde perguntas", description: "Frequência, carga e volume serão apresentados somente quando ajudarem a entender seu treino.", icon: TrendingUp },
+  nutrition: { eyebrow: "Nutri · Em preparação", title: "Alimentação com direção", description: "Metas diárias, refeições e estimativas gerais terão um espaço próprio, sem misturar dados demonstrativos ao seu planejamento.", icon: Apple },
+  "nutrition-plan": { eyebrow: "Nutri · Plano alimentar · Em preparação", title: "Seu plano, refeição por refeição", description: "Café da manhã, almoço, lanche e jantar poderão ser organizados em torno das metas que você definir.", icon: UtensilsCrossed },
+  "nutrition-calculators": { eyebrow: "Nutri · Calculadoras · Em preparação", title: "Estimativas simples para orientar escolhas", description: "IMC, calorias, proteína, fibras e água serão apresentados futuramente como estimativas gerais, não como prescrição clínica.", icon: Calculator },
   progress: { eyebrow: "Progresso · Em preparação", title: "Uma leitura clara da sua evolução", description: "Contexto, métrica e período ajudarão você a entender o que está realmente evoluindo.", icon: ChartNoAxesCombined },
   preferences: { eyebrow: "Preferências", title: "O Dayforge do seu jeito", description: "Preferências pessoais serão adicionadas quando produzirem uma consequência real na experiência.", icon: SlidersHorizontal },
 };

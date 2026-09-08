@@ -1,5 +1,7 @@
 import {
   Activity,
+  Apple,
+  Calculator,
   CalendarCheck,
   CalendarDays,
   CalendarRange,
@@ -14,6 +16,7 @@ import {
   Repeat2,
   Target,
   TrendingUp,
+  UtensilsCrossed,
   type LucideIcon,
 } from "lucide-react";
 
@@ -32,12 +35,11 @@ export type NavigationSection = {
 };
 
 export const navigationSections: NavigationSection[] = [
-  { label: "Hoje", href: "/", icon: CircleDot },
+  { label: "Hoje", href: "/hoje", icon: CircleDot },
   {
     label: "Planejamento",
     icon: CalendarRange,
     items: [
-      { label: "Hoje", description: "O que importa agora", href: "/", icon: CircleDot },
       { label: "Semana", description: "Distribua suas prioridades", href: "/planejamento/semana", icon: CalendarDays },
       { label: "Agenda", description: "Dias, compromissos e eventos", href: "/planejamento/agenda", icon: CalendarRange },
       { label: "Rotina-base", description: "O molde reutilizável da semana", href: "/planejamento/rotina", icon: Repeat2 },
@@ -65,12 +67,21 @@ export const navigationSections: NavigationSection[] = [
       { label: "Evolução", description: "Acompanhe frequência e carga", href: "/academia/evolucao", icon: TrendingUp },
     ],
   },
+  {
+    label: "Nutri",
+    icon: Apple,
+    items: [
+      { label: "Visão geral", description: "Resumo alimentar e metas", href: "/nutri", icon: Apple },
+      { label: "Plano alimentar", description: "Monte e organize suas refeições", href: "/nutri/plano", icon: UtensilsCrossed },
+      { label: "Calculadoras", description: "IMC, calorias, proteína, fibras e água", href: "/nutri/calculadoras", icon: Calculator },
+    ],
+  },
   { label: "Progresso", href: "/progresso", icon: ChartNoAxesCombined },
 ];
 
 export function pathIsActive(pathname: string, href: string) {
-  if (href === "/") return pathname === "/";
-  if (href === "/formacao" || href === "/academia") return pathname === href;
+  if (href === "/hoje") return pathname === "/" || pathname === "/hoje";
+  if (href === "/formacao" || href === "/academia" || href === "/nutri") return pathname === href;
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
