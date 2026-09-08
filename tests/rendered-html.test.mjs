@@ -12,6 +12,12 @@ async function render(pathname = "/") {
   );
 }
 
+function primaryNavigation(html) {
+  const match = html.match(/<nav[^>]*aria-label="Navegação principal"[^>]*>(.*?)<\/nav>/s);
+  assert.ok(match, "a navegação principal deve existir");
+  return match[1];
+}
+
 test("renderiza o painel Dayforge", async () => {
   const response = await render();
   assert.equal(response.status, 200);
@@ -26,7 +32,9 @@ test("renderiza o painel Dayforge", async () => {
   assert.match(html, /Planejamento/);
   assert.match(html, /Formação/);
   assert.match(html, /Academia/);
+  assert.match(html, /Nutri/);
   assert.match(html, /Progresso/);
+  assert.doesNotMatch(html, /O que importa agora/);
   assert.ok(
     html.indexOf("dayforge:theme:v1") < html.indexOf("<body"),
     "o bootstrap do tema deve executar no head, antes da hidratação",
@@ -34,12 +42,27 @@ test("renderiza o painel Dayforge", async () => {
   assert.doesNotMatch(html, /Barra lateral|Obter StandUp|Nenhum gerente|codex-preview|react-loading-skeleton/i);
 });
 
+test("mantém apenas uma área principal ativa por rota", async () => {
+  const routes = ["/hoje", "/planejamento/semana", "/formacao/academico", "/academia", "/nutri/calculadoras", "/progresso"];
+
+  for (const pathname of routes) {
+    const response = await render(pathname);
+    assert.equal(response.status, 200, pathname);
+    const navigation = primaryNavigation(await response.text());
+    assert.equal((navigation.match(/data-active="true"/g) ?? []).length, 1, pathname);
+  }
+});
+
 test("renderiza rotas principais do novo shell", async () => {
   const routes = [
     ["/planejamento/agenda", /Preparando seu painel/],
     ["/planejamento/rotina", /Preparando seu painel/],
+    ["/hoje", /Preparando seu painel/],
     ["/formacao/academico", /Faculdade com contexto/],
     ["/academia", /Treino como prática/],
+    ["/nutri", /Alimentação com direção/],
+    ["/nutri/plano", /Seu plano, refeição por refeição/],
+    ["/nutri/calculadoras", /estimativas gerais, não como prescrição clínica/],
     ["/progresso", /Uma leitura clara da sua evolução/],
     ["/configuracoes/dados-e-backup", /Dados e backup/],
   ];
