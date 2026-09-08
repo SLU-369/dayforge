@@ -17,7 +17,7 @@
 - Preserve the exact `rotina-369:data:v1` storage contract unless an explicit migration is approved.
 - Keep historical daily records independent from later routine edits.
 - New mocked domains must not be written into the v1 planner payload.
-- `/` is the canonical Hoje route. Product areas use real, directly loadable App Router routes.
+- `/hoje` is the primary Hoje route; `/` remains a compatible entry point. Product areas use real, directly loadable App Router routes.
 - Backup, import, and reset controls belong under `/configuracoes/dados-e-backup`, never in primary navigation.
 - Keep backend, D1, Worker, and API changes outside frontend-only stages.
 
@@ -29,6 +29,14 @@
 - Use the shared planner context and repository instead of reading or writing local storage from individual pages.
 - Every interactive overlay must support keyboard focus, Escape, and reduced motion.
 - Do not present demonstrative data as persisted user data.
+
+### Nutri future contract
+
+- Keep `/nutri`, `/nutri/plano`, and `/nutri/calculadoras` ready for a future user-authored food plan without adding persistence during the frontend reconstruction.
+- The future daily target covers calories, protein, fiber, and water; the planned meal groups are breakfast, lunch, snack, and dinner.
+- Present future calculator results as general estimates, never individualized clinical prescriptions.
+- Use these formulas when calculation behavior is explicitly authorized: BMI = weight in kg / height in m²; weight loss calories = current weight × 20; maintenance calories = current weight × 30; hypertrophy calories = current weight × 35; protein = reference weight × 1.8 g; fiber = calories / 1000 × 14 g; water = current weight × 35 ml.
+- Keep Progress as a primary area; its future domain selectors include Gym, College, Technical courses, Standalone activities, and Nutri, with Week, Month, and Year periods.
 
 ## Verification
 

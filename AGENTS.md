@@ -87,7 +87,7 @@ When the user requests a durable behavior change, record it here or in the relev
 
 ## Project overview
 
-Dayforge is a local-first personal planning dashboard. It turns a reusable weekly routine into independent daily records, tracks completed and actual minutes, and summarizes monthly consistency, category time, energy, notes, and goals. The current source of truth is versioned browser `localStorage`; JSON export/import provides backup and restore.
+Dayforge is a local-first personal planning dashboard. It turns a reusable weekly routine into independent daily records, tracks completed and actual minutes, and summarizes monthly consistency, category time, energy, notes, and goals. Its frontend shell also reserves staged product areas for Formation, Gym, Nutri, and Progress without adding persistence before each domain is implemented. The current source of truth is versioned browser `localStorage`; JSON export/import provides backup and restore.
 
 The product UI and user-facing copy are in Brazilian Portuguese.
 
