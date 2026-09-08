@@ -341,13 +341,13 @@ html[data-theme="night"] .theme-backdrop-veil-night { opacity: 1; }
   padding: 0 10px;
 }
 
-.local-status { 
-  display: flex; 
-  align-items: center; 
-  gap: 5px; 
-  color: var(--faint); 
-  font: 650 7px var(--font-geist-mono), monospace; 
-  letter-spacing: .09em; 
+.local-status {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--faint);
+  font: 650 7px var(--font-geist-mono), monospace;
+  letter-spacing: .09em;
 }
 
 /* Profile Popover Styles */

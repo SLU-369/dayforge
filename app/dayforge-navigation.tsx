@@ -43,13 +43,13 @@ export default function DayforgeNavigation({
   const activeIndex = mainItems.findIndex(item => item.id === activeView);
 
   return (
-    <aside 
-      className={`sidebar ${isExpanded ? "expanded" : "collapsed"}`} 
+    <aside
+      className={`sidebar ${isExpanded ? "expanded" : "collapsed"}`}
       aria-label="Barra lateral"
     >
       <div className="sidebar-top">
         <ProfilePopover isOpen={isPopoverOpen} onToggle={handlePopoverToggle} />
-        <button 
+        <button
           type="button"
           className="sidebar-toggle"
           onClick={() => setIsExpanded(!isExpanded)}
@@ -62,13 +62,13 @@ export default function DayforgeNavigation({
       <nav className={`sidebar-nav ${isPopoverOpen ? "popover-displaced" : ""}`}>
         {/* Only show the indicator for main items */}
         {activeIndex !== -1 && (
-          <div 
-            className="active-indicator" 
-            style={{ top: `${activeIndex * 52}px` }} 
+          <div
+            className="active-indicator"
+            style={{ top: `${activeIndex * 52}px` }}
             aria-hidden="true"
           />
         )}
-        
+
         <ul className="sidebar-menu">
           {mainItems.map((item) => (
             <li key={item.id}>

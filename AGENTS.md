@@ -104,6 +104,7 @@ The product UI and user-facing copy are in Brazilian Portuguese.
 ## Directory map
 
 - `app/`: App Router pages, layout, planner UI, domain types/default data, global styles, and ChatGPT auth helper.
+- `components/ui/`: reusable interactive UI primitives used by the planner shell, including the profile popover.
 - `worker/`: Cloudflare Worker entry point, asset/image handling, and Vinext request routing.
 - `db/`: Drizzle D1 access helper and production schema.
 - `drizzle/`: generated Drizzle migration metadata.

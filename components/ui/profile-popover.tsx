@@ -16,7 +16,7 @@ export function ProfilePopover({ isOpen, onToggle }: ProfilePopoverProps) {
         onToggle(false);
       }
     }
-    
+
     function handleEscape(event: KeyboardEvent) {
       if (event.key === "Escape") {
         onToggle(false);
@@ -35,8 +35,8 @@ export function ProfilePopover({ isOpen, onToggle }: ProfilePopoverProps) {
 
   return (
     <div className="profile-container" ref={popoverRef}>
-      <button 
-        type="button" 
+      <button
+        type="button"
         className="profile-trigger"
         onClick={() => onToggle(!isOpen)}
         aria-expanded={isOpen}
@@ -56,7 +56,7 @@ export function ProfilePopover({ isOpen, onToggle }: ProfilePopoverProps) {
             </div>
             <button type="button" className="close-popover" onClick={() => onToggle(false)}>×</button>
           </div>
-          
+
           <div className="profile-popover-actions">
             <button className="standup-btn" type="button">✨ Obter StandUp</button>
           </div>
@@ -71,22 +71,22 @@ export function ProfilePopover({ isOpen, onToggle }: ProfilePopoverProps) {
             <button type="button" className="add-time-off-btn">
               + Adicionar folga
             </button>
-            
+
             <div className="profile-detail-row">
               <span className="icon">✉</span>
               <span>samuel.uchoa@esup.edu.br</span>
             </div>
-            
+
             <div className="profile-detail-row">
               <span className="icon">⏱</span>
               <span>{new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }).toLowerCase()} hora local</span>
             </div>
-            
+
             <div className="profile-detail-row faint">
               <span className="icon">👤</span>
               <span>Nenhum gerente atribuído</span>
             </div>
-            
+
             <div className="priorities-section">
               <div className="priorities-header">
                 <strong>Prioridades <span>ⓘ</span></strong>
