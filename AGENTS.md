@@ -82,7 +82,7 @@ When the user requests a durable behavior change, record it here or in the relev
 
 ## Child DOX Index
 
-- No child AGENTS.md files are needed for the current repository structure.
+- `app/AGENTS.md`: frontend routes, shell, client-state boundary, local persistence, and UI architecture.
 - Root-owned files: README.md, LICENSE, banner.jpg, video-thumbnail.jpg, and root-level project documentation.
 
 ## Project overview
@@ -103,8 +103,10 @@ The product UI and user-facing copy are in Brazilian Portuguese.
 
 ## Directory map
 
-- `app/`: App Router pages, layout, planner UI, domain types/default data, global styles, and ChatGPT auth helper.
-- `components/ui/`: reusable interactive UI primitives used by the planner shell, including the profile popover.
+- `app/`: App Router pages, layout, planner state/repository, domain types/default data, global styles, and ChatGPT auth helper.
+- `components/shell/`: horizontal navigation, contextual navigation, mega menus, profile menu, and compact drawer.
+- `components/pages/`: shared page-level presentation used by staged product areas.
+- `components/ui/`: reusable interactive UI primitives.
 - `worker/`: Cloudflare Worker entry point, asset/image handling, and Vinext request routing.
 - `db/`: Drizzle D1 access helper and production schema.
 - `drizzle/`: generated Drizzle migration metadata.
@@ -162,6 +164,7 @@ If a future OpenAI API integration is added, use the environment name `OPENAI_AP
 - Do not add a backend, D1 persistence, authentication gates, or OpenAI calls speculatively. Add them only for a concrete product requirement.
 - Never commit secrets. Before staging, review `git status`, ignored files, and a secret-pattern scan. Keep local data, backups, generated output, and credentials out of Git.
 - Run lint, build, and tests before committing behavior changes.
+- Keep the horizontal shell and route map in `components/shell/navigation-config.tsx`; never reintroduce a desktop sidebar.
 
 ## Versionamento e Boas Práticas (Git)
 
@@ -174,4 +177,6 @@ If a future OpenAI API integration is added, use the environment name `OPENAI_AP
 - **Aprovação de Commits**: Informe sempre qual commit foi criado para aprovação do usuário.
 - **Autorização Explícita**: Nunca faça push ou merge sem a autorização explícita do usuário.
 - **Limpeza de Branches**: Após o merge aprovado e validado na `main`, exclua a branch utilizada local e remotamente.
+- **Execução por Etapa**: Implemente somente a etapa explicitamente autorizada, apresente os commits e pare antes de iniciar a próxima.
+- **Nomes de Branch e Commit**: Nunca use a palavra `codex` em nomes de branches ou mensagens de commit.
 
