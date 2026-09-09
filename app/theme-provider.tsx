@@ -1,7 +1,7 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { APPEARANCE_KEY, CAPITALS, DEFAULT_APPEARANCE, SOLAR_CACHE_KEY, THEME_KEY, THEME_TRANSITION_MS, chooseManualTheme, parseAppearance, solarSnapshot, type AppearancePreferencesV1, type Theme } from "./appearance";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { APPEARANCE_KEY, CAPITALS, DEFAULT_APPEARANCE, SOLAR_CACHE_KEY, THEME_KEY, chooseManualTheme, parseAppearance, solarSnapshot, type AppearancePreferencesV1, type Theme } from "./appearance";
 export type { Theme } from "./appearance";
 
 type ThemeContextValue = {
@@ -16,20 +16,13 @@ export function ThemeProvider({ children }: Readonly<{ children: React.ReactNode
   const [ready, setReady] = useState(false);
   const [now, setNow] = useState<Date | null>(null);
   const [theme, setThemeState] = useState<Theme>("night");
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const apply = useCallback((next: Theme, animate = false) => {
-    if (timer.current) clearTimeout(timer.current);
+  const apply = useCallback((next: Theme) => {
     setThemeState(next);
     const root = document.documentElement;
-    const commit = () => {
-      root.dataset.theme = next;
-      root.style.colorScheme = next === "night" ? "dark" : "light";
-      delete root.dataset.appearancePending;
-    };
-    if (animate && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      timer.current = setTimeout(commit, THEME_TRANSITION_MS / 2);
-    } else commit();
+    // Settle global styles before celestial motion, never invalidate them mid-flight.
+    root.dataset.theme = next;
+    root.style.colorScheme = next === "night" ? "dark" : "light";
+    delete root.dataset.appearancePending;
     try { localStorage.setItem(THEME_KEY, next); } catch { /* Theme works without storage. */ }
   }, []);
 
@@ -52,7 +45,7 @@ export function ThemeProvider({ children }: Readonly<{ children: React.ReactNode
     window.addEventListener("storage", sync);
     document.addEventListener("visibilitychange", tick);
     window.addEventListener("focus", tick);
-    return () => { cancelAnimationFrame(frame); clearInterval(interval); if (timer.current) clearTimeout(timer.current); window.removeEventListener("storage", sync); document.removeEventListener("visibilitychange", tick); window.removeEventListener("focus", tick); };
+    return () => { cancelAnimationFrame(frame); clearInterval(interval); window.removeEventListener("storage", sync); document.removeEventListener("visibilitychange", tick); window.removeEventListener("focus", tick); };
   }, [apply]);
 
   useEffect(() => {
@@ -71,8 +64,8 @@ export function ThemeProvider({ children }: Readonly<{ children: React.ReactNode
   }, []);
   const setTheme = useCallback((next: Theme) => {
     save(chooseManualTheme(preferences, next));
-    apply(next, next !== theme);
-  }, [apply, preferences, save, theme]);
+    apply(next);
+  }, [apply, preferences, save]);
   const updatePreferences = useCallback((patch: Partial<Pick<AppearancePreferencesV1, "mode" | "cityId" | "ambientMotion">>) => {
     const next = parseAppearance(JSON.stringify({ ...preferences, ...patch }), theme);
     if (next.mode === "manual" && preferences.mode === "automatic") next.manualTheme = theme;

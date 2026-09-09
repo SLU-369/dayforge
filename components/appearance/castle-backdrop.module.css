@@ -8,6 +8,8 @@
 .stars { position: absolute; inset: 0 0 54%; background-image: radial-gradient(circle at 12% 20%, #e2edff 0 .6px, transparent 1.4px), radial-gradient(circle at 68% 32%, #fff2de 0 .8px, transparent 1.5px), radial-gradient(circle at 38% 60%, #dbeaff 0 .5px, transparent 1px); background-size: 179px 143px, 251px 193px, 113px 197px; mask-image: linear-gradient(black, transparent); }
 .sun, .moon { position: absolute; left: 0; top: 0; width: 34px; height: 34px; border-radius: 50%; }
 .celestial { position: absolute; left: 0; top: 0; width: 34px; height: 34px; }
+.manualCelestial { will-change: transform; }
+.manualCelestial > div { will-change: opacity; }
 .sun { background: #fff3c6; box-shadow: 0 0 30px 10px #ffdf9a6b, 0 0 110px 48px #ffcb6140; }
 .moon { left: 3px; top: 3px; width: 28px; height: 28px; background: #dde7f4; box-shadow: inset -7px -2px 5px #7088a1, 0 0 60px 15px #a6c7fb36; }
 .veil { position: absolute; inset: 0; background: linear-gradient(90deg, #05111a3d, transparent 40%, #05111a26), linear-gradient(0deg, #06121c88, transparent 55%); }

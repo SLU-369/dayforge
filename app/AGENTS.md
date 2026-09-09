@@ -30,7 +30,7 @@
 - Default to manual mode and preserve the legacy theme. Automatic mode requires an explicitly selected capital; any manual theme choice disables it until the user enables it again.
 - `/configuracoes/aparencia` owns theme/city/motion controls, reachable from the profile and compact drawer. Calculate solar times locally, respect the selected city's timezone, and never request geolocation.
 - Re-evaluate automatic light each minute and on focus/visibility restoration. Respect reduced motion and keep bootstrap independent from hydration; expired solar cache waits briefly for client calculation, with a 1.5-second fail-open fallback.
-- Automatic mode alone tracks the sun's position and orange twilight. Manual changes use a shared 3.6-second visual phase; synchronize theme tokens at its midpoint and cancel obsolete timers on a new choice.
+- Automatic mode alone tracks the sun's position and orange twilight. Manual changes use a 3.6-second visual transition; apply global theme tokens at its start, never via a midpoint timer that invalidates styles during celestial motion.
 - Use the shared planner context and repository instead of reading or writing local storage from individual pages.
 - Every interactive overlay must support keyboard focus, Escape, and reduced motion.
 - Do not present demonstrative data as persisted user data.
