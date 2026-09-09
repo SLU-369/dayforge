@@ -68,6 +68,16 @@ export function chooseManualTheme(preferences: AppearancePreferencesV1, theme: T
 }
 
 const clamp = (n: number) => Math.max(0, Math.min(1, n));
+const smoothstep = (from: number, to: number, value: number) => {
+  const progress = clamp((value - from) / (to - from));
+  return progress * progress * (3 - 2 * progress);
+};
+
+export function castleSunVisibility(progress: number) {
+  const behindCentralCastle = smoothstep(0.24, 0.35, progress) * (1 - smoothstep(0.68, 0.8, progress));
+  return 1 - behindCentralCastle * 0.94;
+}
+
 export function lightWeights(altitude: number) {
   const day = clamp(altitude / 8);
   const night = clamp(-altitude / 6);
@@ -87,7 +97,7 @@ export function solarSnapshot(now: Date, city: Capital) {
   const progress = clamp((now.getTime() - sunrise.getTime()) / (sunset.getTime() - sunrise.getTime()));
   const nextSunrise = now < sunrise ? sunrise : tomorrow.sunrise!;
   const nextSunset = now < sunset ? sunset : tomorrow.sunset!;
-  const sunPosition = { x: 12 + progress * 76, y: 40 - Math.sin(progress * Math.PI) * 30, opacity: 0.7 * clamp((altitude + 6) / 8) };
+  const sunPosition = { x: 12 + progress * 76, y: 40 - Math.sin(progress * Math.PI) * 30, opacity: 0.7 * clamp((altitude + 6) / 8) * castleSunVisibility(progress) };
   return { theme, altitude, progress, sunPosition, weights: lightWeights(altitude), sunrise, sunset, nextSunrise, nextSunset,
     cache: { cityId: city.id, from: now.getTime(), until: Math.min(nextSunrise.getTime(), nextSunset.getTime()), theme } };
 }

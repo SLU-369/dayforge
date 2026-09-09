@@ -9,12 +9,14 @@
 .waterMotion { position: absolute; inset: 0; overflow: hidden; }
 .lakeReflection,
 .waterfallFlow { position: absolute; inset: -3px; background: url('/backgrounds/hogwarts/castle.webp') center center / cover no-repeat; pointer-events: none; }
-.lakeReflection { opacity: .13; mix-blend-mode: soft-light; mask-image: linear-gradient(to bottom, transparent 62%, black 70%, black 91%, transparent 98%); animation: lakeDrift 13s ease-in-out infinite alternate; }
-.waterfallFlow { opacity: .17; filter: brightness(1.18) saturate(.72); mask-image: radial-gradient(ellipse 5.5% 18% at 91.5% 64%, black 8%, rgba(0, 0, 0, .75) 42%, transparent 76%); animation: waterfallDrift 4.8s ease-in-out infinite alternate; }
-.waterShimmer { position: absolute; inset: 66% -12% 7%; opacity: .12; background-image: repeating-linear-gradient(176deg, transparent 0 14px, rgba(225, 241, 246, .38) 15px, transparent 17px 31px), repeating-linear-gradient(4deg, transparent 0 21px, rgba(137, 178, 191, .24) 22px, transparent 24px 43px); background-size: 170% 100%, 145% 100%; mix-blend-mode: screen; mask-image: linear-gradient(90deg, transparent, black 12%, black 88%, transparent); animation: shimmerDrift 17s linear infinite; }
-.backdrop[data-theme='night'] .lakeReflection { opacity: .055; }
-.backdrop[data-theme='night'] .waterfallFlow { opacity: .075; filter: brightness(.85) saturate(.55); }
-.backdrop[data-theme='night'] .waterShimmer { opacity: .045; }
+.lakeReflection { opacity: .2; mix-blend-mode: soft-light; mask-image: linear-gradient(to bottom, transparent 62%, black 69%, black 92%, transparent 98%); animation: lakeDrift 15s ease-in-out infinite alternate; }
+.waterfallFlow { opacity: .29; filter: brightness(1.28) saturate(.74); mask-image: radial-gradient(ellipse 6.5% 19% at 91.5% 64%, black 8%, rgba(0, 0, 0, .82) 44%, transparent 78%); animation: waterfallDrift 7.2s ease-in-out infinite alternate; }
+.waterfallMist { position: absolute; left: 85%; top: 64%; width: 15%; height: 13%; opacity: .24; background: radial-gradient(ellipse at 62% 58%, rgba(233, 245, 247, .72), rgba(201, 224, 231, .24) 34%, transparent 70%); filter: blur(6px); mix-blend-mode: screen; animation: mistBreath 9s ease-in-out infinite alternate; }
+.waterShimmer { position: absolute; inset: 65% -12% 6%; opacity: .2; background-image: repeating-linear-gradient(176deg, transparent 0 12px, rgba(225, 241, 246, .48) 13px, transparent 16px 29px), repeating-linear-gradient(4deg, transparent 0 19px, rgba(137, 178, 191, .32) 20px, transparent 23px 41px); background-size: 170% 100%, 145% 100%; mix-blend-mode: screen; mask-image: linear-gradient(90deg, transparent, black 10%, black 90%, transparent); animation: shimmerDrift 19s linear infinite; }
+.backdrop[data-theme='night'] .lakeReflection { opacity: .09; }
+.backdrop[data-theme='night'] .waterfallFlow { opacity: .12; filter: brightness(.88) saturate(.58); }
+.backdrop[data-theme='night'] .waterfallMist { opacity: .1; }
+.backdrop[data-theme='night'] .waterShimmer { opacity: .075; }
 .sun, .moon { position: absolute; left: 0; top: 0; width: 34px; height: 34px; border-radius: 50%; }
 .celestial { position: absolute; left: 0; top: 0; width: 34px; height: 34px; }
 .manualCelestial { will-change: transform; }
@@ -39,10 +41,11 @@
 :global(html[data-theme='day']) .backdrop:not([data-ready]) .day { opacity: 1 !important; }
 .backdrop:not([data-ready]) .sun, .backdrop:not([data-ready]) .moon, .backdrop:not([data-ready]) .stars { opacity: 0 !important; }
 @keyframes cloudsDrift { from { translate: -10% 0; } to { translate: 12% 3%; } }
-@keyframes lakeDrift { from { transform: translate3d(-1.2px, -.4px, 0) scaleX(1.001); } to { transform: translate3d(1.4px, .7px, 0) scaleX(.999); } }
-@keyframes waterfallDrift { from { transform: translate3d(0, -1px, 0) scaleY(1.002); } to { transform: translate3d(.4px, 2px, 0) scaleY(.998); } }
-@keyframes shimmerDrift { from { background-position: 0 0, 0 0; } to { background-position: 170px 4px, -120px -3px; } }
+@keyframes lakeDrift { from { transform: translate3d(-3px, -.8px, 0) scaleX(1.003); } to { transform: translate3d(3px, 1.2px, 0) scaleX(.997); } }
+@keyframes waterfallDrift { from { transform: translate3d(-.5px, -2px, 0) scaleY(1.006); } to { transform: translate3d(.7px, 5px, 0) scaleY(.994); } }
+@keyframes mistBreath { from { transform: translate3d(-4px, 1px, 0) scale(.9); opacity: .14; } to { transform: translate3d(4px, -2px, 0) scale(1.08); opacity: .28; } }
+@keyframes shimmerDrift { from { background-position: 0 0, 0 0; } to { background-position: 230px 7px, -170px -5px; } }
 @keyframes flyAcross { 0% { transform: translate(0, 0) scale(.65); opacity: 0; } 8% { opacity: .7; } 50% { transform: translate(calc(50vw + 90px), -22px) scale(.85); } 90% { opacity: .7; } 100% { transform: translate(calc(100vw + 360px), 10px) scale(.65); opacity: 0; } }
-@media (max-width: 760px) { .waterfallFlow { display: none; } }
+@media (max-width: 760px) { .waterfallFlow, .waterfallMist { display: none; } }
 @media (max-width: 600px) { .visitor { width: 75px; height: 50px; } .visitor[data-kind='birds'] { width: 100px; } .visitor[data-kind='student'] { width: 62px; } .clouds { filter: blur(8px); } .lakeReflection { opacity: .09; } .waterShimmer { opacity: .08; } }
 @media (prefers-reduced-motion: reduce) { .clouds > div, .waterMotion > div { animation: none; } .visitor { display: none; } }

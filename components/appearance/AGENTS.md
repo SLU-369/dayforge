@@ -19,9 +19,9 @@
 - Clouds drift continuously; visitors appear one at a time for 24 seconds, with 55–130 seconds of empty sky between visits. First visit occurs after 12–24 seconds. Avoid immediate repeat species.
 - Include hippogriffs, thestrals, birds, and students on broomsticks. Keep them subtle and below interactive content.
 - Disable visitor scheduling when hidden, motion is paused, or reduced motion is requested. Resume with a fresh interval, never accumulated missed visits.
-- Lake reflections and the visible waterfall move continuously by a few pixels through masks aligned to the castle image. Keep both effects restrained, pause them with ambient motion, reduce their night opacity, and hide the waterfall mask when its source region is outside the mobile crop.
+- Lake reflections and the visible waterfall move continuously through masks aligned to the castle image, with slow glints and restrained mist that remain perceptible behind translucent panels. Pause all water motion with ambient motion, reduce night opacity, and hide waterfall effects when their source region is outside the mobile crop.
 - Manual theme transitions last 3.6 seconds with a shared duration/easing for the reversible celestial path, face crossfade, and scene lighting. Sun and moon occupy the same moving container; never remount them on theme changes or restart easing at intermediate keyframes. User preference: gentle continuous motion, no midpoint hitch, sudden acceleration, or residual sun passing after the moon.
-- Solar tracking and orange twilight are exclusive to automatic mode; manual scenes remain stable after their transition. Sunrise/sunset bound the sun's path, centered at solar midday, with linear minute-long interpolation. Solar lighting follows altitude, not fixed clock hours. Never animate page geometry.
+- Solar tracking and orange twilight are exclusive to automatic mode; manual scenes remain stable after their transition. Sunrise/sunset bound the sun's path, centered at solar midday, with linear minute-long interpolation. Fade the automatic solar disc while it crosses the central castle silhouette so it reads as passing behind the towers. Solar lighting follows altitude, not fixed clock hours. Never animate page geometry.
 
 ## Work Guidance
 

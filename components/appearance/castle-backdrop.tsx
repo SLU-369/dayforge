@@ -37,6 +37,7 @@ export function CastleBackdrop() {
       <div className={styles.waterMotion} data-paused={!ambientMotion || undefined}>
         <div className={styles.lakeReflection} />
         <div className={styles.waterfallFlow} />
+        <div className={styles.waterfallMist} />
         <div className={styles.waterShimmer} />
       </div>
       {solar && city && now ? <SolarCelestial city={city} now={now} moving={visible && preferences.ambientMotion && !reduced} /> : <ManualCelestial target={target} ready={ready} reduced={Boolean(reduced)} />}
