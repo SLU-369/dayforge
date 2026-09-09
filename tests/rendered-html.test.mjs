@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import vm from "node:vm";
 
 async function render(pathname = "/") {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
@@ -40,6 +41,11 @@ test("renderiza o painel Dayforge", async () => {
     "o bootstrap do tema deve executar no head, antes da hidratação",
   );
   assert.doesNotMatch(html, /Barra lateral|Obter StandUp|Nenhum gerente|codex-preview|react-loading-skeleton/i);
+  const bootstrap = Array.from(html.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/g)).find((m) => m[1].includes("dayforge:theme:v1"))?.[1];
+  assert.ok(bootstrap, "bootstrap deve existir no HTML de produção");
+  const root = { dataset: {}, style: {} };
+  vm.runInNewContext(bootstrap, { document: { documentElement: root }, window: { matchMedia: () => ({ matches: false }), setTimeout() {} }, localStorage: { getItem: () => null } });
+  assert.equal(root.dataset.theme, "day", "bootstrap compilado deve ser autossuficiente");
 });
 
 test("mantém apenas uma área principal ativa por rota", async () => {
@@ -65,6 +71,7 @@ test("renderiza rotas principais do novo shell", async () => {
     ["/nutri/calculadoras", /estimativas gerais, não como prescrição clínica/],
     ["/progresso", /Uma leitura clara da sua evolução/],
     ["/configuracoes/dados-e-backup", /Dados e backup/],
+    ["/configuracoes/aparencia", /A luz acompanha você/],
   ];
 
   for (const [pathname, expected] of routes) {

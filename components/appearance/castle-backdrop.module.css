@@ -1,0 +1,31 @@
+.backdrop { position: fixed; inset: 0; z-index: -2; overflow: hidden; pointer-events: none; background: #091625; }
+.scene { position: absolute; inset: 0; background: url('/backgrounds/hogwarts/castle.webp') center center / cover no-repeat; }
+.night { filter: brightness(.26) saturate(.65); }
+.night::after { content: ''; position: absolute; inset: 0; background: linear-gradient(#0316339c, #0f235322 50%, #030c214d); mix-blend-mode: color; }
+.day { opacity: 0; }
+.twilight { opacity: 0; filter: sepia(.32) saturate(.9) brightness(.72); }
+.twilight::after { content: ''; position: absolute; inset: 0; background: linear-gradient(#7e48807a, #f7ae5a55 43%, #24305b66 75%); mix-blend-mode: soft-light; }
+.stars { position: absolute; inset: 0 0 54%; background-image: radial-gradient(circle at 12% 20%, #e2edff 0 .6px, transparent 1.4px), radial-gradient(circle at 68% 32%, #fff2de 0 .8px, transparent 1.5px), radial-gradient(circle at 38% 60%, #dbeaff 0 .5px, transparent 1px); background-size: 179px 143px, 251px 193px, 113px 197px; mask-image: linear-gradient(black, transparent); }
+.sun, .moon { position: absolute; left: 0; top: 0; width: 34px; height: 34px; border-radius: 50%; }
+.sun { background: #fff3c6; box-shadow: 0 0 30px 10px #ffdf9a6b, 0 0 110px 48px #ffcb6140; }
+.moon { left: 78%; top: 14%; width: 28px; height: 28px; background: #dde7f4; box-shadow: inset -7px -2px 5px #7088a1, 0 0 60px 15px #a6c7fb36; }
+.veil { position: absolute; inset: 0; background: linear-gradient(90deg, #05111a3d, transparent 40%, #05111a26), linear-gradient(0deg, #06121c88, transparent 55%); }
+.backdrop[data-theme='day'] .veil { background: linear-gradient(90deg, #e6efeb40, transparent 45%, #e6efeb25), linear-gradient(0deg, #dce6e355, transparent 60%); }
+.clouds { position: absolute; inset: 0 0 50%; opacity: .18; filter: blur(12px); }
+.clouds > div { position: absolute; inset: -20% -70%; background: radial-gradient(ellipse at 20% 30%, #fff 0 4%, transparent 15%), radial-gradient(ellipse at 48% 45%, #e8eef5 0 5%, transparent 19%), radial-gradient(ellipse at 79% 15%, #f3f6fb 0 3%, transparent 14%); animation: cloudsDrift 180s linear infinite alternate; }
+.clouds > div + div { opacity: .6; transform: scale(.7); animation-duration: 260s; animation-direction: alternate-reverse; }
+.backdrop[data-theme='night'] .clouds { opacity: .07; }
+.clouds[data-paused] > div { animation-play-state: paused; }
+.visitor { position: absolute; left: -180px; top: var(--flight-top); width: 110px; height: 74px; color: #182d40; opacity: 0; animation: flyAcross 24s linear both; }
+.visitor[data-kind='student'] { width: 82px; }
+.visitor[data-kind='birds'] { width: 150px; }
+.visitor svg { width: 100%; height: 100%; }
+.creature { width: 100%; height: 100%; background: url('/backgrounds/hogwarts/hippogriff.webp') center / contain no-repeat; }
+.visitor[data-kind='thestral'] .creature { background-image: url('/backgrounds/hogwarts/thestral.webp'); }
+.backdrop[data-theme='night'] .visitor { color: #72869e; filter: brightness(.7); }
+:global(html[data-theme='day']) .backdrop:not([data-ready]) .day { opacity: 1 !important; }
+.backdrop:not([data-ready]) .sun, .backdrop:not([data-ready]) .moon, .backdrop:not([data-ready]) .stars { opacity: 0 !important; }
+@keyframes cloudsDrift { from { translate: -10% 0; } to { translate: 12% 3%; } }
+@keyframes flyAcross { 0% { transform: translate(0, 0) scale(.65); opacity: 0; } 8% { opacity: .7; } 50% { transform: translate(calc(50vw + 90px), -22px) scale(.85); } 90% { opacity: .7; } 100% { transform: translate(calc(100vw + 360px), 10px) scale(.65); opacity: 0; } }
+@media (max-width: 600px) { .visitor { width: 75px; height: 50px; } .visitor[data-kind='birds'] { width: 100px; } .visitor[data-kind='student'] { width: 62px; } .clouds { filter: blur(8px); } }
+@media (prefers-reduced-motion: reduce) { .clouds > div { animation: none; } .visitor { display: none; } }

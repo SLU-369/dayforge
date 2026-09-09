@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, Plus, Settings2, SlidersHorizontal, UserRound, X } from "lucide-react";
+import { Menu, Plus, Settings2, SlidersHorizontal, Sparkles, UserRound, X } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import ThemeToggle from "@/app/theme-toggle";
 import { usePlanner } from "@/app/planner-context";
@@ -13,6 +13,7 @@ import {
   sectionIsActive,
 } from "./navigation-config";
 import styles from "./app-shell.module.css";
+import { AnimatedNavigationLink, NavigationIcon } from "./animated-navigation-link";
 
 export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
   const pathname = usePathname();
@@ -44,6 +45,8 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
         return;
       }
       if (event.key !== "Escape") return;
+      if (openMenu) headerRef.current?.querySelector<HTMLButtonElement>(`button[aria-controls="menu-${openMenu}"]`)?.focus();
+      if (profileOpen) profileRef.current?.querySelector<HTMLButtonElement>("button")?.focus();
       setOpenMenu(null);
       setProfileOpen(false);
       if (mobileOpen) {
@@ -64,7 +67,7 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
       document.removeEventListener("keydown", onKeyDown);
       document.removeEventListener("pointerdown", onPointerDown);
     };
-  }, [mobileOpen]);
+  }, [mobileOpen, openMenu, profileOpen]);
 
   useEffect(() => {
     if (!mobileOpen) return;
@@ -128,10 +131,10 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
                       </div>
                       <div className={styles.megaMenuGrid}>
                         {section.items?.map((item) => (
-                          <Link key={item.href} href={item.href} className={styles.megaMenuItem} data-active={pathIsActive(pathname, item.href) || undefined} onClick={closeNavigation}>
-                            <span className={styles.itemIcon}><item.icon size={19} aria-hidden="true" /></span>
+                          <AnimatedNavigationLink key={item.href} href={item.href} className={styles.megaMenuItem} data-active={pathIsActive(pathname, item.href) || undefined} onClick={closeNavigation}>
+                            <NavigationIcon icon={item.icon} framed />
                             <span><strong>{item.label}</strong><small>{item.description}</small></span>
-                          </Link>
+                          </AnimatedNavigationLink>
                         ))}
                       </div>
                     </nav>
@@ -162,6 +165,7 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
               {profileOpen && (
                 <nav className={styles.profileMenu} aria-label="Perfil e configurações">
                   <div className={styles.profileHeading}><span>Perfil local</span><strong>Samuel</strong></div>
+                  <Link href="/configuracoes/aparencia" onClick={closeNavigation}><Sparkles size={17} aria-hidden="true" />Aparência e tema</Link>
                   <Link href="/preferencias" onClick={closeNavigation}><SlidersHorizontal size={17} aria-hidden="true" />Preferências</Link>
                   <Link href="/configuracoes/dados-e-backup" onClick={closeNavigation}><Settings2 size={17} aria-hidden="true" />Dados e backup</Link>
                 </nav>
@@ -215,16 +219,22 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
                 <div className={styles.mobileGroup} key={section.label}>
                   <span>{section.label}</span>
                   {section.href ? (
-                    <Link ref={sectionIndex === 0 ? firstMobileLinkRef : undefined} href={section.href} data-active={sectionIsActive(pathname, section) || undefined} onClick={closeNavigation}>
-                      <section.icon size={19} aria-hidden="true" />{section.label}
-                    </Link>
+                    <AnimatedNavigationLink ref={sectionIndex === 0 ? firstMobileLinkRef : undefined} href={section.href} data-active={sectionIsActive(pathname, section) || undefined} onClick={closeNavigation}>
+                      <NavigationIcon icon={section.icon} />{section.label}
+                    </AnimatedNavigationLink>
                   ) : section.items?.map((item) => (
-                    <Link key={item.href} href={item.href} data-active={pathIsActive(pathname, item.href) || undefined} onClick={closeNavigation}>
-                      <item.icon size={19} aria-hidden="true" /><span><strong>{item.label}</strong><small>{item.description}</small></span>
-                    </Link>
+                    <AnimatedNavigationLink key={item.href} href={item.href} data-active={pathIsActive(pathname, item.href) || undefined} onClick={closeNavigation}>
+                      <NavigationIcon icon={item.icon} /><span><strong>{item.label}</strong><small>{item.description}</small></span>
+                    </AnimatedNavigationLink>
                   ))}
                 </div>
               ))}
+              <div className={styles.mobileGroup}>
+                <span>Configurações</span>
+                <AnimatedNavigationLink href="/configuracoes/aparencia" onClick={closeNavigation}><NavigationIcon icon={Sparkles} />Aparência e tema</AnimatedNavigationLink>
+                <Link href="/preferencias" onClick={closeNavigation}><SlidersHorizontal size={19} aria-hidden="true" />Preferências</Link>
+                <Link href="/configuracoes/dados-e-backup" onClick={closeNavigation}><Settings2 size={19} aria-hidden="true" />Dados e backup</Link>
+              </div>
             </nav>
           </section>
         </div>

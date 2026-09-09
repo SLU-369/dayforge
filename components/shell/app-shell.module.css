@@ -177,17 +177,6 @@
   background: var(--accent-soft);
 }
 
-.itemIcon {
-  width: 40px;
-  height: 40px;
-  display: grid;
-  place-items: center;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: var(--control);
-  color: var(--accent);
-}
-
 .megaMenuItem > span:last-child {
   display: grid;
   gap: 4px;
@@ -429,7 +418,7 @@
   color: var(--text);
 }
 
-.mobileGroup a > span {
+.mobileGroup a > span:not([aria-hidden]) {
   display: grid;
   gap: 2px;
 }
