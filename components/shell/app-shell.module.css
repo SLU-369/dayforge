@@ -91,8 +91,9 @@
   border-radius: 999px;
   background: var(--accent);
   opacity: 0;
-  transform: scaleX(0.35);
-  transition: opacity var(--duration-fast) ease, transform var(--duration-fast) ease;
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: opacity 220ms ease, transform 420ms cubic-bezier(.22, .61, .36, 1);
 }
 
 .navLink:hover,
@@ -107,7 +108,8 @@
   color: var(--text);
 }
 
-.navLink[data-active]::after {
+.navLink:hover::after,
+.navLink:focus-visible::after {
   opacity: 1;
   transform: scaleX(1);
 }

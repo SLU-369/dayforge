@@ -168,7 +168,7 @@ If a future OpenAI API integration is added, use the environment name `OPENAI_AP
 - Never commit secrets. Before staging, review `git status`, ignored files, and a secret-pattern scan. Keep local data, backups, generated output, and credentials out of Git.
 - Run lint, build, and tests before committing behavior changes.
 - Keep the horizontal shell and route map in `components/shell/navigation-config.tsx`; never reintroduce a desktop sidebar.
-- Icon motion is limited to mega-menu/compact-drawer icons; keep labels, link semantics, and layout stable. Respect keyboard focus and reduced motion.
+- Mega-menu/compact-drawer icons draw their SVG strokes progressively on hover and keyboard focus, without flipping or moving the glyph. Desktop navigation draws a bottom accent underline only on hover/focus, using the current theme. Keep labels, link semantics, and layout stable; respect reduced motion.
 - Appearance is isolated from planner persistence. Clouds may move continuously, but creatures, birds, and broom riders appear occasionally, with quiet intervals; all ambient motion must be pausable.
 
 ## Versionamento e Boas Práticas (Git)
