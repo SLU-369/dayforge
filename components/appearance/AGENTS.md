@@ -10,7 +10,7 @@
 - `manual-celestial.tsx` delegates the manual path and sun/moon crossfade to native browser animations, independent of per-frame JavaScript. Global tokens settle at the start, never halfway through the path. Freeze the visible frame before cancelling on reversal.
 - `solar-celestial.tsx` interpolates the automatic sun toward its calculated position one minute ahead; refresh immediately after returning from a hidden tab or changing cities.
 - `ambient-sky.tsx` renders lightweight creature/silhouette visuals; `sky-schedule.ts` owns the cancellable, testable visit schedule.
-- `castle-backdrop.module.css` owns scene lighting, cloud drift, flight paths, and responsive effects.
+- `castle-backdrop.module.css` owns scene lighting, lake/waterfall motion, cloud drift, flight paths, and responsive effects.
 
 ## Local Contracts
 
@@ -19,6 +19,7 @@
 - Clouds drift continuously; visitors appear one at a time for 24 seconds, with 55–130 seconds of empty sky between visits. First visit occurs after 12–24 seconds. Avoid immediate repeat species.
 - Include hippogriffs, thestrals, birds, and students on broomsticks. Keep them subtle and below interactive content.
 - Disable visitor scheduling when hidden, motion is paused, or reduced motion is requested. Resume with a fresh interval, never accumulated missed visits.
+- Lake reflections and the visible waterfall move continuously by a few pixels through masks aligned to the castle image. Keep both effects restrained, pause them with ambient motion, reduce their night opacity, and hide the waterfall mask when its source region is outside the mobile crop.
 - Manual theme transitions last 3.6 seconds with a shared duration/easing for the reversible celestial path, face crossfade, and scene lighting. Sun and moon occupy the same moving container; never remount them on theme changes or restart easing at intermediate keyframes. User preference: gentle continuous motion, no midpoint hitch, sudden acceleration, or residual sun passing after the moon.
 - Solar tracking and orange twilight are exclusive to automatic mode; manual scenes remain stable after their transition. Sunrise/sunset bound the sun's path, centered at solar midday, with linear minute-long interpolation. Solar lighting follows altitude, not fixed clock hours. Never animate page geometry.
 

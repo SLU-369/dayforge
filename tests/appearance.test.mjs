@@ -11,6 +11,16 @@ const scheduleSource = readFileSync(new URL("../components/appearance/sky-schedu
 const scheduleCompiled = ts.transpileModule(scheduleSource, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText;
 const { startSkyVisits } = await import(`data:text/javascript;base64,${Buffer.from(scheduleCompiled).toString("base64")}`);
 
+test("água ambiental é pausável e respeita movimento reduzido", () => {
+  const component = readFileSync(new URL("../components/appearance/castle-backdrop.tsx", import.meta.url), "utf8");
+  const css = readFileSync(new URL("../components/appearance/castle-backdrop.module.css", import.meta.url), "utf8");
+  assert.match(component, /className=\{styles\.waterMotion\} data-paused=\{!ambientMotion/);
+  assert.match(css, /\.waterMotion\[data-paused\] > div \{ animation-play-state: paused; \}/);
+  assert.match(css, /@keyframes lakeDrift/);
+  assert.match(css, /@keyframes waterfallDrift/);
+  assert.match(css, /prefers-reduced-motion[\s\S]*\.waterMotion > div \{ animation: none; \}/);
+});
+
 test("timers nativos não recebem o adaptador como receiver", (t) => {
   t.mock.method(globalThis, "setTimeout", function () { assert.ok(this === undefined || this === globalThis); return 1; });
   t.mock.method(globalThis, "clearTimeout", function () { assert.ok(this === undefined || this === globalThis); });
