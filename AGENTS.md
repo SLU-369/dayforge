@@ -80,12 +80,15 @@ Default section order:
 
 When the user requests a durable behavior change, record it here or in the relevant child AGENTS.md
 
+- The B.3 scene targets cinematic realism, an original Hogwarts-inspired composition, a fixed camera, free assets first, and adaptive graphics quality. Purchases require explicit approval.
+- B.3.1 (assets/foundation), B.3.2 (environment/solar cycle), and B.3.3 (animated inhabitants) require separate authorization and review. Stop when a suitable castle asset cannot be validated; do not silently substitute generic geometry or claim a provisional scene is finished.
+
 ## Child DOX Index
 
 - `app/AGENTS.md`: frontend routes, shell, client-state boundary, local persistence, and UI architecture.
 - `components/appearance/AGENTS.md`: atmospheric castle composition, solar transition, and motion scheduling.
 - `public/backgrounds/hogwarts/AGENTS.md`: generated scene assets, provenance, and optimization constraints.
-- Root-owned files: README.md, LICENSE, banner.jpg, video-thumbnail.jpg, and root-level project documentation.
+- Root-owned files: README.md, LICENSE, banner.jpg, video-thumbnail.jpg, and root-level project documentation, including `SCENE-ASSET-AUDIT.md` (B.3.1 candidate provenance and asset approval gate).
 
 ## Project overview
 
