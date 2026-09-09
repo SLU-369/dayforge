@@ -13,6 +13,9 @@ const eslintConfig = defineConfig([
     "dist/**",
     "out/**",
     "build/**",
+    "work/**",
+    "outputs/**",
+    "public/scenes/basis/**",
     "next-env.d.ts",
   ]),
   eslint.configs.recommended,
@@ -22,6 +25,11 @@ const eslintConfig = defineConfig([
   reactHooks.configs.flat["recommended-latest"],
   jsxA11y.flatConfigs.recommended,
   next.configs["core-web-vitals"],
+  {
+    files: ["components/appearance/scene3d/castle-scene.tsx"],
+    // R3F renders Three.js objects, not DOM attributes; its camera is imperative.
+    rules: { "react/no-unknown-property": "off", "react-hooks/immutability": "off" },
+  },
   {
     languageOptions: {
       globals: {

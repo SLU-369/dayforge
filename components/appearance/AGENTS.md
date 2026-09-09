@@ -7,6 +7,7 @@
 ## Ownership
 
 - `castle-backdrop.tsx` composes the scene using the shared appearance provider.
+- `appearance-backdrop.tsx` selects the opt-in `?scene=3d` foundation once at layout mount; ordinary routes retain the approved image scene.
 - `manual-celestial.tsx` delegates the manual path and sun/moon crossfade to native browser animations, independent of per-frame JavaScript. Global tokens settle at the start, never halfway through the path. Freeze the visible frame before cancelling on reversal.
 - `solar-celestial.tsx` interpolates the automatic sun toward its calculated position one minute ahead; refresh immediately after returning from a hidden tab or changing cities.
 - `ambient-sky.tsx` renders lightweight creature/silhouette visuals; `sky-schedule.ts` owns the cancellable, testable visit schedule.
@@ -15,7 +16,7 @@
 ## Local Contracts
 
 - Keep decoration aria-hidden, pointer-transparent, and behind all product content.
-- Use a single aligned castle image with CSS lighting for day, twilight, and night; do not claim these are extracted game assets or distinct rendered night artwork.
+- The default scene uses a single aligned castle image with CSS lighting for day, twilight, and night. The opt-in 3D preview is owned by the child contract below.
 - Clouds drift continuously; visitors appear one at a time for 24 seconds, with 55–130 seconds of empty sky between visits. First visit occurs after 12–24 seconds. Avoid immediate repeat species.
 - Include hippogriffs, thestrals, birds, and students on broomsticks. Keep them subtle and below interactive content.
 - Disable visitor scheduling when hidden, motion is paused, or reduced motion is requested. Resume with a fresh interval, never accumulated missed visits.
@@ -35,4 +36,4 @@
 
 ## Child DOX Index
 
-- None.
+- `scene3d/AGENTS.md`: client-only static castle proof, responsive camera, resource lifecycle and renderer fallback.

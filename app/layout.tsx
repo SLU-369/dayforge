@@ -4,7 +4,7 @@ import "./globals.css";
 import { ThemeProvider } from "./theme-provider";
 import { PlannerProvider } from "./planner-context";
 import { AppShell } from "@/components/shell/app-shell";
-import { CastleBackdrop } from "@/components/appearance/castle-backdrop";
+import { AppearanceBackdrop } from "@/components/appearance/appearance-backdrop";
 import { bootstrapAppearance } from "./appearance";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
@@ -28,7 +28,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <ThemeProvider>
           <PlannerProvider>
             <div className="dayforge-app">
-              <CastleBackdrop />
+              <AppearanceBackdrop />
               <AppShell>{children}</AppShell>
             </div>
           </PlannerProvider>

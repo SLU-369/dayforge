@@ -2,9 +2,27 @@
 
 ## Estado da entrega
 
-Consulta realizada em 2026-09-09. Inventário concluído para os candidatos abaixo; **prova visual ainda não implementada**. Nenhum destes arquivos foi baixado, incorporado ou aprovado visualmente. Os dados de catálogo não substituem a inspeção do arquivo original e das licenças incluídas.
+Consulta realizada em 2026-09-09. O usuário forneceu `hogwarts-3d.zip`, contendo o modelo Blender “Hogwarts 3D”, de Ju Designer. A página original declara CC BY 4.0. A prévia estática foi integrada, exclusivamente por `?scene=3d`, e continua pendente de aprovação visual.
 
-O cenário atual permanece intacto. Não foram instaladas dependências 3D nem produzidas capturas ou medições de WebGPU/WebGL 2. A lacuna bloqueadora é o castelo: ainda não há um modelo disponível e validado que sustente a estética cinematográfica aprovada.
+O fundo padrão permanece disponível. A prévia usa React Three Fiber 9.7.0 e Three.js 0.186.0, com WebGPURenderer e alternativa WebGL 2. O modelo é uma réplica reconhecível; não deve ser descrito como arquitetura original ou paisagem cinematográfica concluída. A base retangular e a ausência de montanhas/margens ainda exigem revisão de composição.
+
+## Arquivo selecionado e preparação
+
+- Fonte e atribuição completa: `public/scenes/castle/ATTRIBUTION.md`.
+- ZIP original: 60.073.881 bytes; 197 objetos mesh, 24 materiais, oito imagens; 969.772 triângulos após modificadores. Inspeção com Blender 4.5.9, `--factory-startup --disable-autoexec`; nenhum script embutido ou driver de objeto encontrado.
+- As imagens de materiais do original são Textures.com. Foram removidas integralmente e substituídas por Diffuse/Normal 1K dos materiais CC0 Medieval Blocks 03 e Rocky Terrain, da Poly Haven. Não redistribuir o ZIP ou Blend original.
+- Preparação Blender: substituir todos os materiais que usam imagens, remover câmeras/luzes e imagens originais, limitar subdivisão a 1, exportar apenas malhas com modificadores aplicados, sem animações. Manter o original privado para futura articulação de janelas.
+- Otimização: `node tooling/scene-assets/optimize-castle.mjs work/hogwarts-prepared/castle.glb public/scenes/castle/castle.glb work/scene-tools/ktx/bin/toktx.exe`. Usa glTF Transform 4.5.0, Meshoptimizer 1.2.0 e KTX Software 4.4.2 oficial; UASTC com mipmaps e cores sRGB/normais lineares.
+- Resultado: 188.530 triângulos, 7.164.256 bytes, GLB autocontido com Meshopt/KTX2. O tamanho de download não equivale à memória de GPU.
+- A aparência não cria novas preferências nesta prova estática. Qualidade adaptativa, ciclo solar 3D e `dayforge:scene:v1` pertencem à B.3.2.
+
+## Verificação da fundação
+
+- Chrome local em perfil isolado: dez testes Playwright aprovados, incluindo 1440×900, 1024×768 e 390×844, dia/noite, WebGPU real e WebGL 2 forçado, ausência de overflow/erros nos fluxos normais, fallback de asset/GPU, navegação sem recarregar o modelo e movimento reduzido.
+- Capturas em `outputs/scene-browser/` (ignoradas no Git), incluindo a geometria isolada à noite. Renderização sob demanda: contagem de quadros estável no intervalo ocioso de um segundo. Isso não comprova 60 fps para o futuro ambiente animado.
+- Medição inicial em desenvolvimento, Chrome/Windows desta máquina: primeiro quadro a 4.061 ms em WebGPU 1440×900 e 2.417 ms em 1024×768; inclui inicialização da página. Não extrapolar para outros dispositivos. Memória de GPU não medida.
+- Lint aprovado; build e 16 testes Node aprovados. O build avisa sobre chunk gráfico acima de 500 kB, carregado somente na prévia. O helper Sites falhou ao localizar npm no Windows; validação feita pelo `npm.cmd test`, que executa o build real.
+- Typecheck isolado encontra três erros de tipos Cloudflare em `db/index.ts` e `worker/index.ts`, fora da mudança frontend. Auditoria npm: 23 alertas (1 baixo, 6 moderados, 16 altos); atualização global de ferramentas não foi misturada a esta entrega.
 
 ## Inventário
 
@@ -23,13 +41,13 @@ Licenças e acesso:
 - [BlendSwap — documentação da API](https://blendswap.com/3d-mcp-api/docs): acesso por chave de conta; downloads podem consumir créditos depois da franquia gratuita. Nenhuma conta, chave ou crédito foi usado. Não colocar credenciais no repositório.
 - Gratuidade de download não prova autorização de redistribuição. Não usar espelhos de origem incerta nem assets extraídos de jogos.
 
-## Decisão necessária para retomar
+## Revisão necessária antes da próxima entrega
 
-Obter um arquivo candidato com texturas e licença para inspeção, ou aprovar a produção de um castelo original como trabalho de modelagem. A opção inicial recomendada é avaliar um modelo gratuito completo antes de decidir por compra ou produção sob medida.
+Avaliar o modelo fornecido, seus materiais substitutos e o enquadramento no dashboard. O plano de fundo ainda contém apenas castelo/base, iluminação estática e um plano de água para referência; não há ambiente animado concluído.
 
-O usuário pode fornecer o arquivo original de um candidato obtido pela conta dele, acompanhado da página de origem e licença. Não é necessário compartilhar senha ou chave de API. O fornecimento permite a avaliação; não torna a qualidade visual automaticamente aprovada.
+O fornecimento autorizou inspeção e adaptação; não tornou a qualidade visual automaticamente aprovada. A necessidade de modelar margens e montanhas deve ser resolvida na revisão da composição antes de prosseguir.
 
-Não instalar bibliotecas nem substituir o fundo por um castelo genérico apenas para contornar esta decisão. Não avançar para B.3.2 ou B.3.3.
+Não avançar para B.3.2 ou B.3.3 sem autorização e integração da entrega anterior.
 
 ## Procedimento de aceite do arquivo
 
@@ -46,4 +64,4 @@ Não instalar bibliotecas nem substituir o fundo por um castelo genérico apenas
 - Nenhuma mudança em planner, banco, Worker, APIs ou layout nesta auditoria.
 - Preferências de aparência e payload `rotina-369:data:v1` intactos.
 - Água dinâmica, nuvens, ciclo solar 3D e controles de qualidade pertencem à B.3.2; criaturas e janelas animadas pertencem à B.3.3.
-- O inventário é uma entrega documental concluída, não a conclusão da B.3.1.
+- A prova técnica não representa aceite visual da B.3.1.
