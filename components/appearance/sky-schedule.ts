@@ -1,8 +1,8 @@
 export type SkyVisitor = { kind: "hippogriff" | "thestral" | "student" | "birds"; id: number; top: number };
 
-type Clock = { random: () => number; now: () => number; later: typeof setTimeout; cancel: typeof clearTimeout };
+type Clock = { random: () => number; now: () => number; later: (callback: () => void, delay: number) => ReturnType<typeof setTimeout>; cancel: (timer: ReturnType<typeof setTimeout>) => void };
 
-export function startSkyVisits(visit: (visitor: SkyVisitor | null) => void, clock: Clock = { random: Math.random, now: Date.now, later: setTimeout, cancel: clearTimeout }) {
+export function startSkyVisits(visit: (visitor: SkyVisitor | null) => void, clock: Clock = { random: Math.random, now: Date.now, later: (callback, delay) => setTimeout(callback, delay), cancel: (timer) => clearTimeout(timer) }) {
   let timer: ReturnType<typeof setTimeout>;
   let disposed = false;
   let previous = -1;

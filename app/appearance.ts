@@ -1,6 +1,18 @@
 import { getPosition, getTimes } from "suncalc";
 
 export type Theme = "day" | "night";
+export const THEME_TRANSITION_MS = 3600;
+
+// A single reversible phase keeps the two celestial faces on the same path.
+export function celestialFrame(phase: number, sunX = 34.8, sunY = 15.73) {
+  const p = Math.max(0, Math.min(1, phase));
+  return {
+    x: sunX + (78 - sunX) * p,
+    y: sunY + (14 - sunY) * p - 3 * Math.sin(Math.PI * p),
+    sun: 0.7 * (1 - p),
+    moon: 0.8 * p,
+  };
+}
 export type ThemeMode = "manual" | "automatic";
 export type Capital = { id: string; name: string; state: string; latitude: number; longitude: number; timeZone: string };
 export const CAPITALS: readonly Capital[] = [
@@ -75,7 +87,8 @@ export function solarSnapshot(now: Date, city: Capital) {
   const progress = clamp((now.getTime() - sunrise.getTime()) / (sunset.getTime() - sunrise.getTime()));
   const nextSunrise = now < sunrise ? sunrise : tomorrow.sunrise!;
   const nextSunset = now < sunset ? sunset : tomorrow.sunset!;
-  return { theme, altitude, progress, weights: lightWeights(altitude), sunrise, sunset, nextSunrise, nextSunset,
+  const sunPosition = { x: 12 + progress * 76, y: 40 - Math.sin(progress * Math.PI) * 30, opacity: 0.7 * clamp((altitude + 6) / 8) };
+  return { theme, altitude, progress, sunPosition, weights: lightWeights(altitude), sunrise, sunset, nextSunrise, nextSunset,
     cache: { cityId: city.id, from: now.getTime(), until: Math.min(nextSunrise.getTime(), nextSunset.getTime()), theme } };
 }
 

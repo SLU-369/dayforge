@@ -1,12 +1,12 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { APPEARANCE_KEY, CAPITALS, DEFAULT_APPEARANCE, SOLAR_CACHE_KEY, THEME_KEY, chooseManualTheme, parseAppearance, solarSnapshot, type AppearancePreferencesV1, type Theme } from "./appearance";
+import { APPEARANCE_KEY, CAPITALS, DEFAULT_APPEARANCE, SOLAR_CACHE_KEY, THEME_KEY, THEME_TRANSITION_MS, chooseManualTheme, parseAppearance, solarSnapshot, type AppearancePreferencesV1, type Theme } from "./appearance";
 export type { Theme } from "./appearance";
 
 type ThemeContextValue = {
   theme: Theme; preferences: AppearancePreferencesV1; ready: boolean; now: Date | null;
-  transitionId: number; setTheme: (theme: Theme) => void; toggleTheme: () => void;
+  setTheme: (theme: Theme) => void; toggleTheme: () => void;
   updatePreferences: (patch: Partial<Pick<AppearancePreferencesV1, "mode" | "cityId" | "ambientMotion">>) => void;
 };
 const ThemeContext = createContext<ThemeContextValue | null>(null);
@@ -16,7 +16,6 @@ export function ThemeProvider({ children }: Readonly<{ children: React.ReactNode
   const [ready, setReady] = useState(false);
   const [now, setNow] = useState<Date | null>(null);
   const [theme, setThemeState] = useState<Theme>("night");
-  const [transitionId, setTransitionId] = useState(0);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const apply = useCallback((next: Theme, animate = false) => {
@@ -29,8 +28,7 @@ export function ThemeProvider({ children }: Readonly<{ children: React.ReactNode
       delete root.dataset.appearancePending;
     };
     if (animate && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      setTransitionId((id) => id + 1);
-      timer.current = setTimeout(commit, 800);
+      timer.current = setTimeout(commit, THEME_TRANSITION_MS / 2);
     } else commit();
     try { localStorage.setItem(THEME_KEY, next); } catch { /* Theme works without storage. */ }
   }, []);
@@ -81,7 +79,7 @@ export function ThemeProvider({ children }: Readonly<{ children: React.ReactNode
     save(next);
     setNow(new Date());
   }, [preferences, save, theme]);
-  const value = useMemo(() => ({ theme, preferences, ready, now, transitionId, setTheme, updatePreferences, toggleTheme: () => setTheme(theme === "night" ? "day" : "night") }), [theme, preferences, ready, now, transitionId, setTheme, updatePreferences]);
+  const value = useMemo(() => ({ theme, preferences, ready, now, setTheme, updatePreferences, toggleTheme: () => setTheme(theme === "night" ? "day" : "night") }), [theme, preferences, ready, now, setTheme, updatePreferences]);
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }
 

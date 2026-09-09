@@ -6,10 +6,50 @@ import ts from "typescript";
 
 const source = readFileSync(new URL("../app/appearance.ts", import.meta.url), "utf8");
 const compiled = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText.replace('"suncalc"', JSON.stringify(import.meta.resolve("suncalc")));
-const { CAPITALS, parseAppearance, chooseManualTheme, solarSnapshot, lightWeights, bootstrapAppearance, APPEARANCE_KEY, THEME_KEY, SOLAR_CACHE_KEY } = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString("base64")}`);
+const { CAPITALS, parseAppearance, chooseManualTheme, solarSnapshot, lightWeights, bootstrapAppearance, celestialFrame, THEME_TRANSITION_MS, APPEARANCE_KEY, THEME_KEY, SOLAR_CACHE_KEY } = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString("base64")}`);
 const scheduleSource = readFileSync(new URL("../components/appearance/sky-schedule.ts", import.meta.url), "utf8");
 const scheduleCompiled = ts.transpileModule(scheduleSource, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText;
 const { startSkyVisits } = await import(`data:text/javascript;base64,${Buffer.from(scheduleCompiled).toString("base64")}`);
+
+test("timers nativos não recebem o adaptador como receiver", (t) => {
+  t.mock.method(globalThis, "setTimeout", function () { assert.ok(this === undefined || this === globalThis); return 1; });
+  t.mock.method(globalThis, "clearTimeout", function () { assert.ok(this === undefined || this === globalThis); });
+  const stop = startSkyVisits(() => {});
+  stop();
+});
+
+test("transição manual usa trajetória contínua, reversível e sem sol residual", () => {
+  assert.equal(THEME_TRANSITION_MS, 3600);
+  const frames = Array.from({ length: 101 }, (_, i) => celestialFrame(i / 100));
+  for (let i = 1; i < frames.length; i++) {
+    assert.ok(frames[i].x > frames[i - 1].x);
+    assert.ok(Math.abs(frames[i].x - frames[i - 1].x - .432) < 1e-10);
+    assert.ok(Math.abs(frames[i].y - frames[i - 1].y) < .12);
+    assert.ok(frames[i].sun < frames[i - 1].sun);
+    assert.ok(frames[i].moon > frames[i - 1].moon);
+  }
+  assert.equal(frames.at(-1).sun, 0);
+  assert.equal(frames[0].moon, 0);
+  assert.deepEqual(celestialFrame(-1), frames[0]);
+  assert.deepEqual(celestialFrame(2), frames.at(-1));
+  assert.deepEqual(frames.slice().reverse()[37], celestialFrame(.63));
+});
+
+test("sol automático avança de manhã ao meio-dia e colore o crepúsculo", () => {
+  const city = CAPITALS.find((c) => c.id === "sao-paulo");
+  const morning = solarSnapshot(new Date("2026-09-08T08:00:00-03:00"), city);
+  const noon = solarSnapshot(new Date("2026-09-08T12:00:00-03:00"), city);
+  const nextMinute = solarSnapshot(new Date("2026-09-08T12:01:00-03:00"), city);
+  const dusk = solarSnapshot(noon.sunset, city);
+  assert.ok(morning.sunPosition.x < noon.sunPosition.x);
+  assert.ok(morning.sunPosition.y > noon.sunPosition.y);
+  assert.ok(Math.abs(noon.sunPosition.x - 50) < 3);
+  assert.ok(nextMinute.sunPosition.x > noon.sunPosition.x);
+  assert.ok(nextMinute.sunPosition.x - noon.sunPosition.x < .2);
+  assert.equal(noon.weights.twilight, 0);
+  assert.ok(dusk.weights.twilight > .8);
+  assert.ok(dusk.sunPosition.opacity > 0, "sol permanece visível no horizonte alaranjado");
+});
 
 test("visitas ocasionais deixam intervalos vazios, não repetem espécie e cancelam timers", () => {
   const pending = new Map();
