@@ -68,19 +68,6 @@ export function chooseManualTheme(preferences: AppearancePreferencesV1, theme: T
 }
 
 const clamp = (n: number) => Math.max(0, Math.min(1, n));
-const smoothstep = (from: number, to: number, value: number) => {
-  const progress = clamp((value - from) / (to - from));
-  return progress * progress * (3 - 2 * progress);
-};
-
-export function castleSunVisibility(progress: number) {
-  // The photographic composition places the first visible towers well before
-  // solar noon. Fade the disc behind that silhouette early and bring it back
-  // only after the western towers clear it; daylight weights remain untouched.
-  const behindCentralCastle = smoothstep(0.03, 0.13, progress) * (1 - smoothstep(0.74, 0.88, progress));
-  return 1 - behindCentralCastle * 0.98;
-}
-
 export function lightWeights(altitude: number) {
   const day = clamp(altitude / 8);
   const night = clamp(-altitude / 6);
@@ -100,7 +87,7 @@ export function solarSnapshot(now: Date, city: Capital) {
   const progress = clamp((now.getTime() - sunrise.getTime()) / (sunset.getTime() - sunrise.getTime()));
   const nextSunrise = now < sunrise ? sunrise : tomorrow.sunrise!;
   const nextSunset = now < sunset ? sunset : tomorrow.sunset!;
-  const sunPosition = { x: 12 + progress * 76, y: 40 - Math.sin(progress * Math.PI) * 30, opacity: 0.7 * clamp((altitude + 6) / 8) * castleSunVisibility(progress) };
+  const sunPosition = { x: 12 + progress * 76, y: 40 - Math.sin(progress * Math.PI) * 30, opacity: 0.7 * clamp((altitude + 6) / 8) };
   return { theme, altitude, progress, sunPosition, weights: lightWeights(altitude), sunrise, sunset, nextSunrise, nextSunset,
     cache: { cityId: city.id, from: now.getTime(), until: Math.min(nextSunrise.getTime(), nextSunset.getTime()), theme } };
 }

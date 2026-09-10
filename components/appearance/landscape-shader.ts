@@ -26,7 +26,7 @@ float band(float value, float a, float b, float feather) {
 vec3 lighting(vec3 color) {
   float luma = dot(color, vec3(.2126,.7152,.0722));
   vec3 night = mix(vec3(luma), color, .65)*.26 * vec3(.85,.96,1.1);
-  vec3 dusk = mix(color, vec3(luma)*vec3(1.23,1.03,.83), .32)*.72;
+  vec3 dusk = mix(color, vec3(luma)*vec3(1.30,1.03,.78), .40)*.78;
   return night*(1.0-light.x-light.y) + color*light.x + dusk*light.y;
 }
 void main() {

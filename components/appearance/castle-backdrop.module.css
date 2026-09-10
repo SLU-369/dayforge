@@ -3,12 +3,13 @@
 .night { filter: brightness(.26) saturate(.65); }
 .night::after { content: ''; position: absolute; inset: 0; background: linear-gradient(#0316339c, #0f235322 50%, #030c214d); mix-blend-mode: color; }
 .day { opacity: 0; }
-.twilight { opacity: 0; filter: sepia(.32) saturate(.9) brightness(.72); }
-.twilight::after { content: ''; position: absolute; inset: 0; background: linear-gradient(#80577870, #ffa34c99 36%, #f276355c 54%, #24305b66 80%); mix-blend-mode: soft-light; }
+.twilight { opacity: 0; filter: sepia(.4) saturate(1.15) brightness(.78); }
+.twilight::after { content: ''; position: absolute; inset: 0; background: linear-gradient(#744f9c66, #ee944c9c 24%, #ff9c429e 45%, #e46b3666 62%, #33497855); mix-blend-mode: color; }
 .stars { position: absolute; inset: 0 0 54%; background-image: radial-gradient(circle at 12% 20%, #e2edff 0 .6px, transparent 1.4px), radial-gradient(circle at 68% 32%, #fff2de 0 .8px, transparent 1.5px), radial-gradient(circle at 38% 60%, #dbeaff 0 .5px, transparent 1px); background-size: 179px 143px, 251px 193px, 113px 197px; mask-image: linear-gradient(black, transparent); }
 .landscapeMotion { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 .sun, .moon { position: absolute; left: 0; top: 0; width: 34px; height: 34px; border-radius: 50%; }
 .celestial { position: absolute; left: 0; top: 0; width: 34px; height: 34px; }
+.celestialSky { position: absolute; inset: 0; mask-size: cover; mask-position: center; mask-repeat: no-repeat; }
 .manualCelestial { will-change: transform; }
 .manualCelestial > div { will-change: opacity; }
 .sun { background: #fff3c6; box-shadow: 0 0 30px 10px #ffdf9a6b, 0 0 110px 48px #ffcb6140; }

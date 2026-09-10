@@ -8,6 +8,7 @@ import { AmbientSky } from "./ambient-sky";
 import { SolarCelestial } from "./solar-celestial";
 import { ManualCelestial } from "./manual-celestial";
 import { LandscapeMotion } from "./landscape-motion";
+import { celestialSkyMask } from "./celestial-occlusion";
 import styles from "./castle-backdrop.module.css";
 
 export function CastleBackdrop() {
@@ -36,7 +37,9 @@ export function CastleBackdrop() {
       <motion.div key={`twilight-${automatic}`} className={`${styles.scene} ${styles.twilight}`} initial={false} animate={{ opacity: automatic ? twilight : 0 }} transition={{ duration }} />
       <motion.div key={`stars-${automatic}`} className={styles.stars} initial={false} animate={{ opacity: night * 0.75 }} transition={{ duration, ease: [.42, 0, .58, 1] }} />
       <LandscapeMotion moving={ambientMotion} day={day} twilight={twilight} duration={duration} />
-      {solar && city && now ? <SolarCelestial city={city} now={now} moving={visible && preferences.ambientMotion && !reduced} /> : <ManualCelestial target={target} ready={ready} reduced={Boolean(reduced)} />}
+      <div className={styles.celestialSky} data-celestial-sky style={{ maskImage: celestialSkyMask }}>
+        {solar && city && now ? <SolarCelestial city={city} now={now} moving={visible && preferences.ambientMotion && !reduced} /> : <ManualCelestial target={target} ready={ready} reduced={Boolean(reduced)} />}
+      </div>
       <AmbientSky enabled={ambientMotion} />
       <div className={styles.veil} />
     </div>

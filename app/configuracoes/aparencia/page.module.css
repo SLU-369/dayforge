@@ -1,8 +1,10 @@
 .page { width: min(1180px, 100%); margin: auto; padding: 52px clamp(18px, 4vw, 58px) 80px; }
-.heading { margin-bottom: 30px; }
+.heading { position: relative; isolation: isolate; margin-bottom: 30px; text-shadow: 0 1px 8px var(--bg-solid); }
+.heading::before { content: ''; position: absolute; z-index: -1; pointer-events: none; inset: -36px 0 -30px -28px; background: radial-gradient(ellipse at 22% 50%, color-mix(in srgb, var(--bg-solid) 96%, transparent) 0%, color-mix(in srgb, var(--bg-solid) 88%, transparent) 34%, color-mix(in srgb, var(--bg-solid) 48%, transparent) 57%, transparent 78%); filter: blur(18px); }
 .heading > span, .eyebrow { font: 600 .75rem var(--font-geist-mono), monospace; letter-spacing: .14em; color: var(--muted); }
 .heading h1 { margin-top: 14px; }
 .heading p, .card p { line-height: 1.6; color: var(--muted); }
+.heading p { color: var(--text); font-weight: 500; }
 .grid { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 22px; align-items: start; }
 .card { padding: 28px; border: 1px solid var(--line); border-radius: 22px; background: var(--panel-strong); backdrop-filter: blur(20px); box-shadow: var(--shadow-soft); }
 .card h2 { font-size: 1.2rem; margin: 12px 0; }

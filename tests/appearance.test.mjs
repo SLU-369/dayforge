@@ -6,7 +6,7 @@ import ts from "typescript";
 
 const source = readFileSync(new URL("../app/appearance.ts", import.meta.url), "utf8");
 const compiled = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText.replace('"suncalc"', JSON.stringify(import.meta.resolve("suncalc")));
-const { CAPITALS, parseAppearance, chooseManualTheme, solarSnapshot, lightWeights, castleSunVisibility, bootstrapAppearance, celestialFrame, THEME_TRANSITION_MS, APPEARANCE_KEY, THEME_KEY, SOLAR_CACHE_KEY } = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString("base64")}`);
+const { CAPITALS, parseAppearance, chooseManualTheme, solarSnapshot, lightWeights, bootstrapAppearance, celestialFrame, THEME_TRANSITION_MS, APPEARANCE_KEY, THEME_KEY, SOLAR_CACHE_KEY } = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString("base64")}`);
 const scheduleSource = readFileSync(new URL("../components/appearance/sky-schedule.ts", import.meta.url), "utf8");
 const scheduleCompiled = ts.transpileModule(scheduleSource, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText;
 const { startSkyVisits } = await import(`data:text/javascript;base64,${Buffer.from(scheduleCompiled).toString("base64")}`);
@@ -59,10 +59,8 @@ test("sol automático avança de manhã ao meio-dia e colore o crepúsculo", () 
   assert.equal(noon.weights.twilight, 0);
   assert.ok(dusk.weights.twilight > .8);
   assert.ok(dusk.sunPosition.opacity > 0, "sol permanece visível no horizonte alaranjado");
-  assert.ok(castleSunVisibility(.13) < .15, "disco solar passa atrás das torres da composição");
-  assert.ok(castleSunVisibility(.5) < .1, "disco solar permanece atrás das torres centrais");
-  assert.equal(castleSunVisibility(0), 1);
-  assert.equal(castleSunVisibility(1), 1);
+  assert.equal(morning.sunPosition.opacity, .7, "horário não apaga o disco no céu livre; a composição recorta as torres");
+  assert.equal(noon.sunPosition.opacity, .7);
 });
 
 test("visitas ocasionais deixam intervalos vazios, não repetem espécie e cancelam timers", () => {
