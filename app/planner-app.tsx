@@ -1,11 +1,12 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { FlowButton } from "@/components/ui/flow-button";
+import { FormEvent, useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Plus } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import {
   CATEGORIES,
   CategoryKey,
-  createDefaultState,
   DailyItem,
   DailyRecord,
   DAY_NAMES,
@@ -20,11 +21,9 @@ import {
   PlannerState,
   RoutineItem,
 } from "./planner-data";
-import DayforgeNavigation, { type DayforgeView } from "./dayforge-navigation";
-import ThemeToggle from "./theme-toggle";
+import { usePlanner } from "./planner-context";
 
-const STORAGE_KEY = "rotina-369:data:v1";
-type View = DayforgeView;
+export type PlannerView = "hoje" | "mes" | "rotina";
 type EditorTarget = { type: "day" | "routine"; item?: RoutineItem; index?: number } | null;
 
 function cloneDay(state: PlannerState, date: string): DailyRecord {
@@ -61,48 +60,22 @@ function itemMinutes(item: RoutineItem) {
   return minutesBetween(item.start, item.end);
 }
 
-export default function PlannerApp() {
-  const [state, setState] = useState<PlannerState>(() => createDefaultState());
-  const [ready, setReady] = useState(false);
-  const [view, setView] = useState<View>("hoje");
-  const [selectedDate, setSelectedDate] = useState(() => localISO(new Date()));
+export default function PlannerApp({ view = "hoje", initialDate }: { view?: PlannerView; initialDate?: string }) {
+  const { state, setState, ready, notify } = usePlanner();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const requestedDate = searchParams.get("date");
+  const validRequestedDate = requestedDate && /^\d{4}-\d{2}-\d{2}$/.test(requestedDate) ? requestedDate : undefined;
+  const [selectedDate, setSelectedDate] = useState(() => initialDate ?? validRequestedDate ?? localISO(new Date()));
   const [monthDate, setMonthDate] = useState(() => { const today = new Date(); return new Date(today.getFullYear(), today.getMonth(), 1); });
   const [routineDay, setRoutineDay] = useState<DayKey>(() => dayKeyFor(new Date()));
-  const [editor, setEditor] = useState<EditorTarget>(null);
-  const [toast, setToast] = useState("");
-  const importRef = useRef<HTMLInputElement>(null);
+  const [editor, setEditor] = useState<EditorTarget>(() => searchParams.get("new") === "activity" ? { type: "day" } : null);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      try {
-        const saved = localStorage.getItem(STORAGE_KEY);
-        if (saved) {
-          const parsed = JSON.parse(saved) as PlannerState;
-          if (parsed.version === 1 && parsed.routine && parsed.records) setState(parsed);
-        }
-      } catch {
-        setToast("Não foi possível ler os dados salvos. A rotina padrão foi carregada.");
-      }
-      setReady(true);
-    }, 0);
-    return () => window.clearTimeout(timer);
-  }, []);
-
-  useEffect(() => {
-    if (!ready) return;
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    } catch {
-      const timer = window.setTimeout(() => setToast("O navegador não conseguiu salvar esta alteração."), 0);
-      return () => window.clearTimeout(timer);
+    if (searchParams.get("new") === "activity") {
+      router.replace(validRequestedDate ? `/?date=${validRequestedDate}` : "/");
     }
-  }, [state, ready]);
-
-  useEffect(() => {
-    if (!toast) return;
-    const timer = window.setTimeout(() => setToast(""), 3200);
-    return () => window.clearTimeout(timer);
-  }, [toast]);
+  }, [router, searchParams, validRequestedDate]);
 
   const record = selectedDate ? state.records[selectedDate] || cloneDay(state, selectedDate) : undefined;
   const selectedDateObject = selectedDate ? parseISO(selectedDate) : new Date();
@@ -144,7 +117,7 @@ export default function PlannerApp() {
         routine: { ...current.routine, [routineDay]: current.routine[routineDay].filter((_, itemIndex) => itemIndex !== index) },
       }));
     }
-    setToast("Atividade removida.");
+    notify("Atividade removida.");
   }
 
   function saveEditor(item: RoutineItem, actualMinutes?: number) {
@@ -172,38 +145,7 @@ export default function PlannerApp() {
       });
     }
     setEditor(null);
-    setToast("Atividade salva.");
-  }
-
-  function exportBackup() {
-    const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `dayforge-backup-${localISO(new Date())}.json`;
-    link.click();
-    URL.revokeObjectURL(url);
-    setToast("Backup exportado.");
-  }
-
-  async function importBackup(event: React.ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    try {
-      const parsed = JSON.parse(await file.text()) as PlannerState;
-      if (parsed.version !== 1 || !parsed.routine || !parsed.records) throw new Error("Formato inválido");
-      setState(parsed);
-      setToast("Backup importado com sucesso.");
-    } catch {
-    setToast("Esse arquivo não é um backup válido do Dayforge.");
-    }
-    event.target.value = "";
-  }
-
-  function resetData() {
-    if (!window.confirm("Restaurar a rotina padrão e apagar todo o histórico local? Exporte um backup antes se quiser guardar os dados.")) return;
-    setState(createDefaultState());
-    setToast("Dados restaurados.");
+    notify("Atividade salva.");
   }
 
   if (!ready || !selectedDate || !monthDate) {
@@ -211,35 +153,8 @@ export default function PlannerApp() {
   }
 
   return (
-    <div className="app-shell">
-      <DayforgeNavigation
-        activeView={view}
-        onViewChange={setView}
-        onExportBackup={exportBackup}
-        onImportBackup={() => importRef.current?.click()}
-        onResetData={resetData}
-      />
-
-      <main className="main-content">
-        <header className="mobile-header">
-          <div className="brand"><span className="brand-mark">DF</span><strong>Dayforge</strong></div>
-          <div className="mobile-header-actions">
-            <div className="saved-pill"><span className="status-dot" /> salvo</div>
-            <div className="mobile-data-actions" aria-label="Backup local">
-              <button type="button" aria-label="Exportar backup" title="Exportar backup" onClick={exportBackup}>↓</button>
-              <button type="button" aria-label="Importar backup" title="Importar backup" onClick={() => importRef.current?.click()}>↑</button>
-              <button type="button" className="danger-text" aria-label="Restaurar padrão" title="Restaurar padrão" onClick={resetData}>↺</button>
-            </div>
-            <ThemeToggle compact />
-          </div>
-        </header>
-        <nav className="mobile-nav" aria-label="Navegação principal">
-          <NavButton active={view === "hoje"} icon="◉" label="Hoje" onClick={() => setView("hoje")} />
-          <NavButton active={view === "mes"} icon="▦" label="Mensal" onClick={() => setView("mes")} />
-          <NavButton active={view === "rotina"} icon="≡" label="Rotina" onClick={() => setView("rotina")} />
-        </nav>
-
-        <div className="view-stage" key={view}>
+    <>
+      <div className="view-stage" key={view}>
           {view === "hoje" && (
             <TodayView
               record={record!}
@@ -261,7 +176,7 @@ export default function PlannerApp() {
               monthDate={monthDate}
               todayISO={todayISO}
               onMonth={(date) => setMonthDate(date)}
-              onOpenDay={(date) => { setSelectedDate(date); setView("hoje"); }}
+               onOpenDay={(date) => router.push(`/?date=${date}`)}
               onGoal={(goal) => setState((current) => ({ ...current, monthlyGoals: { ...current.monthlyGoals, [monthKey(monthDate)]: goal } }))}
             />
           )}
@@ -275,18 +190,10 @@ export default function PlannerApp() {
               onAdd={() => setEditor({ type: "routine" })}
             />
           )}
-        </div>
-      </main>
-
-      <input ref={importRef} hidden type="file" accept="application/json" onChange={importBackup} />
+      </div>
       {editor && <ItemEditor target={editor} onClose={() => setEditor(null)} onSave={saveEditor} />}
-      {toast && <div className="toast" role="status">{toast}</div>}
-    </div>
+    </>
   );
-}
-
-function NavButton({ active, icon, label, onClick }: { active: boolean; icon: string; label: string; onClick: () => void }) {
-  return <button type="button" className={active ? "active" : ""} aria-current={active ? "page" : undefined} onClick={onClick}><span>{icon}</span>{label}</button>;
 }
 
 function TodayView({ record, selectedDate, todayISO, metrics, onDate, onToggle, onEdit, onDelete, onAdd, onNote, onEnergy }: {
@@ -308,7 +215,7 @@ function TodayView({ record, selectedDate, todayISO, metrics, onDate, onToggle, 
 
   return (
     <div className="page-wrap">
-      <div className="page-topline"><div><span className="eyebrow">{"// CONTROLE DIÁRIO"}</span><h1>{isToday ? "Seu dia, em uma visão" : dateTitle(selectedDate)}</h1><p>{isToday ? dateTitle(selectedDate) : "Revise e ajuste o registro deste dia."}</p></div><FlowButton className="primary-button" text="＋ Nova atividade" onClick={onAdd} /></div>
+      <div className="page-topline"><div><span className="eyebrow">{"// CONTROLE DIÁRIO"}</span><h1>{isToday ? "Seu dia, em uma visão" : dateTitle(selectedDate)}</h1><p>{isToday ? dateTitle(selectedDate) : "Revise e ajuste o registro deste dia."}</p></div><Button icon={<Plus size={17} />} onClick={onAdd}>Nova atividade</Button></div>
       <div className="date-control">
         <button aria-label="Dia anterior" onClick={() => onDate(addDays(selectedDate, -1))}>‹</button>
         <button className="date-main" onClick={() => onDate(new Date())}>{isToday ? "Hoje" : dateTitle(selectedDate)}</button>
@@ -338,7 +245,7 @@ function TodayView({ record, selectedDate, todayISO, metrics, onDate, onToggle, 
                 </article>
               );
             })}
-            <FlowButton className="add-inline" tone="neutral" text="＋ Adicionar atividade a este dia" onClick={onAdd} />
+            <Button className="add-inline" variant="secondary" icon={<Plus size={16} />} onClick={onAdd}>Adicionar atividade a este dia</Button>
           </div>
         </section>
 
@@ -468,10 +375,10 @@ function RoutineView({ state, day, onDay, onEdit, onDelete, onAdd }: {
 
   return (
     <div className="page-wrap">
-      <div className="page-topline"><div><span className="eyebrow">{"// ROTINA-BASE"}</span><h1>O molde da sua semana</h1><p>Alterações aqui valem para novos dias. Seu histórico permanece intacto.</p></div><FlowButton className="primary-button" text="＋ Nova atividade" onClick={onAdd} /></div>
+      <div className="page-topline"><div><span className="eyebrow">{"// ROTINA-BASE"}</span><h1>O molde da sua semana</h1><p>Alterações aqui valem para novos dias. Seu histórico permanece intacto.</p></div><Button icon={<Plus size={17} />} onClick={onAdd}>Nova atividade</Button></div>
       <div className="day-tabs">{DAY_ORDER.map((dayKey) => <button className={day === dayKey ? "active" : ""} key={dayKey} onClick={() => onDay(dayKey)}><span>{DAY_NAMES[dayKey].slice(0, 3)}</span><small>{hoursLabel(state.routine[dayKey].reduce((sum, entry) => sum + itemMinutes(entry), 0))}</small></button>)}</div>
       <div className="routine-layout">
-        <section className="panel routine-panel"><div className="panel-heading"><div><span className="eyebrow">{DAY_NAMES[day].toUpperCase()}</span><h2>{state.routine[day].length} blocos planejados</h2></div><FlowButton className="secondary-button" tone="neutral" text="＋ adicionar" onClick={onAdd} /></div><div className="routine-list">{state.routine[day].map((entry, index) => {
+        <section className="panel routine-panel"><div className="panel-heading"><div><span className="eyebrow">{DAY_NAMES[day].toUpperCase()}</span><h2>{state.routine[day].length} blocos planejados</h2></div><Button size="sm" variant="secondary" icon={<Plus size={15} />} onClick={onAdd}>Adicionar</Button></div><div className="routine-list">{state.routine[day].map((entry, index) => {
           const category = CATEGORIES[entry.category];
           return <article key={entry.id} style={{ "--item-color": category.color, "--item-soft": category.soft } as React.CSSProperties}><div className="routine-time"><strong>{entry.start}</strong><span>{entry.end}</span></div><span className="category-initial">{category.short}</span><div><h3>{entry.title}</h3><p>{entry.notes || category.label}</p></div><span className="duration-pill">{hoursLabel(itemMinutes(entry))}</span><div className="item-actions"><button onClick={() => onEdit(entry, index)}>Editar</button><button onClick={() => onDelete(index)}>×</button></div></article>;
         })}</div></section>
@@ -517,7 +424,7 @@ function ItemEditor({ target, onClose, onSave }: { target: NonNullable<EditorTar
         <label className="full-field"><span>Categoria</span><select value={category} onChange={(event) => setCategory(event.target.value as CategoryKey)}>{(Object.keys(CATEGORIES) as CategoryKey[]).map((key) => <option key={key} value={key}>{CATEGORIES[key].label}</option>)}</select></label>
         {target.type === "day" && <label className="full-field"><span>Minutos realizados (opcional)</span><input type="number" min="0" max="1440" value={actual} onChange={(event) => setActual(event.target.value)} placeholder="Preenchido automaticamente ao concluir" /></label>}
         <label className="full-field"><span>Observação</span><textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Detalhe opcional" /></label>
-        <div className="modal-actions"><FlowButton className="secondary-button" tone="neutral" text="Cancelar" onClick={onClose} /><FlowButton className="primary-button" text="Salvar atividade" type="submit" /></div>
+        <div className="modal-actions"><Button variant="secondary" onClick={onClose}>Cancelar</Button><Button type="submit">Salvar atividade</Button></div>
       </form>
     </div>
   );

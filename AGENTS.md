@@ -80,14 +80,22 @@ Default section order:
 
 When the user requests a durable behavior change, record it here or in the relevant child AGENTS.md
 
+- Preserve the approved photographic 2D castle, layout and themes. The user rejected the full 3D landscape; do not reactivate it, including through old preview URLs.
+- Refine only natural water/waterfall motion, more perceptible clouds, and occasional articulated visitors. The hybrid direction keeps the environment photographic; future 3D visitors must actually articulate their wings, not slide raster cutouts. Free assets first; purchases require explicit approval.
+- Keep the rejected 3D experiment recoverable. Review environmental motion before incorporating unapproved creature assets; do not call temporary geometry or existing sprites a completed realistic result. Stage authorization never permits automatic push, merge or advancement.
+
 ## Child DOX Index
 
-- No child AGENTS.md files are needed for the current repository structure.
-- Root-owned files: README.md, LICENSE, banner.jpg, video-thumbnail.jpg, and root-level project documentation.
+- `app/AGENTS.md`: frontend routes, shell, client-state boundary, local persistence, and UI architecture.
+- `components/appearance/AGENTS.md`: atmospheric castle composition, solar transition, and motion scheduling.
+- `public/backgrounds/hogwarts/AGENTS.md`: generated scene assets, provenance, and optimization constraints.
+- `public/scenes/AGENTS.md`: retained licensed GLB and texture decoder assets for the inactive 3D experiment.
+- `tooling/scene-assets/AGENTS.md`: offline material sanitation and model compression workflow.
+- Root-owned files: README.md, LICENSE, banner.jpg, video-thumbnail.jpg, and root-level project documentation, including `SCENE-ASSET-AUDIT.md` (B.3.1 candidate provenance and asset approval gate).
 
 ## Project overview
 
-Dayforge is a local-first personal planning dashboard. It turns a reusable weekly routine into independent daily records, tracks completed and actual minutes, and summarizes monthly consistency, category time, energy, notes, and goals. The current source of truth is versioned browser `localStorage`; JSON export/import provides backup and restore.
+Dayforge is a local-first personal planning dashboard. It turns a reusable weekly routine into independent daily records, tracks completed and actual minutes, and summarizes monthly consistency, category time, energy, notes, and goals. Its frontend shell also reserves staged product areas for Formation, Gym, Nutri, and Progress without adding persistence before each domain is implemented. The current source of truth is versioned browser `localStorage`; JSON export/import provides backup and restore.
 
 The product UI and user-facing copy are in Brazilian Portuguese.
 
@@ -103,7 +111,11 @@ The product UI and user-facing copy are in Brazilian Portuguese.
 
 ## Directory map
 
-- `app/`: App Router pages, layout, planner UI, domain types/default data, global styles, and ChatGPT auth helper.
+- `app/`: App Router pages, layout, planner state/repository, domain types/default data, global styles, and ChatGPT auth helper.
+- `components/shell/`: horizontal navigation, contextual navigation, mega menus, profile menu, and compact drawer.
+- `components/pages/`: shared page-level presentation used by staged product areas.
+- `components/ui/`: reusable interactive UI primitives.
+- `components/appearance/`: decorative castle lighting, moving clouds, and occasional sky visitors.
 - `worker/`: Cloudflare Worker entry point, asset/image handling, and Vinext request routing.
 - `db/`: Drizzle D1 access helper and production schema.
 - `drizzle/`: generated Drizzle migration metadata.
@@ -111,7 +123,7 @@ The product UI and user-facing copy are in Brazilian Portuguese.
 - `tooling/`: source for the custom Sites/Vite packaging plugin.
 - `build/`, `dist/`, `.next/`, `.wrangler/`: generated output; never commit these directories.
 - `.openai/`: non-secret Sites hosting bindings. Never put credentials here.
-- `tests/`: Node test that validates the server-rendered application shell.
+- `tests/`: Node tests for the server-rendered shell, appearance compatibility, bootstrap, and offline solar calculations.
 - `public/`: static icons and other public assets.
 - `INICIAR.bat`: Windows double-click launcher for local development.
 
@@ -151,7 +163,7 @@ If a future OpenAI API integration is added, use the environment name `OPENAI_AP
 
 ## Code conventions
 
-- Keep TypeScript strict and avoid `any`; define planner/domain types in `app/planner-data.ts`.
+- Keep TypeScript strict and avoid `any`; define planner types in `app/planner-data.ts` and appearance types in `app/appearance.ts`.
 - Keep interactive browser state behind a `"use client"` boundary.
 - Preserve versioning and backward compatibility for the `rotina-369:data:v1` local-storage payload. Add a migration before changing its shape incompatibly.
 - Treat the weekly routine as a template and daily records as immutable historical snapshots; editing the routine must not rewrite past records.
@@ -161,6 +173,9 @@ If a future OpenAI API integration is added, use the environment name `OPENAI_AP
 - Do not add a backend, D1 persistence, authentication gates, or OpenAI calls speculatively. Add them only for a concrete product requirement.
 - Never commit secrets. Before staging, review `git status`, ignored files, and a secret-pattern scan. Keep local data, backups, generated output, and credentials out of Git.
 - Run lint, build, and tests before committing behavior changes.
+- Keep the horizontal shell and route map in `components/shell/navigation-config.tsx`; never reintroduce a desktop sidebar.
+- Mega-menu/compact-drawer icons draw their SVG strokes progressively on hover and keyboard focus, without flipping or moving the glyph. Desktop navigation draws a bottom accent underline only on hover/focus, using the current theme. Keep labels, link semantics, and layout stable; respect reduced motion.
+- Appearance is isolated from planner persistence. Clouds may move continuously, but creatures, birds, and broom riders appear occasionally, with quiet intervals; all ambient motion must be pausable.
 
 ## Versionamento e Boas Práticas (Git)
 
@@ -173,4 +188,6 @@ If a future OpenAI API integration is added, use the environment name `OPENAI_AP
 - **Aprovação de Commits**: Informe sempre qual commit foi criado para aprovação do usuário.
 - **Autorização Explícita**: Nunca faça push ou merge sem a autorização explícita do usuário.
 - **Limpeza de Branches**: Após o merge aprovado e validado na `main`, exclua a branch utilizada local e remotamente.
+- **Execução por Etapa**: Implemente somente a etapa explicitamente autorizada, apresente os commits e pare antes de iniciar a próxima.
+- **Nomes de Branch e Commit**: Nunca use a palavra `codex` em nomes de branches ou mensagens de commit.
 

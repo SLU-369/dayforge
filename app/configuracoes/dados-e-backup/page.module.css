@@ -1,0 +1,116 @@
+.page {
+  width: min(980px, 100%);
+  margin: 0 auto;
+  padding: clamp(36px, 6vw, 72px) clamp(18px, 4vw, 48px) 80px;
+}
+
+.heading {
+  max-width: 620px;
+  margin-bottom: 28px;
+}
+
+.heading h1 {
+  margin: 8px 0 9px;
+}
+
+.heading p,
+.statusCard p,
+.actionCard p,
+.dangerCard p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.875rem;
+  line-height: 1.55;
+}
+
+.statusCard,
+.actionCard,
+.dangerCard {
+  border: 1px solid var(--line);
+  background: var(--panel);
+  box-shadow: var(--shadow-soft), inset 0 1px rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(18px) saturate(1.12);
+}
+
+.statusCard {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px;
+  border-radius: 18px;
+}
+
+.statusIcon {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  flex: none;
+  border-radius: 13px;
+  background: rgba(var(--success-rgb), 0.12);
+  color: var(--success);
+}
+
+.statusCard strong {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 0.9375rem;
+}
+
+.actionGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.actionCard {
+  min-height: 240px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 18px;
+  padding: 24px;
+  border-radius: 20px;
+}
+
+.actionCard > svg {
+  color: var(--accent);
+}
+
+.actionCard div {
+  flex: 1;
+}
+
+.actionCard h2,
+.dangerCard h2 {
+  margin: 0 0 7px;
+  font-size: 1rem;
+}
+
+.dangerCard {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 22px;
+  margin-top: 14px;
+  padding: 20px 22px;
+  border-color: color-mix(in srgb, var(--danger) 38%, transparent);
+  border-radius: 18px;
+}
+
+.dangerCard > div {
+  display: flex;
+  align-items: flex-start;
+  gap: 13px;
+}
+
+.dangerCard svg {
+  flex: none;
+  color: var(--danger);
+}
+
+@media (max-width: 680px) {
+  .actionGrid { grid-template-columns: 1fr; }
+  .dangerCard { align-items: stretch; flex-direction: column; }
+}

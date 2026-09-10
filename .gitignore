@@ -19,6 +19,7 @@ node_modules/
 /out/
 
 # generated application and worker output
+*.tsbuildinfo
 build/
 dist/
 .wrangler/

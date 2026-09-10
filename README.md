@@ -13,6 +13,10 @@ Painel pessoal e local para planejar a rotina semanal, registrar o que realmente
 - Backup e restauração em arquivo JSON.
 - Layout responsivo para computador e celular.
 - Dados salvos somente no navegador deste PC.
+- Tema manual ou solar automático em **Perfil → Aparência e tema**, também disponível nas Configurações do menu compacto.
+- Cenário de castelo com iluminação dia/crepúsculo/noite, nuvens lentas e visitas ocasionais de criaturas, pássaros e alunos em vassouras. O movimento pode ser pausado e respeita a preferência de movimento reduzido do sistema.
+
+O ciclo solar usa a capital escolhida entre as 27 capitais brasileiras, sem geolocalização ou consulta externa. Uma troca manual desativa o modo automático. Essas preferências ficam separadas do histórico e não são incluídas no backup do planejamento. O cenário usa arte gerada e iluminação em CSS; não é uma reprodução do motor visual ou um asset extraído de Hogwarts Legacy.
 
 ## Rodar no Windows
 
