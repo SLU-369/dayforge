@@ -1,10 +1,10 @@
-# B.3.1 — Auditoria dos assets 3D
+# B.3.1 — Registro histórico dos assets 3D
 
 ## Estado da entrega
 
 O usuário optou por voltar ao cenário fotográfico 2D. A prévia do castelo 3D foi desativada, inclusive em `?scene=3d`. Código e assets licenciados permanecem recuperáveis; os registros abaixo descrevem a prova anterior, não a direção visual atual.
 
-A direção atual preserva a imagem, o layout e os temas, refinando água, cachoeira e nuvens. Visitantes articulados exigem modelos próprios e revisão; os sprites legados não cumprem esse requisito. A prova anterior usava React Three Fiber 9.7.0 e Three.js 0.186.0. Seu modelo reconhecível não deve ser descrito como arquitetura original ou paisagem cinematográfica concluída.
+A etapa visual até B.3 está concluída e aprovada na forma fotográfica entregue, incluindo layout, temas, água, cachoeira, nuvens, visitantes atuais, oclusão solar e contraste do cabeçalho. Visitantes articulados e demais refinamentos pertencem a um planejamento futuro; não são pendências desta entrega. A prova anterior usava React Three Fiber 9.7.0 e Three.js 0.186.0. Seu modelo reconhecível não deve ser descrito como arquitetura original ou paisagem cinematográfica concluída.
 
 ## Arquivo selecionado e preparação
 
@@ -14,9 +14,9 @@ A direção atual preserva a imagem, o layout e os temas, refinando água, cacho
 - Preparação Blender: substituir todos os materiais que usam imagens, remover câmeras/luzes e imagens originais, limitar subdivisão a 1, exportar apenas malhas com modificadores aplicados, sem animações. Manter o original privado para futura articulação de janelas.
 - Otimização: `node tooling/scene-assets/optimize-castle.mjs work/hogwarts-prepared/castle.glb public/scenes/castle/castle.glb work/scene-tools/ktx/bin/toktx.exe`. Usa glTF Transform 4.5.0, Meshoptimizer 1.2.0 e KTX Software 4.4.2 oficial; UASTC com mipmaps e cores sRGB/normais lineares.
 - Resultado: 188.530 triângulos, 7.164.256 bytes, GLB autocontido com Meshopt/KTX2. O tamanho de download não equivale à memória de GPU.
-- A aparência não cria novas preferências nesta prova estática. Qualidade adaptativa, ciclo solar 3D e `dayforge:scene:v1` pertencem à B.3.2.
+- A prova estática não criou novas preferências. Qualidade adaptativa, ciclo solar 3D e `dayforge:scene:v1` eram propostas do plano anterior; não integram a cena ativa nem constituem tarefas autorizadas.
 
-## Verificação da fundação
+## Verificação histórica da fundação
 
 - Chrome local em perfil isolado: dez testes Playwright aprovados, incluindo 1440×900, 1024×768 e 390×844, dia/noite, WebGPU real e WebGL 2 forçado, ausência de overflow/erros nos fluxos normais, fallback de asset/GPU, navegação sem recarregar o modelo e movimento reduzido.
 - Capturas em `outputs/scene-browser/` (ignoradas no Git), incluindo a geometria isolada à noite. Renderização sob demanda: contagem de quadros estável no intervalo ocioso de um segundo. Isso não comprova 60 fps para o futuro ambiente animado.
@@ -41,13 +41,15 @@ Licenças e acesso:
 - [BlendSwap — documentação da API](https://blendswap.com/3d-mcp-api/docs): acesso por chave de conta; downloads podem consumir créditos depois da franquia gratuita. Nenhuma conta, chave ou crédito foi usado. Não colocar credenciais no repositório.
 - Gratuidade de download não prova autorização de redistribuição. Não usar espelhos de origem incerta nem assets extraídos de jogos.
 
-## Revisão da direção atual
+## Encerramento da direção atual
 
-Revisar os efeitos sobre a paisagem fotográfica antes de integrar novos modelos de visitantes. Não prosseguir com terreno ou castelo 3D, nem reativar a prova rejeitada. Modelos de aves/criaturas articulados ainda não foram validados.
+Os efeitos da paisagem fotográfica foram revisados e aprovados pelo usuário. Preservar o resultado entregue e aguardar o planejamento reformulado para qualquer evolução. Modelos articulados não fazem parte do aceite atual. Não retomar o cenário 3D ou a sequência anterior de subetapas automaticamente.
 
 As autorizações anteriores para o cenário inteiramente 3D não anulam a preferência mais recente. Nenhum push, merge ou avanço de etapa é automático.
 
-## Procedimento de aceite do arquivo
+## Procedimento histórico de aceite do arquivo
+
+Referência técnica da prova arquivada; não executar como próxima etapa do projeto.
 
 1. Registrar autor, URL, licença exata, permissões de redistribuição/adaptação e atribuição requerida; verificar texturas e outros arquivos incluídos separadamente.
 2. Inspecionar fontes Blender com execução automática de scripts desativada. Trabalhar em cópia e preservar o original fora dos assets públicos.

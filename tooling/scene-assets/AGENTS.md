@@ -2,7 +2,7 @@
 
 ## Purpose
 
-- Own reproducible offline preparation of the B.3 castle asset.
+- Retain reproducible offline preparation of the inactive B.3 castle experiment. These tools are not required to install or run the approved photographic frontend.
 
 ## Ownership
 
@@ -18,7 +18,7 @@
 
 ## Work Guidance
 
-- Preserve a separate original model for possible future articulated windows.
+- Preserve existing original sources separately. Regeneration or new articulated models require a future authorized task; this tooling is not an outstanding step in the completed visual stage.
 
 ## Verification
 
