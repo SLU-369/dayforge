@@ -6,7 +6,6 @@ import { startSkyVisits, type SkyVisitor } from "./sky-schedule";
 
 export function AmbientSky({ enabled }: { enabled: boolean }) {
   return <>
-    <div className={styles.clouds} data-paused={!enabled || undefined}><div /><div /></div>
     {enabled && <OccasionalVisitor />}
   </>;
 }

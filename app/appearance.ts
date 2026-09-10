@@ -74,8 +74,11 @@ const smoothstep = (from: number, to: number, value: number) => {
 };
 
 export function castleSunVisibility(progress: number) {
-  const behindCentralCastle = smoothstep(0.24, 0.35, progress) * (1 - smoothstep(0.68, 0.8, progress));
-  return 1 - behindCentralCastle * 0.94;
+  // The photographic composition places the first visible towers well before
+  // solar noon. Fade the disc behind that silhouette early and bring it back
+  // only after the western towers clear it; daylight weights remain untouched.
+  const behindCentralCastle = smoothstep(0.03, 0.13, progress) * (1 - smoothstep(0.74, 0.88, progress));
+  return 1 - behindCentralCastle * 0.98;
 }
 
 export function lightWeights(altitude: number) {

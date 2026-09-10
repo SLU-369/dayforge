@@ -13,12 +13,12 @@ const { startSkyVisits } = await import(`data:text/javascript;base64,${Buffer.fr
 
 test("água ambiental é pausável e respeita movimento reduzido", () => {
   const component = readFileSync(new URL("../components/appearance/castle-backdrop.tsx", import.meta.url), "utf8");
-  const css = readFileSync(new URL("../components/appearance/castle-backdrop.module.css", import.meta.url), "utf8");
-  assert.match(component, /className=\{styles\.waterMotion\} data-paused=\{!ambientMotion/);
-  assert.match(css, /\.waterMotion\[data-paused\] > div \{ animation-play-state: paused; \}/);
-  assert.match(css, /@keyframes lakeDrift/);
-  assert.match(css, /@keyframes waterfallDrift/);
-  assert.match(css, /prefers-reduced-motion[\s\S]*\.waterMotion > div \{ animation: none; \}/);
+  const renderer = readFileSync(new URL("../components/appearance/landscape-motion.tsx", import.meta.url), "utf8");
+  assert.match(component, /ambientMotion = ready && visible && preferences.ambientMotion && !reduced/);
+  assert.match(component, /LandscapeMotion moving=\{ambientMotion\}/);
+  assert.match(renderer, /if \(settings.moving && !document.hidden\) elapsed \+= delta/);
+  assert.match(renderer, /cancelAnimationFrame\(frame\)/);
+  assert.match(renderer, /gl.deleteTexture\(texture\)/);
 });
 
 test("timers nativos não recebem o adaptador como receiver", (t) => {
@@ -59,7 +59,8 @@ test("sol automático avança de manhã ao meio-dia e colore o crepúsculo", () 
   assert.equal(noon.weights.twilight, 0);
   assert.ok(dusk.weights.twilight > .8);
   assert.ok(dusk.sunPosition.opacity > 0, "sol permanece visível no horizonte alaranjado");
-  assert.ok(castleSunVisibility(.5) < .1, "disco solar passa atrás das torres centrais");
+  assert.ok(castleSunVisibility(.13) < .15, "disco solar passa atrás das torres da composição");
+  assert.ok(castleSunVisibility(.5) < .1, "disco solar permanece atrás das torres centrais");
   assert.equal(castleSunVisibility(0), 1);
   assert.equal(castleSunVisibility(1), 1);
 });

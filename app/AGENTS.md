@@ -7,7 +7,7 @@
 ## Ownership
 
 - `layout.tsx` owns global providers and the shell boundary.
-- The layout mounts `AppearanceBackdrop` once across route changes. Its opt-in static 3D proof does not replace solar/animation behavior on ordinary routes until visual approval.
+- The layout mounts the photographic `AppearanceBackdrop` once across route changes. Old `?scene=3d` URLs must also show this approved background; the castle model is no longer activated.
 - `planner-context.tsx` owns shared client state and persistence lifecycle.
 - `planner-repository.ts` owns browser storage and JSON backup I/O.
 - `planner-data.ts` owns the versioned planner domain types, defaults, and reusable date/duration helpers.

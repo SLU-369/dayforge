@@ -2,9 +2,9 @@
 
 ## Estado da entrega
 
-Consulta realizada em 2026-09-09. O usuário forneceu `hogwarts-3d.zip`, contendo o modelo Blender “Hogwarts 3D”, de Ju Designer. A página original declara CC BY 4.0. A prévia estática foi integrada, exclusivamente por `?scene=3d`, e continua pendente de aprovação visual.
+O usuário optou por voltar ao cenário fotográfico 2D. A prévia do castelo 3D foi desativada, inclusive em `?scene=3d`. Código e assets licenciados permanecem recuperáveis; os registros abaixo descrevem a prova anterior, não a direção visual atual.
 
-O fundo padrão permanece disponível. A prévia usa React Three Fiber 9.7.0 e Three.js 0.186.0, com WebGPURenderer e alternativa WebGL 2. O modelo é uma réplica reconhecível; não deve ser descrito como arquitetura original ou paisagem cinematográfica concluída. A base retangular e a ausência de montanhas/margens ainda exigem revisão de composição.
+A direção atual preserva a imagem, o layout e os temas, refinando água, cachoeira e nuvens. Visitantes articulados exigem modelos próprios e revisão; os sprites legados não cumprem esse requisito. A prova anterior usava React Three Fiber 9.7.0 e Three.js 0.186.0. Seu modelo reconhecível não deve ser descrito como arquitetura original ou paisagem cinematográfica concluída.
 
 ## Arquivo selecionado e preparação
 
@@ -41,13 +41,11 @@ Licenças e acesso:
 - [BlendSwap — documentação da API](https://blendswap.com/3d-mcp-api/docs): acesso por chave de conta; downloads podem consumir créditos depois da franquia gratuita. Nenhuma conta, chave ou crédito foi usado. Não colocar credenciais no repositório.
 - Gratuidade de download não prova autorização de redistribuição. Não usar espelhos de origem incerta nem assets extraídos de jogos.
 
-## Revisão necessária antes da próxima entrega
+## Revisão da direção atual
 
-Avaliar o modelo fornecido, seus materiais substitutos e o enquadramento no dashboard. O plano de fundo ainda contém apenas castelo/base, iluminação estática e um plano de água para referência; não há ambiente animado concluído.
+Revisar os efeitos sobre a paisagem fotográfica antes de integrar novos modelos de visitantes. Não prosseguir com terreno ou castelo 3D, nem reativar a prova rejeitada. Modelos de aves/criaturas articulados ainda não foram validados.
 
-O fornecimento autorizou inspeção e adaptação; não tornou a qualidade visual automaticamente aprovada. A necessidade de modelar margens e montanhas deve ser resolvida na revisão da composição antes de prosseguir.
-
-Não avançar para B.3.2 ou B.3.3 sem autorização e integração da entrega anterior.
+As autorizações anteriores para o cenário inteiramente 3D não anulam a preferência mais recente. Nenhum push, merge ou avanço de etapa é automático.
 
 ## Procedimento de aceite do arquivo
 
@@ -63,5 +61,5 @@ Não avançar para B.3.2 ou B.3.3 sem autorização e integração da entrega an
 
 - Nenhuma mudança em planner, banco, Worker, APIs ou layout nesta auditoria.
 - Preferências de aparência e payload `rotina-369:data:v1` intactos.
-- Água dinâmica, nuvens, ciclo solar 3D e controles de qualidade pertencem à B.3.2; criaturas e janelas animadas pertencem à B.3.3.
-- A prova técnica não representa aceite visual da B.3.1.
+- Água e nuvens agora são efeitos sobre a imagem aprovada; não há ciclo solar ou castelo 3D ativo.
+- A prova técnica arquivada não representa aceite da direção 3D rejeitada.

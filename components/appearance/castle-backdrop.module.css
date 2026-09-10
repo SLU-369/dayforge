@@ -6,17 +6,7 @@
 .twilight { opacity: 0; filter: sepia(.32) saturate(.9) brightness(.72); }
 .twilight::after { content: ''; position: absolute; inset: 0; background: linear-gradient(#80577870, #ffa34c99 36%, #f276355c 54%, #24305b66 80%); mix-blend-mode: soft-light; }
 .stars { position: absolute; inset: 0 0 54%; background-image: radial-gradient(circle at 12% 20%, #e2edff 0 .6px, transparent 1.4px), radial-gradient(circle at 68% 32%, #fff2de 0 .8px, transparent 1.5px), radial-gradient(circle at 38% 60%, #dbeaff 0 .5px, transparent 1px); background-size: 179px 143px, 251px 193px, 113px 197px; mask-image: linear-gradient(black, transparent); }
-.waterMotion { position: absolute; inset: 0; overflow: hidden; }
-.lakeReflection,
-.waterfallFlow { position: absolute; inset: -3px; background: url('/backgrounds/hogwarts/castle.webp') center center / cover no-repeat; pointer-events: none; }
-.lakeReflection { opacity: .2; mix-blend-mode: soft-light; mask-image: linear-gradient(to bottom, transparent 62%, black 69%, black 92%, transparent 98%); animation: lakeDrift 15s ease-in-out infinite alternate; }
-.waterfallFlow { opacity: .29; filter: brightness(1.28) saturate(.74); mask-image: radial-gradient(ellipse 6.5% 19% at 91.5% 64%, black 8%, rgba(0, 0, 0, .82) 44%, transparent 78%); animation: waterfallDrift 7.2s ease-in-out infinite alternate; }
-.waterfallMist { position: absolute; left: 85%; top: 64%; width: 15%; height: 13%; opacity: .24; background: radial-gradient(ellipse at 62% 58%, rgba(233, 245, 247, .72), rgba(201, 224, 231, .24) 34%, transparent 70%); filter: blur(6px); mix-blend-mode: screen; animation: mistBreath 9s ease-in-out infinite alternate; }
-.waterShimmer { position: absolute; inset: 65% -12% 6%; opacity: .2; background-image: repeating-linear-gradient(176deg, transparent 0 12px, rgba(225, 241, 246, .48) 13px, transparent 16px 29px), repeating-linear-gradient(4deg, transparent 0 19px, rgba(137, 178, 191, .32) 20px, transparent 23px 41px); background-size: 170% 100%, 145% 100%; mix-blend-mode: screen; mask-image: linear-gradient(90deg, transparent, black 10%, black 90%, transparent); animation: shimmerDrift 19s linear infinite; }
-.backdrop[data-theme='night'] .lakeReflection { opacity: .09; }
-.backdrop[data-theme='night'] .waterfallFlow { opacity: .12; filter: brightness(.88) saturate(.58); }
-.backdrop[data-theme='night'] .waterfallMist { opacity: .1; }
-.backdrop[data-theme='night'] .waterShimmer { opacity: .075; }
+.landscapeMotion { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 .sun, .moon { position: absolute; left: 0; top: 0; width: 34px; height: 34px; border-radius: 50%; }
 .celestial { position: absolute; left: 0; top: 0; width: 34px; height: 34px; }
 .manualCelestial { will-change: transform; }
@@ -25,12 +15,6 @@
 .moon { left: 3px; top: 3px; width: 28px; height: 28px; background: #dde7f4; box-shadow: inset -7px -2px 5px #7088a1, 0 0 60px 15px #a6c7fb36; }
 .veil { position: absolute; inset: 0; background: linear-gradient(90deg, #05111a3d, transparent 40%, #05111a26), linear-gradient(0deg, #06121c88, transparent 55%); }
 .backdrop[data-theme='day'] .veil { background: linear-gradient(90deg, #e6efeb40, transparent 45%, #e6efeb25), linear-gradient(0deg, #dce6e355, transparent 60%); }
-.clouds { position: absolute; inset: 0 0 50%; opacity: .18; filter: blur(12px); }
-.clouds > div { position: absolute; inset: -20% -70%; background: radial-gradient(ellipse at 20% 30%, #fff 0 4%, transparent 15%), radial-gradient(ellipse at 48% 45%, #e8eef5 0 5%, transparent 19%), radial-gradient(ellipse at 79% 15%, #f3f6fb 0 3%, transparent 14%); animation: cloudsDrift 180s linear infinite alternate; }
-.clouds > div + div { opacity: .6; transform: scale(.7); animation-duration: 260s; animation-direction: alternate-reverse; }
-.backdrop[data-theme='night'] .clouds { opacity: .07; }
-.clouds[data-paused] > div { animation-play-state: paused; }
-.waterMotion[data-paused] > div { animation-play-state: paused; }
 .visitor { position: absolute; left: -180px; top: var(--flight-top); width: 110px; height: 74px; color: #182d40; opacity: 0; animation: flyAcross 24s linear both; }
 .visitor[data-kind='student'] { width: 82px; }
 .visitor[data-kind='birds'] { width: 150px; }
@@ -40,12 +24,6 @@
 .backdrop[data-theme='night'] .visitor { color: #72869e; filter: brightness(.7); }
 :global(html[data-theme='day']) .backdrop:not([data-ready]) .day { opacity: 1 !important; }
 .backdrop:not([data-ready]) .sun, .backdrop:not([data-ready]) .moon, .backdrop:not([data-ready]) .stars { opacity: 0 !important; }
-@keyframes cloudsDrift { from { translate: -10% 0; } to { translate: 12% 3%; } }
-@keyframes lakeDrift { from { transform: translate3d(-3px, -.8px, 0) scaleX(1.003); } to { transform: translate3d(3px, 1.2px, 0) scaleX(.997); } }
-@keyframes waterfallDrift { from { transform: translate3d(-.5px, -2px, 0) scaleY(1.006); } to { transform: translate3d(.7px, 5px, 0) scaleY(.994); } }
-@keyframes mistBreath { from { transform: translate3d(-4px, 1px, 0) scale(.9); opacity: .14; } to { transform: translate3d(4px, -2px, 0) scale(1.08); opacity: .28; } }
-@keyframes shimmerDrift { from { background-position: 0 0, 0 0; } to { background-position: 230px 7px, -170px -5px; } }
 @keyframes flyAcross { 0% { transform: translate(0, 0) scale(.65); opacity: 0; } 8% { opacity: .7; } 50% { transform: translate(calc(50vw + 90px), -22px) scale(.85); } 90% { opacity: .7; } 100% { transform: translate(calc(100vw + 360px), 10px) scale(.65); opacity: 0; } }
-@media (max-width: 760px) { .waterfallFlow, .waterfallMist { display: none; } }
-@media (max-width: 600px) { .visitor { width: 75px; height: 50px; } .visitor[data-kind='birds'] { width: 100px; } .visitor[data-kind='student'] { width: 62px; } .clouds { filter: blur(8px); } .lakeReflection { opacity: .09; } .waterShimmer { opacity: .08; } }
-@media (prefers-reduced-motion: reduce) { .clouds > div, .waterMotion > div { animation: none; } .visitor { display: none; } }
+@media (max-width: 600px) { .visitor { width: 75px; height: 50px; } .visitor[data-kind='birds'] { width: 100px; } .visitor[data-kind='student'] { width: 62px; } }
+@media (prefers-reduced-motion: reduce) { .visitor { display: none; } }

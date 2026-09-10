@@ -80,16 +80,16 @@ Default section order:
 
 When the user requests a durable behavior change, record it here or in the relevant child AGENTS.md
 
-- The B.3 scene targets cinematic realism, an original Hogwarts-inspired composition, a fixed camera, free assets first, and adaptive graphics quality. Purchases require explicit approval.
-- Adapt castle framing, scale and camera to the existing dashboard; preserve the shell and card layout. The supplied recognizable Hogwarts model is a candidate requiring visual approval, not proof of a completed original cinematic environment.
-- B.3.1 (assets/foundation), B.3.2 (environment/solar cycle), and B.3.3 (animated inhabitants) require separate authorization and review. Stop when a suitable castle asset cannot be validated; do not silently substitute generic geometry or claim a provisional scene is finished.
+- Preserve the approved photographic 2D castle, layout and themes. The user rejected the full 3D landscape; do not reactivate it, including through old preview URLs.
+- Refine only natural water/waterfall motion, more perceptible clouds, and occasional articulated visitors. The hybrid direction keeps the environment photographic; future 3D visitors must actually articulate their wings, not slide raster cutouts. Free assets first; purchases require explicit approval.
+- Keep the rejected 3D experiment recoverable. Review environmental motion before incorporating unapproved creature assets; do not call temporary geometry or existing sprites a completed realistic result. Stage authorization never permits automatic push, merge or advancement.
 
 ## Child DOX Index
 
 - `app/AGENTS.md`: frontend routes, shell, client-state boundary, local persistence, and UI architecture.
 - `components/appearance/AGENTS.md`: atmospheric castle composition, solar transition, and motion scheduling.
 - `public/backgrounds/hogwarts/AGENTS.md`: generated scene assets, provenance, and optimization constraints.
-- `public/scenes/AGENTS.md`: licensed GLB and texture decoder assets for the opt-in 3D preview.
+- `public/scenes/AGENTS.md`: retained licensed GLB and texture decoder assets for the inactive 3D experiment.
 - `tooling/scene-assets/AGENTS.md`: offline material sanitation and model compression workflow.
 - Root-owned files: README.md, LICENSE, banner.jpg, video-thumbnail.jpg, and root-level project documentation, including `SCENE-ASSET-AUDIT.md` (B.3.1 candidate provenance and asset approval gate).
 

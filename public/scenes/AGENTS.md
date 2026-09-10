@@ -2,7 +2,7 @@
 
 ## Purpose
 
-- Own optimized, redistributable assets for the B.3.1 scene preview.
+- Own retained, redistributable assets for the inactive B.3.1 experiment. The current photographic environment must not download this castle or its decoders.
 
 ## Ownership
 
@@ -23,7 +23,7 @@
 
 ## Verification
 
-- Run asset structure tests and browser loading/fallback checks.
+- Run asset structure tests; active browser tests verify no castle-model downloads. Loading/fallback evidence for the old proof is historical, not current visual acceptance.
 
 ## Child DOX Index
 
