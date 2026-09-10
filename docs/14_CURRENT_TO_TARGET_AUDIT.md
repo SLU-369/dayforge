@@ -1,0 +1,127 @@
+# 14 — Estado Atual → Estado Alvo
+
+## 1. App Shell
+
+### Atual pós-B3
+- navbar horizontal;
+- mega menus;
+- tema claro/escuro/sistema;
+- fundo 2D;
+- botão Adicionar;
+- Perfil/Configuração no topo.
+
+### Alvo
+Manter fundação. Fazer apenas ajustes pequenos de taxonomia antes do freeze, se ainda faltarem.
+
+## 2. Hoje
+
+### Atual
+- cabeçalho `Seu dia, em uma visão`;
+- cards Progresso, Tempo concluído, Foco AI/LLM e Energia do dia;
+- linha do tempo vertical extensa;
+- fechamento/nota do dia;
+- atividades antigas em sequência.
+
+### Alvo
+Substituir experiência principal por:
+
+```text
+Agora
+Próximo
+Depois
+Atenção
+Resumo
+```
+
+Timeline completa continua acessível sob demanda.
+
+`Energia do dia` sai da experiência principal. `Foco AI/LLM` deixa de ser métrica fixa. Progresso deixa de ser um número genérico sem contexto.
+
+`Nota do dia` pode sobreviver apenas se for transformada em reflexão opcional e útil ao histórico, nunca como obrigação diária.
+
+## 3. Planejamento
+
+### Atual
+- Semana;
+- Agenda;
+- Rotina-base;
+- Metas.
+
+### Alvo
+- Semana;
+- Agenda funcional;
+- Rotina com Âncoras/Não negociáveis/Flexíveis;
+- Metas estruturadas.
+
+## 4. Agenda
+
+### Atual
+Calendário com baixo nível de interação/persistência funcional.
+
+### Alvo
+Calendário navegável com dia/semana/mês, criação de eventos futuros, conflitos, seleção de data e itens de diferentes domínios.
+
+## 5. Formação
+
+### Atual pós-B3
+- Visão geral;
+- Acadêmico;
+- Cursos técnicos;
+- Leituras & Exploração.
+
+### Alvo
+Adicionar `Cursos rápidos` e implementar páginas profundas sem inflar o mega menu.
+
+## 6. Academia
+
+### Atual pós-B3
+Arquitetura de navegação pronta: Visão geral, Semana, Fichas, Exercícios, Evolução.
+
+### Alvo
+Implementar domínio real de treinos, execução e histórico.
+
+## 7. Nutri
+
+### Atual pós-B3
+Arquitetura de navegação pronta: Visão geral, Plano alimentar, Calculadoras.
+
+### Alvo
+Implementar estimativas, plano e depois acompanhamento, sempre com linguagem de estimativa e não prescrição.
+
+## 8. Progresso
+
+### Atual
+Página/placeholder ou métricas antigas pouco dinâmicas.
+
+### Alvo
+Componente principal de analytics com filtros de domínio, métrica e período, animações funcionais e comparação temporal.
+
+## 9. Perfil e backup
+
+### Atual antigo
+Painel sobreposto e funções técnicas na navegação.
+
+### Alvo
+Perfil simples. Backup em Configurações → Dados e backup. Zona de perigo separada.
+
+## 10. Trabalho/profissional
+
+### Atual
+Blocos de trabalho fazem parte da rotina.
+
+### Alvo
+Trabalho permanece principalmente como Âncora/Rotina e fonte de janelas oportunísticas. O produto deve suportar entrada/saída, almoço, deslocamento e janelas em que estudo pode acontecer se o trabalho permitir.
+
+Não existe decisão atual de criar uma aba `Profissional` separada.
+
+## 11. Elementos de status visual
+
+Existe a ideia de um **estado visual do Dayforge** (por exemplo, expressão/ícone que reflita consistência). Caso implementado:
+
+- não reage a qualquer tarefa perdida;
+- considera apenas metas/itens marcados como relevantes;
+- não deve punir visualmente imprevistos reais;
+- pode representar tendência de consistência geral;
+- deve ser opcional e não infantilizar a experiência.
+
+A definição visual exata permanece pendente de UX.
