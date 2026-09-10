@@ -22,6 +22,7 @@
 - `/hoje` is the primary Hoje route; `/` remains a compatible entry point. Product areas use real, directly loadable App Router routes.
 - Backup, import, and reset controls belong under `/configuracoes/dados-e-backup`, never in primary navigation.
 - Keep backend, D1, Worker, and API changes outside frontend-only stages.
+- The delivered shell and visual stage are approved and closed. Reserved product routes remain staged areas, not authorization to implement the earlier roadmap. Further navigation changes and product work await the user's reformulated plan.
 
 ## Work Guidance
 

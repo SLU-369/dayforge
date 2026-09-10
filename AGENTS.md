@@ -80,9 +80,9 @@ Default section order:
 
 When the user requests a durable behavior change, record it here or in the relevant child AGENTS.md
 
-- Preserve the approved photographic 2D castle, layout and themes. The user rejected the full 3D landscape; do not reactivate it, including through old preview URLs.
-- Refine only natural water/waterfall motion, more perceptible clouds, and occasional articulated visitors. The hybrid direction keeps the environment photographic; future 3D visitors must actually articulate their wings, not slide raster cutouts. Free assets first; purchases require explicit approval.
-- Keep the rejected 3D experiment recoverable. Review environmental motion before incorporating unapproved creature assets; do not call temporary geometry or existing sprites a completed realistic result. Stage authorization never permits automatic push, merge or advancement.
+- The visual stage through B.3 is concluded and approved in its delivered photographic form: horizontal navigation, layout, day/night themes, solar tracking, orange sunset, skyline occlusion, water/waterfall/cloud motion, existing visitors and diffuse heading contrast. Preserve this baseline; there is no outstanding visual refinement required to close this stage.
+- Earlier ideas for articulated 3D visitors, richer animation or other visual refinements are future planning inputs, not active tasks or acceptance blockers. Await the user's reformulated plan and explicit implementation scope before developing them or extending navigation. Do not automatically resume the old B.3 substage sequence or begin Stage C.
+- Keep the rejected full 3D landscape inactive, including old preview URLs, and retain its existing code/assets for recoverability. The approved scene does not claim to include articulated 3D creatures. If a future plan authorizes them, use properly animated models, free assets first and explicit approval for purchases. Stage authorization never permits automatic push, merge or advancement.
 
 ## Child DOX Index
 
@@ -91,7 +91,7 @@ When the user requests a durable behavior change, record it here or in the relev
 - `public/backgrounds/hogwarts/AGENTS.md`: generated scene assets, provenance, and optimization constraints.
 - `public/scenes/AGENTS.md`: retained licensed GLB and texture decoder assets for the inactive 3D experiment.
 - `tooling/scene-assets/AGENTS.md`: offline material sanitation and model compression workflow.
-- Root-owned files: README.md, LICENSE, banner.jpg, video-thumbnail.jpg, and root-level project documentation, including `SCENE-ASSET-AUDIT.md` (B.3.1 candidate provenance and asset approval gate).
+- Root-owned files: README.md, LICENSE, banner.jpg, video-thumbnail.jpg, and root-level project documentation, including `SCENE-ASSET-AUDIT.md` (historical 3D asset provenance and preparation record; not an active implementation plan).
 
 ## Project overview
 

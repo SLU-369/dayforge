@@ -18,9 +18,10 @@
 ## Local Contracts
 
 - Keep decoration aria-hidden, pointer-transparent, and behind all product content.
+- The current appearance is approved and the visual stage is closed. The following contracts describe maintenance of the delivered behavior; they do not authorize further refinement. New visual work requires inclusion in the user's future plan and explicit implementation scope.
 - Keep the exact castle image and CSS lighting for day, twilight, and night; no full 3D landscape. The inactive experiment is owned by the child contract below.
 - Clouds drift continuously; visitors appear one at a time for 24 seconds, with 55–130 seconds of empty sky between visits. First visit occurs after 12–24 seconds. Avoid immediate repeat species.
-- Intended visitors include hippogriffs, thestrals, birds, and students on broomsticks. Current raster/SVG visitors are legacy placeholders, not the requested articulated 3D result. Replacements require suitable models and visual review; keep them subtle and below interactive content.
+- The approved visitors use raster/SVG visuals for hippogriffs, thestrals, birds and students on broomsticks. Articulated 3D replacements are deferred ideas, not unfinished work for this stage. Keep the existing visits subtle and below interactive content.
 - Disable visitor scheduling when hidden, motion is paused, or reduced motion is requested. Resume with a fresh interval, never accumulated missed visits.
 - Water uses localized sampling displacement, never translating/scaling copies of the whole photograph or adding repeating bright stripes. Masks are in source-image coordinates and follow the same centered cover crop at every viewport, excluding riverbanks and structures. Clouds are procedural wisps in the open lateral sky; the painted clouds remain part of the static image.
 - Pause environmental time when disabled, hidden or reduced motion is requested; resume without elapsed-time jumps. Theme lighting can redraw while paused, without moving water/clouds. GPU failure/context loss leaves the original static scene usable. Never render per-frame React state or persist scene data in planner storage.
