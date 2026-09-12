@@ -1,16 +1,27 @@
+<!-- GENERATED FILE: edit the numbered documents in docs/ and run npm.cmd run docs:master. -->
+# Dayforge 2.0 — Master Spec derivado
+
+> Este arquivo é uma compilação gerada. Os arquivos numerados em `docs/` são a fonte canônica.
+
 # Dayforge 2.0 — Documentação oficial de produto
 
-**Status:** baseline inicial pós-Etapa B3, antes da reconstrução funcional do produto  
-**Data:** 10/09/2026  
+**Status:** decisões arquiteturais da Etapa 0.1 consolidadas, antes da baseline técnica 0.2
+**Data:** 12/09/2026
 **Objetivo:** transformar as decisões de produto, UX, domínio e arquitetura discutidas até aqui em uma fonte oficial de verdade para o repositório e para o Codex.
 
 ## Como usar esta documentação
 
-1. O Codex deve ler **todos os arquivos desta pasta** antes de propor qualquer novo plano de implementação.
-2. A documentação é normativa para produto e UX. Quando código e documentação entrarem em conflito, o conflito deve ser explicitado antes de implementar.
-3. Ideias antigas que foram refinadas posteriormente foram consolidadas na forma mais atual.
-4. Decisões ainda não fechadas aparecem em `11_DECISIONS_AND_OPEN_QUESTIONS.md`.
-5. Toda mudança relevante de produto deve atualizar a documentação e o registro de decisões.
+1. Os arquivos numerados `00_*.md` a `16_*.md` são a fonte canônica de produto, UX, arquitetura e roadmap.
+2. `DAYFORGE_MASTER_SPEC.md` é um artefato derivado desses arquivos; nunca deve ser editado como fonte independente.
+3. O Codex deve ler **todos os arquivos canônicos** antes de propor qualquer novo plano de implementação.
+4. Quando código e documentação entrarem em conflito, o conflito deve ser explicitado antes de implementar.
+5. Ideias antigas que foram refinadas posteriormente foram consolidadas na forma mais atual.
+6. Decisões ainda não fechadas aparecem em `11_DECISIONS_AND_OPEN_QUESTIONS.md`.
+7. Toda mudança relevante de produto deve atualizar a documentação e o registro de decisões.
+
+## Master derivado
+
+Execute `npm.cmd run docs:master` após alterar qualquer documento canônico. O comando recompõe o master em ordem numérica, sem timestamp ou conteúdo autoral próprio. `npm.cmd run docs:master:check` verifica divergência sem modificar arquivos e deve integrar a CI a partir da Etapa 0.2.
 
 ## Visão em uma frase
 
@@ -38,7 +49,7 @@ Ele não deve parecer um SaaS administrativo nem um checklist infinito. A profun
 - `06_HEALTH_FITNESS_NUTRITION_SLEEP.md` — academia, Nutri e Sono.
 - `07_PROGRESS_GOALS_ANALYTICS.md` — metas, métricas, gráficos e comparações temporais.
 - `08_DATA_FILES_SECURITY_RETENTION.md` — retenção, anexos, backup, exclusão, autenticação e futuro cloud/PWA.
-- `09_TECHNICAL_ARCHITECTURE.md` — decisões técnicas conhecidas e itens pendentes de auditoria do repositório.
+- `09_TECHNICAL_ARCHITECTURE.md` — arquitetura técnica consolidada atual, incluindo decisões aprovadas e elementos futuros ainda sujeitos aos respectivos gates.
 - `10_ROADMAP_AND_CODEX_WORKFLOW.md` — processo de planejamento e implementação por etapas.
 - `11_DECISIONS_AND_OPEN_QUESTIONS.md` — decisões congeladas e pontos que dependem de validação futura.
 - `12_ACCEPTANCE_SCENARIOS.md` — cenários de aceitação de produto usados para revisar planos do Codex.
@@ -59,7 +70,10 @@ A Etapa B/B3 concluiu a fundação visual inicial do App Shell:
 - navegação principal atual: **Hoje, Planejamento, Formação, Academia, Nutri, Progresso**;
 - o conteúdo funcional antigo da página Hoje ainda é legado e será reformulado posteriormente.
 
-Antes da próxima grande etapa funcional, recomenda-se apenas um possível **B4 curto de congelamento de taxonomia**, principalmente para consolidar `Cursos rápidos` dentro de Formação e revisar nomes de itens como `Rotina-base` → `Rotina`.
+A próxima etapa autorizável é a **0.2/B4 curta de baseline técnica**: consolidar `Cursos rápidos`, revisar `Rotina-base` → `Rotina`, corrigir o typecheck, estabelecer CI mínima e impedir sobrescrita automática do payload v1 quando sua leitura falhar. Ela não inclui reconstrução funcional, IndexedDB ou novos domínios.
+
+---
+
 # 01 — Visão do Produto e Levantamento de Requisitos
 
 ## 1. Problema que o Dayforge resolve
@@ -203,6 +217,9 @@ O produto pode possuir um indicador visual/expressão do “estado do Dayforge�
 
 ### RF-G11 — Reflexão opcional do dia
 Uma nota/reflexão de fechamento pode existir se alimentar histórico ou revisão futura. Não deve ser obrigatória nem ocupar espaço central quando não utilizada.
+
+---
+
 # 02 — Arquitetura da Informação e Navegação
 
 ## 1. Navbar global congelada por enquanto
@@ -345,6 +362,8 @@ Período:
 Semana | Mês | Ano | Tudo (futuro)
 ```
 
+`Formação` é o domínio principal. Faculdade, Cursos e Leituras são subdomínios/filtros internos, nunca novas áreas globais. Métricas adicionais aparecem somente quando derivadas de fatos reais de execução.
+
 ## 8. Hoje
 
 A Home deve convergir dados dos outros domínios sem expor sua estrutura interna.
@@ -403,6 +422,9 @@ Visão geral | Conteúdo | Atividades | Progresso
 ```
 
 Todos os níveis podem estar disponíveis desde o início quando a plataforma de curso fornecer a trilha completa.
+
+---
+
 # 03 — Especificação de UX/UI
 
 ## 1. Objetivo de experiência
@@ -413,9 +435,9 @@ O Dayforge deve transmitir controle, não cobrança. A interface deve ser rápid
 
 Preservar e refinar:
 
-- tema dark;
-- tema light;
-- modo de acompanhar preferência do sistema;
+- tema Escuro;
+- tema Claro;
+- modo Solar, com mudança automática baseada no comportamento solar já existente;
 - atmosfera do fundo atual;
 - estética azulada/escura;
 - laranja como accent principal;
@@ -423,6 +445,8 @@ Preservar e refinar:
 - sensação premium e pessoal.
 
 O experimento 3D foi descartado. O fundo 2D permanece como base visual.
+
+Os três modos oficiais desta fase são `Claro`, `Escuro` e `Solar`. Não existe uma quarta opção `Sistema` nesta fase; seguir explicitamente o tema do sistema operacional permanece uma possibilidade futura.
 
 ## 3. O que evitar
 
@@ -586,6 +610,9 @@ Exemplos bons:
 - `Dentro do ritmo`;
 - `Acima do seu padrão`;
 - `Quase pronto`.
+
+---
+
 # 04 — Formação, Acadêmico, Cursos e Exploração
 
 ## 1. Objetivo
@@ -794,6 +821,8 @@ Cursos rápidos compartilham a mesma base dos técnicos:
 
 A diferença é classificatória/carga/duração, não estrutural.
 
+`Curso rápido` é uma categoria selecionada pelo usuário. Quantidade de horas, inclusive a referência histórica de aproximadamente 30 horas, não é regra universal nem critério automático do produto.
+
 ## 11. Importação de estrutura por texto
 
 Fluxo futuro desejado:
@@ -831,6 +860,8 @@ Registrar conclusão → carga horária → certificado → histórico
 ```
 
 Certificados devem permanecer acessíveis no histórico.
+
+Arquivos locais só entram depois que IndexedDB v2 estiver estável, o backup v2 estiver funcional, a restauração estiver testada e limites/quota tiverem comportamento definido. Até lá, o domínio pode evoluir sem persistir binários.
 
 ## 13. Leituras
 
@@ -922,15 +953,18 @@ Pode nascer sem relação e depois ser associado a:
 - nenhuma categoria.
 
 Horas não devem ser duplicadas em analytics: um estudo de 50 min relacionado a Banco de Dados continua valendo 50 min no total.
+
+---
+
 # 05 — Motor de Planejamento, Capacidade Saudável e Consistência
 
 ## 1. Natureza do motor
 
 O assistente de planejamento não depende de IA generativa na primeira versão.
 
-Ele será um motor determinístico, orientado por perguntas, regras, datas e capacidade configurada.
+Ele será um motor determinístico, orientado por perguntas, regras, datas e capacidade configurada. Na primeira versão local, o núcleo será implementado em TypeScript puro, isolado da UI e sem regras acopladas a componentes React.
 
-Python é a linguagem desejada para esse motor, enquanto Go permanece a linguagem principal do sistema/backend.
+Python não está descartado. Permanece candidato para prototipagem, simulações, análise, otimização ou futura execução server-side quando existir justificativa técnica concreta. Não deve entrar na runtime local apenas por preferência tecnológica. Go permanece a linguagem desejada para o backend principal futuro, introduzido somente quando API, autenticação, multiusuário, cloud, sincronização, armazenamento remoto ou segurança server-side o exigirem.
 
 ## 2. Perguntas do assistente
 
@@ -1163,6 +1197,8 @@ dias restantes
 
 Não usar apenas “faltam X dias”.
 
+A regra v1 deve ser determinística, explicável e testável. Limiares e pesos específicos precisam ser formalizados e aprovados antes da etapa de Entregas; os exemplos de aceitação não constituem sozinhos uma fórmula.
+
 ## 17. Aplicação da proposta
 
 O assistente deve ser acionável:
@@ -1174,6 +1210,9 @@ O assistente deve ser acionável:
 ```
 
 Ele não apenas conversa; ele altera o planejamento após confirmação.
+
+---
+
 # 06 — Academia, Nutri e Sono
 
 ## 1. Academia
@@ -1255,6 +1294,15 @@ Execução por série:
 
 Nutri é um módulo de organização e estimativas, não uma ferramenta de prescrição clínica.
 
+Ordem de implementação aprovada:
+
+1. plano e metas;
+2. revisão das fórmulas e da linguagem;
+3. calculadoras;
+4. hidratação/acompanhamento, somente se aprovado.
+
+Nenhuma fórmula deve ser apresentada como prescrição médica ou nutricional individual.
+
 ### 2.2 Mega menu
 
 ```text
@@ -1266,6 +1314,8 @@ Calculadoras
 ### 2.3 Calculadoras de estimativa
 
 Apresentar explicitamente como estimativas gerais.
+
+As fórmulas abaixo são candidatas históricas e ainda dependem da revisão específica prevista na ordem de implementação. Sua presença neste documento não autoriza implementação automática.
 
 #### IMC
 
@@ -1359,6 +1409,9 @@ Média 7 dias: 7h12
 ### 3.4 Futuro
 
 Considerar integrações com dispositivos/serviços de saúde no futuro para reduzir entrada manual, sem tornar isso requisito da primeira versão.
+
+---
+
 # 07 — Progresso, Metas e Analytics
 
 ## 1. Separação conceitual
@@ -1384,6 +1437,8 @@ Domínios:
 - Nutri;
 - Sono;
 - Exploração.
+
+Dentro de Formação, Faculdade, Cursos e Leituras funcionam como subdomínios/filtros. Métrica é um terceiro eixo contextual e não deve fragmentar a navegação global.
 
 Períodos:
 
@@ -1516,6 +1571,11 @@ Analytics devem responder perguntas concretas:
 - Qual disciplina exigiu mais estudo complementar?
 
 Evitar dezenas de gráficos simultâneos.
+
+Toda visualização deve ser derivada de fatos reais de execução. Não criar gráficos decorativos, séries demonstrativas apresentadas como dados do usuário ou contagens duplicadas por relações entre conteúdos.
+
+---
+
 # 08 — Dados, Arquivos, Segurança, Backup e Retenção
 
 ## 1. Princípio de retenção
@@ -1567,7 +1627,9 @@ Deve preservar:
 - dados estruturados;
 - configurações;
 - histórico;
-- anexos/certificados quando backend permitir.
+- anexos/certificados quando o armazenamento local de arquivos estiver habilitado.
+
+A persistência local v2 aprovada será IndexedDB com Dexie. Arquivos locais só podem ser habilitados depois que o IndexedDB v2 estiver estável, o backup v2 estiver funcional, a restauração estiver validada e a política de quota estiver definida. Quando habilitados, backup e restauração devem contemplar os arquivos e seus metadados.
 
 ## 5. Certificados e anexos
 
@@ -1578,7 +1640,9 @@ Arquivos aceitos inicialmente:
 - JPEG;
 - PNG.
 
-Backend futuro deve isolar anexos por usuário e impedir acesso cruzado.
+No modo local, os arquivos permanecem no armazenamento local e integram a exportação e a restauração locais. Backend e object storage privado são evoluções futuras para armazenamento remoto; quando existirem, devem isolar anexos por usuário e impedir acesso cruzado.
+
+No modo local, os formatos PDF, JPG, JPEG e PNG seguem os mesmos gates definidos para arquivos locais nesta especificação.
 
 ## 6. Evolução para cloud
 
@@ -1624,7 +1688,9 @@ Visão futura:
 - sincronização ao recuperar conexão;
 - política clara de conflitos.
 
-IndexedDB é uma opção possível para fila/cache local, mas não está congelada como tecnologia.
+IndexedDB com Dexie é a tecnologia aprovada para a persistência local v2. A futura fila de sincronização pode reutilizar essa base, mas outbox, conflitos e sincronização não entram antes de existir uma necessidade cloud concreta.
+
+O payload `rotina-369:data:v1` deve permanecer intacto durante a migração. A migração futura será validada, idempotente, reversível e testada; nunca removerá ou sobrescreverá o original antes de validar o destino. Já na Etapa 0.2, uma proteção mínima deve impedir que defaults sejam gravados sobre um payload v1 cuja leitura falhou.
 
 ## 10. Multiusuário
 
@@ -1643,295 +1709,306 @@ Quando cloud/multiusuário existir:
 ## 11. Privacidade por domínio
 
 O Dayforge pode armazenar informações pessoais de rotina, estudo, fitness, nutrição, sono, agenda e futuramente finanças. Segurança e privacidade devem ser requisitos de primeira classe antes de qualquer comercialização pública.
-# 09 — Arquitetura Técnica — Baseline e Pendências
 
-## 1. Status deste documento
+---
 
-Este arquivo registra decisões técnicas já expressas e separa claramente o que ainda precisa ser auditado pelo Codex no repositório real.
+# 09 — Arquitetura Técnica — Decisões da Etapa 0.1
 
-Não inventar stack para preencher lacunas.
+## 1. Status
 
-## 2. Decisões conhecidas
+Este documento separa arquitetura atual, direção aprovada e tecnologia futura. Nenhuma decisão futura autoriza implementação antecipada.
 
-### Frontend
-Manter o stack atual criado/refinado nas Etapas B/B3, sujeito a auditoria formal de framework, bibliotecas, estado, roteamento, animações e testes.
+## 2. Arquitetura atual
 
-### Backend principal
-**Go** é a linguagem principal desejada para backend e regras de domínio gerais.
+- frontend React 19 e TypeScript strict;
+- APIs App Router compiladas por Vinext/Vite;
+- Tailwind CSS 4, CSS próprio e CSS Modules;
+- estado React por Context e hooks;
+- persistência principal em `localStorage`, payload `rotina-369:data:v1`;
+- preferências de aparência em chaves locais separadas;
+- Worker apenas para runtime Vinext e otimização de imagens;
+- Drizzle/D1 preparado, mas schema e bindings de produção vazios;
+- nenhum backend de domínio, API, autenticação, sincronização ou banco ativo.
 
-### Motor de planejamento
-**Python** é a linguagem desejada para o assistente determinístico/question-answer e algoritmos de planejamento.
+## 3. Frontend local v2
 
-### Estado legado
-Existe histórico de persistência local (`localStorage`) e payload legado preservado durante o App Shell. A futura estratégia de persistência deve ser reavaliada antes do backend 2.0.
-
-## 3. Responsabilidade proposta por camada
+A reconstrução funcional permanece no frontend atual. O domínio deve ser isolado de React por funções puras, comandos, consultas e interfaces de repositório.
 
 ```text
-Frontend
-- UX/UI
-- navegação
-- formulários/wizards
-- visualização
-- feedback imediato
+React
+- navegação, UX, formulários e feedback
 
-Go backend
-- API
-- autenticação futura
+Núcleo TypeScript
 - regras de domínio
-- persistência
-- autorização
-- arquivos/metadados
-- coordenação geral
+- motor determinístico
+- transições e validação
+- agregações testáveis
 
-Python planner
-- cálculo de capacidade
-- geração/regeração de plano
-- validação de viabilidade
-- heurísticas determinísticas
+Repositórios
+- persistência e backup
+- adaptação do payload legado
 ```
 
-A integração Go ↔ Python ainda deve ser desenhada após auditoria. Possibilidades como serviço separado, processo interno ou outra abordagem não estão congeladas.
+## 4. Persistência local v2
 
-## 4. Banco de dados
+IndexedDB com Dexie é a direção aprovada. Ela substituirá `localStorage` como store principal dos novos domínios, sem destruir o legado.
 
-Ainda não escolher definitivamente antes do plano técnico do Codex.
+A migração de `rotina-369:data:v1` deve ser validada, idempotente, reversível, testada com payloads válidos, parciais e corrompidos e não destrutiva antes da validação do destino.
 
-Para evolução multiusuário e relacional, um banco relacional como PostgreSQL é candidato natural, mas a decisão precisa ser fundamentada após modelagem de domínio.
+A Etapa 0.2 antecipa somente uma proteção: falha de leitura do v1 bloqueia o autosave de defaults e preserva o conteúdo original. IndexedDB e a migração completa permanecem fora da 0.2.
 
-## 5. Armazenamento de arquivos
+## 5. Motor de planejamento
 
-Certificados e anexos futuros devem usar armazenamento apropriado e privado. Object storage é candidato provável no modo cloud, sem fornecedor definido.
+A primeira versão local usa TypeScript puro, determinístico e independente da UI. Os contratos e vetores de teste devem permitir reprodução fora do navegador.
 
-## 6. PWA
+Python permanece candidato para prototipagem, simulações, análise, otimização ou execução server-side futura. Sua entrada na runtime exige evidência de que TypeScript/Go não atende à necessidade; preferência de linguagem não é justificativa suficiente.
 
-O frontend deve ser compatível com futura evolução PWA.
+## 6. Backend futuro
 
-Requisitos futuros:
+Go continua sendo a linguagem desejada para o backend principal. Deve entrar apenas quando houver necessidade concreta de API, autenticação, multiusuário, cloud, sincronização, armazenamento remoto ou segurança server-side.
 
-- instalável;
-- responsivo;
-- cache apropriado;
-- offline parcial;
-- sincronização;
-- notificações somente se o produto decidir adotá-las.
+A primeira arquitetura será um monólito modular. Microsserviços, filas, brokers, Redis, Kafka, Kubernetes e infraestrutura distribuída permanecem adiados sem necessidade comprovada.
 
-## 7. Observabilidade futura
+## 7. Dados e arquivos futuros
 
-Em ambiente comercial, planejar:
+PostgreSQL é o candidato principal para o backend relacional multiusuário; a decisão final e a estratégia de migrations pertencem ao ADR do backend. D1/Drizzle atuais não constituem decisão de produto.
 
-- logs estruturados;
-- métricas;
-- tracing quando necessário;
-- erros frontend/backend;
-- auditoria de ações sensíveis.
+Certificados locais dependem de IndexedDB v2, backup/restauração completos e política de quota. No cloud, binários devem usar object storage privado; banco guarda metadados e autorização.
 
-## 8. Testes
+## 8. PWA, offline e sincronização
 
-Planejar camadas:
+- PWA e cache só entram depois que os fluxos e o store v2 estiverem estáveis.
+- IndexedDB prepara o offline local, mas não antecipa sincronização.
+- Sincronização futura exige operações idempotentes, IDs estáveis e política explícita de conflitos.
+- Execuções concluídas e histórico nunca podem ser descartados silenciosamente por conflito.
 
-- unitários de regras;
-- unitários do planner;
-- componentes frontend;
-- integração de API;
-- E2E dos fluxos essenciais;
-- acessibilidade;
-- responsividade.
+## 9. Segurança e observabilidade
 
-## 9. Auditoria técnica obrigatória pelo Codex
+Autenticação, autorização, isolamento por usuário, sessões, proteção de uploads e secrets entram com o backend/cloud. Logs estruturados, métricas, erros e auditoria de ações sensíveis devem acompanhar essa introdução, não o protótipo local.
 
-Após documentação aprovada, pedir ao Codex para identificar:
+## 10. Verificação arquitetural
 
-- framework frontend e versão;
-- gerenciador de pacotes;
-- estrutura de pastas;
-- roteamento;
-- estado global/local;
-- persistência atual;
-- biblioteca de ícones;
-- biblioteca de gráficos;
-- animações;
-- CSS/Tailwind/CSS modules/etc.;
-- design tokens;
-- testes;
-- lint/format;
-- build;
-- PWA atual ou ausente;
-- dependências obsoletas;
-- segurança atual;
-- acoplamentos com localStorage;
-- pontos de migração para API.
+Camadas futuras devem possuir testes unitários de domínio e planner, testes de componente e acessibilidade, integração de persistência/backup/migração, E2E dos fluxos essenciais e contratos de API/segurança quando o backend existir.
 
-Somente depois dessa auditoria este documento deve ser atualizado com a ficha técnica definitiva.
-# 10 — Roadmap e Fluxo com Codex
+---
 
-## 1. Situação atual
+# 10 — Roadmap e Fluxo de Implementação
 
-- Etapa B/B3 concluída.
-- App Shell horizontal criado.
-- Experimento 3D revertido.
-- Repositório migrado para ambiente pessoal do usuário.
-- Próxima grande ação: documentação → auditoria do Codex → novo planejamento.
+## 1. Estado
 
-## 2. Possível B4 curto antes do freeze
+- Etapa B/B3 visual concluída e aprovada.
+- Etapa 0.1 documental concluída nesta baseline.
+- Nenhuma etapa funcional pode começar por consequência automática desta documentação.
 
-Apenas se ainda não realizado:
+## 2. Etapa 0.1 — Decisões e documentação
 
-- adicionar `Cursos rápidos` ao mega menu Formação;
-- revisar `Rotina-base` → `Rotina`;
-- congelar textos/subtítulos dos mega menus;
-- não implementar novas regras de negócio;
-- não reconstruir Hoje ainda.
+Escopo:
 
-## 3. Ordem correta
+- fechar decisões humanas pós-auditoria;
+- tornar os documentos numerados a fonte canônica;
+- gerar `DAYFORGE_MASTER_SPEC.md` a partir deles;
+- atualizar contratos DOX;
+- registrar o roadmap revisado.
+
+Fora de escopo: qualquer mudança funcional, persistência, UI, backend ou banco.
+
+## 3. Etapa 0.2/B4 — Taxonomia, baseline e proteção do v1
+
+Escopo restrito:
+
+- adicionar `Cursos rápidos` à taxonomia de Formação;
+- renomear `Rotina-base` para `Rotina`;
+- ajustar apenas textos necessários à taxonomia;
+- corrigir o typecheck existente;
+- estabelecer CI mínima;
+- verificar automaticamente que o master corresponde aos documentos canônicos;
+- proteger o payload v1 contra sobrescrita destrutiva após falha de leitura.
+
+Contrato mínimo de proteção:
+
+1. detectar falha ao ler `rotina-369:data:v1`;
+2. manter o conteúdo original intacto;
+3. impedir autosave de defaults enquanto a falha não for resolvida explicitamente;
+4. permitir experiência temporária em memória com aviso claro;
+5. cobrir o caso com teste de regressão.
+
+Fora de escopo:
+
+- nova Home/Hoje;
+- novos domínios;
+- IndexedDB/Dexie;
+- Formação funcional;
+- motor de planejamento;
+- Academia, Nutri ou Progresso funcional.
+
+## 4. Roadmap funcional aprovado
 
 ```text
-Documentar
+0.1 Decisões e documentação
 ↓
-Revisar documentação
+0.2 Taxonomia, baseline e proteção do v1
 ↓
-Codex lê /docs inteiro
+1 Núcleo temporal e persistência local v2
 ↓
-Codex audita repositório
+2 Hoje contextual e execução/reagendamento
 ↓
-Codex propõe novo roadmap
+3 Rotina, Agenda, Semana, Metas e consistência
 ↓
-Revisão humana do roadmap
+4 Formação, Acadêmico, Cursos e Exploração
 ↓
-Implementação por etapas
+5 Motor determinístico TypeScript
+↓
+6 Academia
+↓
+7 Sono e Nutri
+↓
+8 Progresso e Analytics
+↓
+9 Arquivos e certificados locais
+↓
+10 PWA local
+↓
+11 Backend Go, PostgreSQL, autenticação, cloud e sincronização
+↓
+12 Finanças, em ciclo futuro próprio
 ```
 
-## 4. Prompt-base para novo Plan Mode
+Cada etapa ampla deve ser subdividida em branches revisáveis antes de sua implementação. Python permanece candidato futuro e não possui etapa automática.
 
-O novo chat do Codex deve receber instrução semelhante a:
+## 5. Ordem de dependências
 
-```text
-Leia integralmente todos os arquivos em /docs antes de planejar qualquer alteração.
-Inspecione o repositório real pós-B3.
-Não implemente nada.
-Confronte código atual com requisitos documentados.
-Identifique gaps, riscos e dependências.
-Proponha novo roadmap técnico em etapas pequenas.
-Separe frontend, domínio, backend, planner e migração de dados.
-```
+- Hoje depende do núcleo temporal e não deve defini-lo dentro de componentes.
+- Rotina, Agenda e Metas fornecem restrições ao motor.
+- O motor precisa de conteúdo real para validação, por isso vem após a base de Formação.
+- Analytics depende de fatos reais de execução.
+- Arquivos dependem de store v2, backup, restauração e quota.
+- PWA depende de fluxos e persistência local estáveis.
+- Go/cloud entram apenas após necessidade concreta e aprovação própria.
 
-## 5. O Codex deve entregar
-
-- inventário do stack;
-- mapa de rotas e componentes;
-- mapa de persistência;
-- pontos reutilizáveis;
-- pontos legados a remover;
-- nova arquitetura técnica;
-- fases de implementação;
-- dependências entre fases;
-- estratégia de migração;
-- riscos;
-- testes/aceite de cada fase.
-
-## 6. Não assumir etapas antigas
-
-Nomes como C, D, E etc. eram hipóteses anteriores. Após ler esta documentação, o Codex deve recriar o roadmap com base no estado real do repositório e nos requisitos consolidados.
-
-## 7. Implementação por etapa
-
-Cada etapa deve seguir:
+## 6. Fluxo obrigatório por etapa
 
 ```text
 Planejar
-→ aprovar
-→ criar/usar branch
-→ implementar
-→ lint/build/testes
-→ revisão visual/funcional
-→ corrigir
-→ commit(s) pequenos
+→ aprovação humana
+→ partir da main atualizada
+→ criar branch específica
+→ implementar somente o escopo aprovado
+→ lint, typecheck, build e testes aplicáveis
+→ revisão funcional/visual
+→ correções
+→ commit(s) coerentes
+→ apresentar resultados
 → parar
 ```
 
-Sem push, merge ou próxima etapa sem autorização explícita, caso esse continue sendo o fluxo escolhido.
+Não fazer push, merge ou avançar de etapa sem autorização explícita. Silêncio não é aprovação.
 
-## 8. Documentação viva
+## 7. Closeout obrigatório
 
-Mudança de produto aprovada deve atualizar:
+Ao concluir qualquer etapa, apresentar resumo/comportamento, arquivos alterados, testes/resultados, riscos/pendências, documentação impactada, commits/branch e status da working tree.
 
-- requisito correspondente;
-- UX, se aplicável;
-- domínio, se aplicável;
-- `DECISIONS`;
-- roadmap, se houver impacto.
+## 8. Fonte de verdade
 
-## 9. Fonte de verdade
-
-- Chat: ideação e discussão.
-- `/docs`: decisões oficiais.
-- Codex: auditoria, planejamento e implementação.
+- Chat: discussão e aprovação.
+- Arquivos numerados em `/docs`: contratos canônicos.
+- `DAYFORGE_MASTER_SPEC.md`: compilação derivada, nunca fonte manual.
 - Git: histórico de evolução.
+
+---
+
 # 11 — Decisões e Questões Abertas
 
 ## Decisões congeladas até nova revisão
 
 ### D-001 — Dayforge é life-management first
-Não posicionar o produto apenas como planner de estudante. Formação é um domínio importante, mas o produto organiza rotina, aprendizado, fitness, nutrição, sono e futuramente finanças.
+Não posicionar o produto apenas como planner de estudante.
 
-### D-002 — Navbar principal atual
-`Hoje | Planejamento | Formação | Academia | Nutri | Progresso`
+### D-002 — Navbar principal
+`Hoje | Planejamento | Formação | Academia | Nutri | Progresso`.
 
-### D-003 — Sono não entra na navbar agora
-Sono é transversal em Rotina, Hoje e Progresso.
+### D-003 — Sono é transversal
+Sono não entra na navbar nesta fase; aparece em Rotina, Hoje e Progresso.
 
 ### D-004 — Finanças é futuro
-Não implementar no ciclo atual, mas não bloquear expansão.
+Não implementar no ciclo atual nem bloquear expansão futura.
 
 ### D-005 — Sem sidebar administrativa no desktop
 Navegação principal horizontal com mega menus.
 
 ### D-006 — Formação inclui Cursos rápidos
-Mega menu Formação deve distinguir Acadêmico, Cursos técnicos, Cursos rápidos e Leituras & Exploração.
+Formação distingue Acadêmico, Cursos técnicos, Cursos rápidos e Leituras & Exploração.
 
 ### D-007 — Ensino Superior é genérico
 Graduação, pós, MBA, mestrado e doutorado compartilham uma base de formação/ciclos.
 
-### D-008 — Curso técnico e curso rápido compartilham motor estrutural
-Podem ter níveis, conteúdo, atividades, questionários, provas e projetos.
+### D-008 — Cursos compartilham estrutura
+Curso técnico e rápido podem usar níveis, conteúdos, atividades, questionários, provas e projetos.
 
 ### D-009 — Histórico é preservado
 Conclusão não apaga dados.
 
-### D-010 — Planner sem LLM inicialmente
-Motor determinístico/question-answer, desejado em Python.
+### D-010 — Planner local em TypeScript
+O motor v1 é determinístico, puro, testável e isolado da UI. Python permanece candidato para prototipagem, simulação, otimização ou execução server-side justificada.
 
-### D-011 — Backend principal em Go
-Go é a linguagem principal desejada para backend.
+### D-011 — Backend futuro em Go
+Go entra somente quando API, autenticação, multiusuário, cloud, sincronização, armazenamento remoto ou segurança server-side forem necessários. Começar como monólito modular.
 
 ### D-012 — Planejamento sustentável
 Não preencher automaticamente toda hora livre.
 
 ### D-013 — Streak não é perfeição
-Suportar mínimo, alvo e tolerância; faculdade pode usar consistência semanal.
+Suportar mínimo, alvo e tolerância; metas semanais usam consistência semanal quando apropriado.
 
 ### D-014 — Deadline e meta são diferentes
-Deadline é obrigatório; meta é desejada/replanejável.
+Deadline é obrigatório; meta é desejada e replanejável.
 
 ### D-015 — 3D descartado
-Preservar a solução visual 2D atual como base.
+Preservar a solução visual 2D aprovada.
 
-## Questões abertas para o novo Plan Mode
+### D-016 — Modos de aparência
+Os modos oficiais são Claro, Escuro e Solar. Não existe modo Sistema nesta fase.
 
-1. Qual o stack frontend exato pós-B3?
-2. A B4 de taxonomia já foi aplicada ou ainda falta `Cursos rápidos`/`Rotina`?
-3. Qual banco melhor representa o domínio futuro?
-4. Como integrar Go e Python no planner?
-5. Qual estratégia de migração do localStorage legado?
-6. Qual biblioteca de gráficos atual deve ser mantida/substituída?
-7. Como implementar PWA/offline sem criar complexidade precoce?
-8. Como modelar arquivos/certificados no modo local antes do cloud?
-9. Quando introduzir autenticação/multiusuário?
-10. Quais métricas de Nutri entram na primeira versão e quais ficam futuras?
-11. A classificação de curso rápido por “até ~30h” será regra do produto ou apenas convenção do usuário?
-12. Qual o melhor componente visual para níveis/períodos sem accordion excessivo?
-13. Quais regras exatas de risco de entrega serão adotadas na v1?
-14. Como versionar alterações de planejamento sem perder histórico?
+### D-017 — Estados temporais v1
+Usar `planned`, `completed`, `completed_rescheduled`, `not_completed` e `cancelled`. Não usar `skipped` como sinônimo.
+
+### D-018 — Histórico temporal
+Preservar planejamento original, reagendamentos, execução real, origem da ocorrência e motivo quando aplicável. Tolerância pertence à regra de consistência, não ao estado temporal.
+
+### D-019 — Fonte documental
+Arquivos numerados em `docs/` são canônicos. O master é gerado e não recebe edição independente.
+
+### D-020 — Persistência local v2
+Usar IndexedDB com Dexie. Preservar `rotina-369:data:v1` durante migração validada, idempotente, reversível e testada.
+
+### D-021 — Proteção imediata do v1
+A Etapa 0.2 impede autosave de defaults após falha de leitura e mantém o conteúdo original intacto.
+
+### D-022 — Risco de entrega
+Considerar ao menos dias restantes, progresso, ritmo necessário e última atualização por regra determinística, explicável e testável.
+
+### D-023 — Ordem de Nutri
+Plano e metas; revisão das fórmulas/linguagem; calculadoras; hidratação somente se aprovada.
+
+### D-024 — Arquivos locais possuem gates
+Certificados locais exigem store v2, backup, restauração e política de quota estáveis.
+
+### D-025 — Curso rápido é escolha do usuário
+Não impor limite universal de horas.
+
+### D-026 — Taxonomia de Progresso
+Domínios principais: Formação, Academia, Nutri, Sono e Exploração. Faculdade, Cursos e Leituras são filtros internos de Formação. Analytics deriva de fatos reais.
+
+## Questões abertas antes das etapas correspondentes
+
+1. Quais limiares e pesos formam a primeira regra de risco de Entregas?
+2. Quais fórmulas e textos de Nutri serão aprovados após revisão específica?
+3. Quais limites de tamanho, quota e recuperação serão usados para arquivos locais?
+4. Qual gate de estabilidade/portabilidade do frontend será exigido antes do backend/cloud?
+
+Essas questões não bloqueiam a Etapa 0.2. Cada uma bloqueia apenas a funcionalidade correspondente.
+
+---
+
 # 12 — Cenários de Aceitação de Produto
 
 Estes cenários devem ser usados para revisar qualquer plano do Codex. Se a arquitetura proposta não consegue suportá-los, o plano está incompleto.
@@ -1998,7 +2075,7 @@ Usuário registra cargas de Supino ao longo dos meses e visualiza linha de evolu
 
 ## Cenário 16 — Progresso acadêmico
 
-Usuário alterna Progresso entre Faculdade, Cursos, Academia, Nutri, Sono e Exploração. O gráfico muda de métrica sem recarregar toda a página.
+Usuário alterna Progresso entre os domínios principais Formação, Academia, Nutri, Sono e Exploração. Dentro de Formação, seleciona filtros como Faculdade, Cursos e Leituras. O gráfico muda de métrica sem recarregar toda a página.
 
 ## Cenário 17 — Livro
 
@@ -2023,6 +2100,9 @@ Usuário tenta apagar todos os dados. Sistema oferece backup, confirma repetidam
 ## Cenário 22 — Futuro PWA
 
 Usuário conclui aula pelo celular e o mesmo histórico aparece no desktop após sincronização, sem duplicar registros.
+
+---
+
 # 13 — Modelo Conceitual de Domínio
 
 > Este arquivo descreve conceitos, não tabelas definitivas. O Codex deve propor o modelo técnico depois de auditar o repositório.
@@ -2049,8 +2129,18 @@ Estados temporais desejados:
 - planned;
 - completed;
 - completed_rescheduled;
-- skipped/not_completed;
+- not_completed;
 - cancelled.
+
+`skipped` não é sinônimo nem estado v1. Uma ocorrência deve preservar, conforme aplicável:
+
+- data/horário originalmente planejados;
+- cadeia de reagendamentos;
+- data/horário efetivamente realizados;
+- origem da ocorrência, como rotina, agenda, domínio ou criação avulsa;
+- motivo de não realização, cancelamento ou reagendamento.
+
+Tolerância a dias não realizados pertence a `ConsistencyRule`, não ao estado da ocorrência.
 
 Flexibilidade:
 
@@ -2247,6 +2337,9 @@ A UI deve oferecer, quando aplicável:
 - editar esta e futuras ocorrências;
 - reagendar;
 - pular somente hoje.
+
+---
+
 # 14 — Estado Atual → Estado Alvo
 
 ## 1. App Shell
@@ -2254,13 +2347,13 @@ A UI deve oferecer, quando aplicável:
 ### Atual pós-B3
 - navbar horizontal;
 - mega menus;
-- tema claro/escuro/sistema;
+- temas Claro, Escuro e Solar;
 - fundo 2D;
 - botão Adicionar;
 - Perfil/Configuração no topo.
 
 ### Alvo
-Manter fundação. Fazer apenas ajustes pequenos de taxonomia antes do freeze, se ainda faltarem.
+Manter fundação. A Etapa 0.2/B4 ainda deve adicionar `Cursos rápidos`, renomear `Rotina-base` para `Rotina`, corrigir a baseline técnica e não alterar a direção visual aprovada.
 
 ## 2. Hoje
 
@@ -2374,6 +2467,25 @@ Existe a ideia de um **estado visual do Dayforge** (por exemplo, expressão/íco
 - deve ser opcional e não infantilizar a experiência.
 
 A definição visual exata permanece pendente de UX.
+
+## 12. Persistência local
+
+### Atual
+
+- `rotina-369:data:v1` em `localStorage`;
+- validação estrutural superficial;
+- falha de leitura carrega defaults e pode permitir que o autosave sobrescreva o conteúdo original;
+- backup JSON cobre apenas o planner v1.
+
+### Alvo
+
+- Etapa 0.2 impede sobrescrita automática após falha de leitura, sem introduzir novo store;
+- Etapa 1 adota IndexedDB com Dexie;
+- migração v1 validada, idempotente, reversível e não destrutiva;
+- backup v2 e restauração completos antes de arquivos locais.
+
+---
+
 # 15 — Visão Futura: PWA, Cloud e Produto Comercial
 
 ## 1. Visão
@@ -2472,6 +2584,9 @@ Finanças é um domínio futuro previsto, potencialmente com:
 - evolução.
 
 Não entra na implementação atual.
+
+---
+
 # 16 — Cenário de Referência Pessoal (não é default do produto)
 
 > Este arquivo existe para testes, protótipos e exemplos. Nenhum valor abaixo deve ser hardcoded como regra universal.

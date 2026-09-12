@@ -1,120 +1,77 @@
-# 09 — Arquitetura Técnica — Baseline e Pendências
+# 09 — Arquitetura Técnica — Decisões da Etapa 0.1
 
-## 1. Status deste documento
+## 1. Status
 
-Este arquivo registra decisões técnicas já expressas e separa claramente o que ainda precisa ser auditado pelo Codex no repositório real.
+Este documento separa arquitetura atual, direção aprovada e tecnologia futura. Nenhuma decisão futura autoriza implementação antecipada.
 
-Não inventar stack para preencher lacunas.
+## 2. Arquitetura atual
 
-## 2. Decisões conhecidas
+- frontend React 19 e TypeScript strict;
+- APIs App Router compiladas por Vinext/Vite;
+- Tailwind CSS 4, CSS próprio e CSS Modules;
+- estado React por Context e hooks;
+- persistência principal em `localStorage`, payload `rotina-369:data:v1`;
+- preferências de aparência em chaves locais separadas;
+- Worker apenas para runtime Vinext e otimização de imagens;
+- Drizzle/D1 preparado, mas schema e bindings de produção vazios;
+- nenhum backend de domínio, API, autenticação, sincronização ou banco ativo.
 
-### Frontend
-Manter o stack atual criado/refinado nas Etapas B/B3, sujeito a auditoria formal de framework, bibliotecas, estado, roteamento, animações e testes.
+## 3. Frontend local v2
 
-### Backend principal
-**Go** é a linguagem principal desejada para backend e regras de domínio gerais.
-
-### Motor de planejamento
-**Python** é a linguagem desejada para o assistente determinístico/question-answer e algoritmos de planejamento.
-
-### Estado legado
-Existe histórico de persistência local (`localStorage`) e payload legado preservado durante o App Shell. A futura estratégia de persistência deve ser reavaliada antes do backend 2.0.
-
-## 3. Responsabilidade proposta por camada
+A reconstrução funcional permanece no frontend atual. O domínio deve ser isolado de React por funções puras, comandos, consultas e interfaces de repositório.
 
 ```text
-Frontend
-- UX/UI
-- navegação
-- formulários/wizards
-- visualização
-- feedback imediato
+React
+- navegação, UX, formulários e feedback
 
-Go backend
-- API
-- autenticação futura
+Núcleo TypeScript
 - regras de domínio
-- persistência
-- autorização
-- arquivos/metadados
-- coordenação geral
+- motor determinístico
+- transições e validação
+- agregações testáveis
 
-Python planner
-- cálculo de capacidade
-- geração/regeração de plano
-- validação de viabilidade
-- heurísticas determinísticas
+Repositórios
+- persistência e backup
+- adaptação do payload legado
 ```
 
-A integração Go ↔ Python ainda deve ser desenhada após auditoria. Possibilidades como serviço separado, processo interno ou outra abordagem não estão congeladas.
+## 4. Persistência local v2
 
-## 4. Banco de dados
+IndexedDB com Dexie é a direção aprovada. Ela substituirá `localStorage` como store principal dos novos domínios, sem destruir o legado.
 
-Ainda não escolher definitivamente antes do plano técnico do Codex.
+A migração de `rotina-369:data:v1` deve ser validada, idempotente, reversível, testada com payloads válidos, parciais e corrompidos e não destrutiva antes da validação do destino.
 
-Para evolução multiusuário e relacional, um banco relacional como PostgreSQL é candidato natural, mas a decisão precisa ser fundamentada após modelagem de domínio.
+A Etapa 0.2 antecipa somente uma proteção: falha de leitura do v1 bloqueia o autosave de defaults e preserva o conteúdo original. IndexedDB e a migração completa permanecem fora da 0.2.
 
-## 5. Armazenamento de arquivos
+## 5. Motor de planejamento
 
-Certificados e anexos futuros devem usar armazenamento apropriado e privado. Object storage é candidato provável no modo cloud, sem fornecedor definido.
+A primeira versão local usa TypeScript puro, determinístico e independente da UI. Os contratos e vetores de teste devem permitir reprodução fora do navegador.
 
-## 6. PWA
+Python permanece candidato para prototipagem, simulações, análise, otimização ou execução server-side futura. Sua entrada na runtime exige evidência de que TypeScript/Go não atende à necessidade; preferência de linguagem não é justificativa suficiente.
 
-O frontend deve ser compatível com futura evolução PWA.
+## 6. Backend futuro
 
-Requisitos futuros:
+Go continua sendo a linguagem desejada para o backend principal. Deve entrar apenas quando houver necessidade concreta de API, autenticação, multiusuário, cloud, sincronização, armazenamento remoto ou segurança server-side.
 
-- instalável;
-- responsivo;
-- cache apropriado;
-- offline parcial;
-- sincronização;
-- notificações somente se o produto decidir adotá-las.
+A primeira arquitetura será um monólito modular. Microsserviços, filas, brokers, Redis, Kafka, Kubernetes e infraestrutura distribuída permanecem adiados sem necessidade comprovada.
 
-## 7. Observabilidade futura
+## 7. Dados e arquivos futuros
 
-Em ambiente comercial, planejar:
+PostgreSQL é o candidato principal para o backend relacional multiusuário; a decisão final e a estratégia de migrations pertencem ao ADR do backend. D1/Drizzle atuais não constituem decisão de produto.
 
-- logs estruturados;
-- métricas;
-- tracing quando necessário;
-- erros frontend/backend;
-- auditoria de ações sensíveis.
+Certificados locais dependem de IndexedDB v2, backup/restauração completos e política de quota. No cloud, binários devem usar object storage privado; banco guarda metadados e autorização.
 
-## 8. Testes
+## 8. PWA, offline e sincronização
 
-Planejar camadas:
+- PWA e cache só entram depois que os fluxos e o store v2 estiverem estáveis.
+- IndexedDB prepara o offline local, mas não antecipa sincronização.
+- Sincronização futura exige operações idempotentes, IDs estáveis e política explícita de conflitos.
+- Execuções concluídas e histórico nunca podem ser descartados silenciosamente por conflito.
 
-- unitários de regras;
-- unitários do planner;
-- componentes frontend;
-- integração de API;
-- E2E dos fluxos essenciais;
-- acessibilidade;
-- responsividade.
+## 9. Segurança e observabilidade
 
-## 9. Auditoria técnica obrigatória pelo Codex
+Autenticação, autorização, isolamento por usuário, sessões, proteção de uploads e secrets entram com o backend/cloud. Logs estruturados, métricas, erros e auditoria de ações sensíveis devem acompanhar essa introdução, não o protótipo local.
 
-Após documentação aprovada, pedir ao Codex para identificar:
+## 10. Verificação arquitetural
 
-- framework frontend e versão;
-- gerenciador de pacotes;
-- estrutura de pastas;
-- roteamento;
-- estado global/local;
-- persistência atual;
-- biblioteca de ícones;
-- biblioteca de gráficos;
-- animações;
-- CSS/Tailwind/CSS modules/etc.;
-- design tokens;
-- testes;
-- lint/format;
-- build;
-- PWA atual ou ausente;
-- dependências obsoletas;
-- segurança atual;
-- acoplamentos com localStorage;
-- pontos de migração para API.
-
-Somente depois dessa auditoria este documento deve ser atualizado com a ficha técnica definitiva.
+Camadas futuras devem possuir testes unitários de domínio e planner, testes de componente e acessibilidade, integração de persistência/backup/migração, E2E dos fluxos essenciais e contratos de API/segurança quando o backend existir.

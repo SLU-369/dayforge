@@ -83,6 +83,11 @@ When the user requests a durable behavior change, record it here or in the relev
 - The visual stage through B.3 is concluded and approved in its delivered photographic form: horizontal navigation, layout, day/night themes, solar tracking, orange sunset, skyline occlusion, water/waterfall/cloud motion, existing visitors and diffuse heading contrast. Preserve this baseline; there is no outstanding visual refinement required to close this stage.
 - Earlier ideas for articulated 3D visitors, richer animation or other visual refinements are future planning inputs, not active tasks or acceptance blockers. Await the user's reformulated plan and explicit implementation scope before developing them or extending navigation. Do not automatically resume the old B.3 substage sequence or begin Stage C.
 - Keep the rejected full 3D landscape inactive, including old preview URLs, and retain its existing code/assets for recoverability. The approved scene does not claim to include articulated 3D creatures. If a future plan authorizes them, use properly animated models, free assets first and explicit approval for purchases. Stage authorization never permits automatic push, merge or advancement.
+- The numbered files in `docs/` are the canonical product and architecture source. `docs/DAYFORGE_MASTER_SPEC.md` is generated from them and must not be edited independently.
+- Official appearance modes for the current roadmap are Light, Dark, and Solar. Do not add an explicit System mode without a later approved decision.
+- The first local planning engine will use deterministic TypeScript isolated from React UI. Python remains a candidate for justified prototyping, simulation, optimization, or future server-side execution; do not add it to the local production runtime by preference alone.
+- IndexedDB with Dexie is the approved local v2 persistence direction. Preserve `rotina-369:data:v1` through a validated, idempotent, reversible migration; before that migration, a read failure must never cause defaults to overwrite the original payload.
+- Go remains the desired future backend language and starts as a modular monolith only when API, authentication, multi-user, cloud, sync, remote storage, or server-side security creates a concrete need.
 
 ## Child DOX Index
 
@@ -91,6 +96,7 @@ When the user requests a durable behavior change, record it here or in the relev
 - `public/backgrounds/hogwarts/AGENTS.md`: generated scene assets, provenance, and optimization constraints.
 - `public/scenes/AGENTS.md`: retained licensed GLB and texture decoder assets for the inactive 3D experiment.
 - `tooling/scene-assets/AGENTS.md`: offline material sanitation and model compression workflow.
+- `tooling/docs/AGENTS.md`: deterministic generation and verification of the derived master specification.
 - Root-owned files: README.md, LICENSE, banner.jpg, video-thumbnail.jpg, and root-level project documentation, including `SCENE-ASSET-AUDIT.md` (historical 3D asset provenance and preparation record; not an active implementation plan).
 
 ## Project overview
@@ -166,6 +172,7 @@ If a future OpenAI API integration is added, use the environment name `OPENAI_AP
 - Keep TypeScript strict and avoid `any`; define planner types in `app/planner-data.ts` and appearance types in `app/appearance.ts`.
 - Keep interactive browser state behind a `"use client"` boundary.
 - Preserve versioning and backward compatibility for the `rotina-369:data:v1` local-storage payload. Add a migration before changing its shape incompatibly.
+- If the v1 payload cannot be read, preserve its original bytes and block automatic persistence of defaults until explicit recovery; the minimal implementation belongs to Stage 0.2.
 - Treat the weekly routine as a template and daily records as immutable historical snapshots; editing the routine must not rewrite past records.
 - Keep UI text in Brazilian Portuguese and code identifiers in descriptive English.
 - Reuse `CATEGORIES`, date helpers, and duration helpers instead of duplicating domain logic.

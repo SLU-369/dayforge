@@ -24,8 +24,18 @@ Estados temporais desejados:
 - planned;
 - completed;
 - completed_rescheduled;
-- skipped/not_completed;
+- not_completed;
 - cancelled.
+
+`skipped` não é sinônimo nem estado v1. Uma ocorrência deve preservar, conforme aplicável:
+
+- data/horário originalmente planejados;
+- cadeia de reagendamentos;
+- data/horário efetivamente realizados;
+- origem da ocorrência, como rotina, agenda, domínio ou criação avulsa;
+- motivo de não realização, cancelamento ou reagendamento.
+
+Tolerância a dias não realizados pertence a `ConsistencyRule`, não ao estado da ocorrência.
 
 Flexibilidade:
 

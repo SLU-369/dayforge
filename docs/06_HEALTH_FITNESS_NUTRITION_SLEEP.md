@@ -79,6 +79,15 @@ Execução por série:
 
 Nutri é um módulo de organização e estimativas, não uma ferramenta de prescrição clínica.
 
+Ordem de implementação aprovada:
+
+1. plano e metas;
+2. revisão das fórmulas e da linguagem;
+3. calculadoras;
+4. hidratação/acompanhamento, somente se aprovado.
+
+Nenhuma fórmula deve ser apresentada como prescrição médica ou nutricional individual.
+
 ### 2.2 Mega menu
 
 ```text
@@ -90,6 +99,8 @@ Calculadoras
 ### 2.3 Calculadoras de estimativa
 
 Apresentar explicitamente como estimativas gerais.
+
+As fórmulas abaixo são candidatas históricas e ainda dependem da revisão específica prevista na ordem de implementação. Sua presença neste documento não autoriza implementação automática.
 
 #### IMC
 

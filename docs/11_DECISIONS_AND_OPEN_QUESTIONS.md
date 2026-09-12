@@ -3,63 +3,88 @@
 ## Decisões congeladas até nova revisão
 
 ### D-001 — Dayforge é life-management first
-Não posicionar o produto apenas como planner de estudante. Formação é um domínio importante, mas o produto organiza rotina, aprendizado, fitness, nutrição, sono e futuramente finanças.
+Não posicionar o produto apenas como planner de estudante.
 
-### D-002 — Navbar principal atual
-`Hoje | Planejamento | Formação | Academia | Nutri | Progresso`
+### D-002 — Navbar principal
+`Hoje | Planejamento | Formação | Academia | Nutri | Progresso`.
 
-### D-003 — Sono não entra na navbar agora
-Sono é transversal em Rotina, Hoje e Progresso.
+### D-003 — Sono é transversal
+Sono não entra na navbar nesta fase; aparece em Rotina, Hoje e Progresso.
 
 ### D-004 — Finanças é futuro
-Não implementar no ciclo atual, mas não bloquear expansão.
+Não implementar no ciclo atual nem bloquear expansão futura.
 
 ### D-005 — Sem sidebar administrativa no desktop
 Navegação principal horizontal com mega menus.
 
 ### D-006 — Formação inclui Cursos rápidos
-Mega menu Formação deve distinguir Acadêmico, Cursos técnicos, Cursos rápidos e Leituras & Exploração.
+Formação distingue Acadêmico, Cursos técnicos, Cursos rápidos e Leituras & Exploração.
 
 ### D-007 — Ensino Superior é genérico
 Graduação, pós, MBA, mestrado e doutorado compartilham uma base de formação/ciclos.
 
-### D-008 — Curso técnico e curso rápido compartilham motor estrutural
-Podem ter níveis, conteúdo, atividades, questionários, provas e projetos.
+### D-008 — Cursos compartilham estrutura
+Curso técnico e rápido podem usar níveis, conteúdos, atividades, questionários, provas e projetos.
 
 ### D-009 — Histórico é preservado
 Conclusão não apaga dados.
 
-### D-010 — Planner sem LLM inicialmente
-Motor determinístico/question-answer, desejado em Python.
+### D-010 — Planner local em TypeScript
+O motor v1 é determinístico, puro, testável e isolado da UI. Python permanece candidato para prototipagem, simulação, otimização ou execução server-side justificada.
 
-### D-011 — Backend principal em Go
-Go é a linguagem principal desejada para backend.
+### D-011 — Backend futuro em Go
+Go entra somente quando API, autenticação, multiusuário, cloud, sincronização, armazenamento remoto ou segurança server-side forem necessários. Começar como monólito modular.
 
 ### D-012 — Planejamento sustentável
 Não preencher automaticamente toda hora livre.
 
 ### D-013 — Streak não é perfeição
-Suportar mínimo, alvo e tolerância; faculdade pode usar consistência semanal.
+Suportar mínimo, alvo e tolerância; metas semanais usam consistência semanal quando apropriado.
 
 ### D-014 — Deadline e meta são diferentes
-Deadline é obrigatório; meta é desejada/replanejável.
+Deadline é obrigatório; meta é desejada e replanejável.
 
 ### D-015 — 3D descartado
-Preservar a solução visual 2D atual como base.
+Preservar a solução visual 2D aprovada.
 
-## Questões abertas para o novo Plan Mode
+### D-016 — Modos de aparência
+Os modos oficiais são Claro, Escuro e Solar. Não existe modo Sistema nesta fase.
 
-1. Qual o stack frontend exato pós-B3?
-2. A B4 de taxonomia já foi aplicada ou ainda falta `Cursos rápidos`/`Rotina`?
-3. Qual banco melhor representa o domínio futuro?
-4. Como integrar Go e Python no planner?
-5. Qual estratégia de migração do localStorage legado?
-6. Qual biblioteca de gráficos atual deve ser mantida/substituída?
-7. Como implementar PWA/offline sem criar complexidade precoce?
-8. Como modelar arquivos/certificados no modo local antes do cloud?
-9. Quando introduzir autenticação/multiusuário?
-10. Quais métricas de Nutri entram na primeira versão e quais ficam futuras?
-11. A classificação de curso rápido por “até ~30h” será regra do produto ou apenas convenção do usuário?
-12. Qual o melhor componente visual para níveis/períodos sem accordion excessivo?
-13. Quais regras exatas de risco de entrega serão adotadas na v1?
-14. Como versionar alterações de planejamento sem perder histórico?
+### D-017 — Estados temporais v1
+Usar `planned`, `completed`, `completed_rescheduled`, `not_completed` e `cancelled`. Não usar `skipped` como sinônimo.
+
+### D-018 — Histórico temporal
+Preservar planejamento original, reagendamentos, execução real, origem da ocorrência e motivo quando aplicável. Tolerância pertence à regra de consistência, não ao estado temporal.
+
+### D-019 — Fonte documental
+Arquivos numerados em `docs/` são canônicos. O master é gerado e não recebe edição independente.
+
+### D-020 — Persistência local v2
+Usar IndexedDB com Dexie. Preservar `rotina-369:data:v1` durante migração validada, idempotente, reversível e testada.
+
+### D-021 — Proteção imediata do v1
+A Etapa 0.2 impede autosave de defaults após falha de leitura e mantém o conteúdo original intacto.
+
+### D-022 — Risco de entrega
+Considerar ao menos dias restantes, progresso, ritmo necessário e última atualização por regra determinística, explicável e testável.
+
+### D-023 — Ordem de Nutri
+Plano e metas; revisão das fórmulas/linguagem; calculadoras; hidratação somente se aprovada.
+
+### D-024 — Arquivos locais possuem gates
+Certificados locais exigem store v2, backup, restauração e política de quota estáveis.
+
+### D-025 — Curso rápido é escolha do usuário
+Não impor limite universal de horas.
+
+### D-026 — Taxonomia de Progresso
+Domínios principais: Formação, Academia, Nutri, Sono e Exploração. Faculdade, Cursos e Leituras são filtros internos de Formação. Analytics deriva de fatos reais.
+
+## Questões abertas antes das etapas correspondentes
+
+1. Quais limiares e pesos formam a primeira regra de risco de Entregas?
+2. Quais fórmulas e textos de Nutri serão aprovados após revisão específica?
+3. Quais limites de tamanho, quota e recuperação serão usados para arquivos locais?
+4. Qual gate de estabilidade/portabilidade do frontend será exigido antes do backend/cloud?
+
+Essas questões não bloqueiam a Etapa 0.2. Cada uma bloqueia apenas a funcionalidade correspondente.

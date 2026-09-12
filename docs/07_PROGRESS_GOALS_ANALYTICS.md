@@ -24,6 +24,8 @@ Domínios:
 - Sono;
 - Exploração.
 
+Dentro de Formação, Faculdade, Cursos e Leituras funcionam como subdomínios/filtros. Métrica é um terceiro eixo contextual e não deve fragmentar a navegação global.
+
 Períodos:
 
 - Semana;
@@ -155,3 +157,5 @@ Analytics devem responder perguntas concretas:
 - Qual disciplina exigiu mais estudo complementar?
 
 Evitar dezenas de gráficos simultâneos.
+
+Toda visualização deve ser derivada de fatos reais de execução. Não criar gráficos decorativos, séries demonstrativas apresentadas como dados do usuário ou contagens duplicadas por relações entre conteúdos.
