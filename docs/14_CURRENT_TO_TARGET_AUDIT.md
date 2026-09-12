@@ -2,16 +2,19 @@
 
 ## 1. App Shell
 
-### Atual pós-B3
+### Atual pós-0.2
 - navbar horizontal;
 - mega menus;
 - temas Claro, Escuro e Solar;
 - fundo 2D;
 - botão Adicionar;
 - Perfil/Configuração no topo.
+- Cursos rápidos presentes na taxonomia de Formação;
+- `Rotina` como nome visual do molde semanal;
+- baseline com CI, typecheck e proteção não destrutiva do payload v1.
 
 ### Alvo
-Manter fundação. A Etapa 0.2/B4 ainda deve adicionar `Cursos rápidos`, renomear `Rotina-base` para `Rotina`, corrigir a baseline técnica e não alterar a direção visual aprovada.
+Manter a fundação visual e a baseline concluída na Etapa 0.2/B4 sem alterar a direção visual aprovada.
 
 ## 2. Hoje
 
@@ -44,7 +47,7 @@ Timeline completa continua acessível sob demanda.
 ### Atual
 - Semana;
 - Agenda;
-- Rotina-base;
+- Rotina;
 - Metas.
 
 ### Alvo
@@ -63,14 +66,15 @@ Calendário navegável com dia/semana/mês, criação de eventos futuros, confli
 
 ## 5. Formação
 
-### Atual pós-B3
+### Atual pós-0.2
 - Visão geral;
 - Acadêmico;
 - Cursos técnicos;
+- Cursos rápidos;
 - Leituras & Exploração.
 
 ### Alvo
-Adicionar `Cursos rápidos` e implementar páginas profundas sem inflar o mega menu.
+Implementar páginas profundas sem inflar o mega menu.
 
 ## 6. Academia
 
@@ -132,12 +136,11 @@ A definição visual exata permanece pendente de UX.
 
 - `rotina-369:data:v1` em `localStorage`;
 - validação estrutural superficial;
-- falha de leitura carrega defaults e pode permitir que o autosave sobrescreva o conteúdo original;
+- falha de leitura preserva o payload original, bloqueia autosave e mantém uma sessão temporária em memória com aviso persistente;
 - backup JSON cobre apenas o planner v1.
 
 ### Alvo
 
-- Etapa 0.2 impede sobrescrita automática após falha de leitura, sem introduzir novo store;
 - Etapa 1 adota IndexedDB com Dexie;
 - migração v1 validada, idempotente, reversível e não destrutiva;
 - backup v2 e restauração completos antes de arquivos locais.

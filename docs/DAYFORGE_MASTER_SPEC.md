@@ -5,7 +5,7 @@
 
 # Dayforge 2.0 — Documentação oficial de produto
 
-**Status:** decisões arquiteturais da Etapa 0.1 consolidadas, antes da baseline técnica 0.2
+**Status:** decisões da Etapa 0.1 e baseline técnica da Etapa 0.2 consolidadas
 **Data:** 12/09/2026
 **Objetivo:** transformar as decisões de produto, UX, domínio e arquitetura discutidas até aqui em uma fonte oficial de verdade para o repositório e para o Codex.
 
@@ -21,7 +21,7 @@
 
 ## Master derivado
 
-Execute `npm.cmd run docs:master` após alterar qualquer documento canônico. O comando recompõe o master em ordem numérica, sem timestamp ou conteúdo autoral próprio. `npm.cmd run docs:master:check` verifica divergência sem modificar arquivos e deve integrar a CI a partir da Etapa 0.2.
+Execute `npm.cmd run docs:master` após alterar qualquer documento canônico. O comando recompõe o master em ordem numérica, sem timestamp ou conteúdo autoral próprio. `npm.cmd run docs:master:check` verifica divergência sem modificar arquivos e integra a CI desde a Etapa 0.2.
 
 ## Visão em uma frase
 
@@ -68,9 +68,13 @@ A Etapa B/B3 concluiu a fundação visual inicial do App Shell:
 - tema claro, escuro e comportamento de tema refinados;
 - fundo 2D preservado após tentativa 3D que foi descartada;
 - navegação principal atual: **Hoje, Planejamento, Formação, Academia, Nutri, Progresso**;
+- Formação distingue Acadêmico, Cursos técnicos, Cursos rápidos e Leituras & Exploração;
+- `Rotina` é o nome exibido para o molde semanal;
+- lint, typecheck, build, testes e sincronização do master integram a baseline de CI;
+- falhas de leitura do payload v1 preservam o conteúdo original e bloqueiam autosave até recuperação explícita;
 - o conteúdo funcional antigo da página Hoje ainda é legado e será reformulado posteriormente.
 
-A próxima etapa autorizável é a **0.2/B4 curta de baseline técnica**: consolidar `Cursos rápidos`, revisar `Rotina-base` → `Rotina`, corrigir o typecheck, estabelecer CI mínima e impedir sobrescrita automática do payload v1 quando sua leitura falhar. Ela não inclui reconstrução funcional, IndexedDB ou novos domínios.
+A Etapa 0.2/B4 foi mantida curta e não introduziu reconstrução funcional, IndexedDB ou novos domínios. A próxima etapa do roadmap é a Etapa 1, mas depende de planejamento e aprovação humana próprios antes de qualquer implementação.
 
 ---
 
@@ -253,7 +257,7 @@ Planejamento
 └── Metas
 ```
 
-`Rotina-base` pode ser renomeado visualmente para `Rotina`.
+`Rotina` é o nome visual oficial do molde semanal reutilizável.
 
 ### Rotina
 
@@ -1690,7 +1694,7 @@ Visão futura:
 
 IndexedDB com Dexie é a tecnologia aprovada para a persistência local v2. A futura fila de sincronização pode reutilizar essa base, mas outbox, conflitos e sincronização não entram antes de existir uma necessidade cloud concreta.
 
-O payload `rotina-369:data:v1` deve permanecer intacto durante a migração. A migração futura será validada, idempotente, reversível e testada; nunca removerá ou sobrescreverá o original antes de validar o destino. Já na Etapa 0.2, uma proteção mínima deve impedir que defaults sejam gravados sobre um payload v1 cuja leitura falhou.
+O payload `rotina-369:data:v1` deve permanecer intacto durante a migração. A migração futura será validada, idempotente, reversível e testada; nunca removerá ou sobrescreverá o original antes de validar o destino. Desde a Etapa 0.2, uma proteção mínima impede que defaults sejam gravados sobre um payload v1 cuja leitura falhou; importação de backup ou restauração do padrão são as recuperações explícitas disponíveis.
 
 ## 10. Multiusuário
 
@@ -1726,8 +1730,10 @@ Este documento separa arquitetura atual, direção aprovada e tecnologia futura.
 - estado React por Context e hooks;
 - persistência principal em `localStorage`, payload `rotina-369:data:v1`;
 - preferências de aparência em chaves locais separadas;
+- leitura inválida do payload v1 bloqueia autosave e mantém alterações temporárias em memória até recuperação explícita;
 - Worker apenas para runtime Vinext e otimização de imagens;
 - Drizzle/D1 preparado, mas schema e bindings de produção vazios;
+- CI executa verificação do master, lint, typecheck, build e testes;
 - nenhum backend de domínio, API, autenticação, sincronização ou banco ativo.
 
 ## 3. Frontend local v2
@@ -1755,7 +1761,7 @@ IndexedDB com Dexie é a direção aprovada. Ela substituirá `localStorage` com
 
 A migração de `rotina-369:data:v1` deve ser validada, idempotente, reversível, testada com payloads válidos, parciais e corrompidos e não destrutiva antes da validação do destino.
 
-A Etapa 0.2 antecipa somente uma proteção: falha de leitura do v1 bloqueia o autosave de defaults e preserva o conteúdo original. IndexedDB e a migração completa permanecem fora da 0.2.
+A baseline da Etapa 0.2 implementa somente uma proteção: falha de leitura do v1 bloqueia o autosave de defaults, preserva o conteúdo original e mantém a sessão em memória até importação de backup ou restauração explícita. IndexedDB e a migração completa permanecem fora da 0.2.
 
 ## 5. Motor de planejamento
 
@@ -1797,7 +1803,8 @@ Camadas futuras devem possuir testes unitários de domínio e planner, testes de
 ## 1. Estado
 
 - Etapa B/B3 visual concluída e aprovada.
-- Etapa 0.1 documental concluída nesta baseline.
+- Etapa 0.1 documental concluída.
+- Etapa 0.2/B4 de taxonomia, baseline técnica e proteção do v1 concluída.
 - Nenhuma etapa funcional pode começar por consequência automática desta documentação.
 
 ## 2. Etapa 0.1 — Decisões e documentação
@@ -2344,16 +2351,19 @@ A UI deve oferecer, quando aplicável:
 
 ## 1. App Shell
 
-### Atual pós-B3
+### Atual pós-0.2
 - navbar horizontal;
 - mega menus;
 - temas Claro, Escuro e Solar;
 - fundo 2D;
 - botão Adicionar;
 - Perfil/Configuração no topo.
+- Cursos rápidos presentes na taxonomia de Formação;
+- `Rotina` como nome visual do molde semanal;
+- baseline com CI, typecheck e proteção não destrutiva do payload v1.
 
 ### Alvo
-Manter fundação. A Etapa 0.2/B4 ainda deve adicionar `Cursos rápidos`, renomear `Rotina-base` para `Rotina`, corrigir a baseline técnica e não alterar a direção visual aprovada.
+Manter a fundação visual e a baseline concluída na Etapa 0.2/B4 sem alterar a direção visual aprovada.
 
 ## 2. Hoje
 
@@ -2386,7 +2396,7 @@ Timeline completa continua acessível sob demanda.
 ### Atual
 - Semana;
 - Agenda;
-- Rotina-base;
+- Rotina;
 - Metas.
 
 ### Alvo
@@ -2405,14 +2415,15 @@ Calendário navegável com dia/semana/mês, criação de eventos futuros, confli
 
 ## 5. Formação
 
-### Atual pós-B3
+### Atual pós-0.2
 - Visão geral;
 - Acadêmico;
 - Cursos técnicos;
+- Cursos rápidos;
 - Leituras & Exploração.
 
 ### Alvo
-Adicionar `Cursos rápidos` e implementar páginas profundas sem inflar o mega menu.
+Implementar páginas profundas sem inflar o mega menu.
 
 ## 6. Academia
 
@@ -2474,12 +2485,11 @@ A definição visual exata permanece pendente de UX.
 
 - `rotina-369:data:v1` em `localStorage`;
 - validação estrutural superficial;
-- falha de leitura carrega defaults e pode permitir que o autosave sobrescreva o conteúdo original;
+- falha de leitura preserva o payload original, bloqueia autosave e mantém uma sessão temporária em memória com aviso persistente;
 - backup JSON cobre apenas o planner v1.
 
 ### Alvo
 
-- Etapa 0.2 impede sobrescrita automática após falha de leitura, sem introduzir novo store;
 - Etapa 1 adota IndexedDB com Dexie;
 - migração v1 validada, idempotente, reversível e não destrutiva;
 - backup v2 e restauração completos antes de arquivos locais.

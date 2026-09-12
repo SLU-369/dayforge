@@ -17,7 +17,7 @@
 ## Local Contracts
 
 - Preserve the exact `rotina-369:data:v1` storage contract unless an explicit migration is approved.
-- A failed v1 read must preserve the original stored value and block automatic writes of defaults until explicit recovery. Implement only the minimal guard during Stage 0.2; IndexedDB belongs to Stage 1.
+- A failed v1 read preserves the original stored value, blocks automatic writes, and keeps changes in memory with a persistent warning until explicit recovery through backup import or reset. IndexedDB belongs to Stage 1.
 - Keep historical daily records independent from later routine edits.
 - New mocked domains must not be written into the v1 planner payload.
 - `/hoje` is the primary Hoje route; `/` remains a compatible entry point. Product areas use real, directly loadable App Router routes.
@@ -53,6 +53,7 @@
 - Run `npm.cmd run lint`, `npm.cmd run build`, and `npm.cmd test` for behavior changes.
 - Verify direct loads for touched routes and compact navigation at 390 px.
 - Confirm backup round-trips preserve v1 fields when persistence behavior changes.
+- Run the planner persistence regression test whenever the v1 read/write guard changes.
 
 ## Child DOX Index
 
