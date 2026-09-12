@@ -42,7 +42,7 @@ export const navigationSections: NavigationSection[] = [
     items: [
       { label: "Semana", description: "Distribua suas prioridades", href: "/planejamento/semana", icon: CalendarDays },
       { label: "Agenda", description: "Dias, compromissos e eventos", href: "/planejamento/agenda", icon: CalendarRange },
-      { label: "Rotina-base", description: "O molde reutilizável da semana", href: "/planejamento/rotina", icon: Repeat2 },
+      { label: "Rotina", description: "O molde reutilizável da semana", href: "/planejamento/rotina", icon: Repeat2 },
       { label: "Metas", description: "Direções ligadas a resultados", href: "/planejamento/metas", icon: Target },
     ],
   },
@@ -53,6 +53,7 @@ export const navigationSections: NavigationSection[] = [
       { label: "Visão geral", description: "Seu percurso de aprendizado", href: "/formacao", icon: LibraryBig },
       { label: "Acadêmico", description: "Semestres, disciplinas e entregas", href: "/formacao/academico", icon: GraduationCap },
       { label: "Cursos técnicos", description: "Go, IA para Devs e histórico", href: "/formacao/cursos", icon: Code2 },
+      { label: "Cursos rápidos", description: "Formações curtas escolhidas por você", href: "/formacao/cursos-rapidos", icon: Code2 },
       { label: "Leituras & Exploração", description: "Conteúdo consumido com reflexão", href: "/formacao/exploracao", icon: Compass },
     ],
   },

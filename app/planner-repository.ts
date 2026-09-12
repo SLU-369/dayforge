@@ -1,6 +1,8 @@
 import { createDefaultState, type PlannerState } from "./planner-data";
 
 export const PLANNER_STORAGE_KEY = "rotina-369:data:v1";
+export type PlannerStorageStatus = "ready" | "blocked";
+export type PlannerReadResult = { state: PlannerState; storageStatus: PlannerStorageStatus };
 
 function isPlannerState(value: unknown): value is PlannerState {
   if (!value || typeof value !== "object") return false;
@@ -8,20 +10,30 @@ function isPlannerState(value: unknown): value is PlannerState {
   return candidate.version === 1 && Boolean(candidate.routine) && Boolean(candidate.records);
 }
 
-export function readPlannerState(): PlannerState {
-  const saved = localStorage.getItem(PLANNER_STORAGE_KEY);
-  if (!saved) return createDefaultState();
+export function readPlannerState(): PlannerReadResult {
+  try {
+    const saved = localStorage.getItem(PLANNER_STORAGE_KEY);
+    if (saved === null) return { state: createDefaultState(), storageStatus: "ready" };
 
-  const parsed: unknown = JSON.parse(saved);
-  if (!isPlannerState(parsed)) throw new Error("Formato de dados inválido");
+    const parsed: unknown = JSON.parse(saved);
+    if (!isPlannerState(parsed)) throw new Error("Formato de dados inválido");
 
-  return {
-    ...parsed,
-    monthlyGoals: parsed.monthlyGoals ?? {},
-  };
+    return {
+      state: { ...parsed, monthlyGoals: parsed.monthlyGoals ?? {} },
+      storageStatus: "ready",
+    };
+  } catch {
+    return { state: createDefaultState(), storageStatus: "blocked" };
+  }
 }
 
-export function writePlannerState(state: PlannerState) {
+export function writePlannerState(state: PlannerState, storageStatus: PlannerStorageStatus) {
+  if (storageStatus === "blocked") return false;
+  localStorage.setItem(PLANNER_STORAGE_KEY, JSON.stringify(state));
+  return true;
+}
+
+export function replacePlannerState(state: PlannerState) {
   localStorage.setItem(PLANNER_STORAGE_KEY, JSON.stringify(state));
 }
 
