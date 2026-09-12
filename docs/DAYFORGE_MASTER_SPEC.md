@@ -49,7 +49,7 @@ Ele não deve parecer um SaaS administrativo nem um checklist infinito. A profun
 - `06_HEALTH_FITNESS_NUTRITION_SLEEP.md` — academia, Nutri e Sono.
 - `07_PROGRESS_GOALS_ANALYTICS.md` — metas, métricas, gráficos e comparações temporais.
 - `08_DATA_FILES_SECURITY_RETENTION.md` — retenção, anexos, backup, exclusão, autenticação e futuro cloud/PWA.
-- `09_TECHNICAL_ARCHITECTURE.md` — decisões técnicas conhecidas e itens pendentes de auditoria do repositório.
+- `09_TECHNICAL_ARCHITECTURE.md` — arquitetura técnica consolidada atual, incluindo decisões aprovadas e elementos futuros ainda sujeitos aos respectivos gates.
 - `10_ROADMAP_AND_CODEX_WORKFLOW.md` — processo de planejamento e implementação por etapas.
 - `11_DECISIONS_AND_OPEN_QUESTIONS.md` — decisões congeladas e pontos que dependem de validação futura.
 - `12_ACCEPTANCE_SCENARIOS.md` — cenários de aceitação de produto usados para revisar planos do Codex.
@@ -1627,9 +1627,9 @@ Deve preservar:
 - dados estruturados;
 - configurações;
 - histórico;
-- anexos/certificados quando backend permitir.
+- anexos/certificados quando o armazenamento local de arquivos estiver habilitado.
 
-A persistência local v2 aprovada será IndexedDB com Dexie. O backup v2 deve cobrir todo o store local que represente dados do usuário e possuir restauração validada antes de arquivos binários serem aceitos.
+A persistência local v2 aprovada será IndexedDB com Dexie. Arquivos locais só podem ser habilitados depois que o IndexedDB v2 estiver estável, o backup v2 estiver funcional, a restauração estiver validada e a política de quota estiver definida. Quando habilitados, backup e restauração devem contemplar os arquivos e seus metadados.
 
 ## 5. Certificados e anexos
 
@@ -1640,9 +1640,9 @@ Arquivos aceitos inicialmente:
 - JPEG;
 - PNG.
 
-Backend futuro deve isolar anexos por usuário e impedir acesso cruzado.
+No modo local, os arquivos permanecem no armazenamento local e integram a exportação e a restauração locais. Backend e object storage privado são evoluções futuras para armazenamento remoto; quando existirem, devem isolar anexos por usuário e impedir acesso cruzado.
 
-No modo local, PDF, JPG, JPEG e PNG só podem ser habilitados depois que IndexedDB v2, backup, restauração, limites e comportamento de quota estiverem estáveis e testados.
+No modo local, os formatos PDF, JPG, JPEG e PNG seguem os mesmos gates definidos para arquivos locais nesta especificação.
 
 ## 6. Evolução para cloud
 
@@ -2075,7 +2075,7 @@ Usuário registra cargas de Supino ao longo dos meses e visualiza linha de evolu
 
 ## Cenário 16 — Progresso acadêmico
 
-Usuário alterna Progresso entre Faculdade, Cursos, Academia, Nutri, Sono e Exploração. O gráfico muda de métrica sem recarregar toda a página.
+Usuário alterna Progresso entre os domínios principais Formação, Academia, Nutri, Sono e Exploração. Dentro de Formação, seleciona filtros como Faculdade, Cursos e Leituras. O gráfico muda de métrica sem recarregar toda a página.
 
 ## Cenário 17 — Livro
 

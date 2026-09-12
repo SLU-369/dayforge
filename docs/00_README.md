@@ -44,7 +44,7 @@ Ele não deve parecer um SaaS administrativo nem um checklist infinito. A profun
 - `06_HEALTH_FITNESS_NUTRITION_SLEEP.md` — academia, Nutri e Sono.
 - `07_PROGRESS_GOALS_ANALYTICS.md` — metas, métricas, gráficos e comparações temporais.
 - `08_DATA_FILES_SECURITY_RETENTION.md` — retenção, anexos, backup, exclusão, autenticação e futuro cloud/PWA.
-- `09_TECHNICAL_ARCHITECTURE.md` — decisões técnicas conhecidas e itens pendentes de auditoria do repositório.
+- `09_TECHNICAL_ARCHITECTURE.md` — arquitetura técnica consolidada atual, incluindo decisões aprovadas e elementos futuros ainda sujeitos aos respectivos gates.
 - `10_ROADMAP_AND_CODEX_WORKFLOW.md` — processo de planejamento e implementação por etapas.
 - `11_DECISIONS_AND_OPEN_QUESTIONS.md` — decisões congeladas e pontos que dependem de validação futura.
 - `12_ACCEPTANCE_SCENARIOS.md` — cenários de aceitação de produto usados para revisar planos do Codex.

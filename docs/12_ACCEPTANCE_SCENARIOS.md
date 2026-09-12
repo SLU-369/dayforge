@@ -64,7 +64,7 @@ Usuário registra cargas de Supino ao longo dos meses e visualiza linha de evolu
 
 ## Cenário 16 — Progresso acadêmico
 
-Usuário alterna Progresso entre Faculdade, Cursos, Academia, Nutri, Sono e Exploração. O gráfico muda de métrica sem recarregar toda a página.
+Usuário alterna Progresso entre os domínios principais Formação, Academia, Nutri, Sono e Exploração. Dentro de Formação, seleciona filtros como Faculdade, Cursos e Leituras. O gráfico muda de métrica sem recarregar toda a página.
 
 ## Cenário 17 — Livro
 

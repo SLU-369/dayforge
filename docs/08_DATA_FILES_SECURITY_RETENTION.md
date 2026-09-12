@@ -49,9 +49,9 @@ Deve preservar:
 - dados estruturados;
 - configurações;
 - histórico;
-- anexos/certificados quando backend permitir.
+- anexos/certificados quando o armazenamento local de arquivos estiver habilitado.
 
-A persistência local v2 aprovada será IndexedDB com Dexie. O backup v2 deve cobrir todo o store local que represente dados do usuário e possuir restauração validada antes de arquivos binários serem aceitos.
+A persistência local v2 aprovada será IndexedDB com Dexie. Arquivos locais só podem ser habilitados depois que o IndexedDB v2 estiver estável, o backup v2 estiver funcional, a restauração estiver validada e a política de quota estiver definida. Quando habilitados, backup e restauração devem contemplar os arquivos e seus metadados.
 
 ## 5. Certificados e anexos
 
@@ -62,9 +62,9 @@ Arquivos aceitos inicialmente:
 - JPEG;
 - PNG.
 
-Backend futuro deve isolar anexos por usuário e impedir acesso cruzado.
+No modo local, os arquivos permanecem no armazenamento local e integram a exportação e a restauração locais. Backend e object storage privado são evoluções futuras para armazenamento remoto; quando existirem, devem isolar anexos por usuário e impedir acesso cruzado.
 
-No modo local, PDF, JPG, JPEG e PNG só podem ser habilitados depois que IndexedDB v2, backup, restauração, limites e comportamento de quota estiverem estáveis e testados.
+No modo local, os formatos PDF, JPG, JPEG e PNG seguem os mesmos gates definidos para arquivos locais nesta especificação.
 
 ## 6. Evolução para cloud
 
