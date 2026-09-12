@@ -5,13 +5,13 @@
 ### Atual pós-B3
 - navbar horizontal;
 - mega menus;
-- tema claro/escuro/sistema;
+- temas Claro, Escuro e Solar;
 - fundo 2D;
 - botão Adicionar;
 - Perfil/Configuração no topo.
 
 ### Alvo
-Manter fundação. Fazer apenas ajustes pequenos de taxonomia antes do freeze, se ainda faltarem.
+Manter fundação. A Etapa 0.2/B4 ainda deve adicionar `Cursos rápidos`, renomear `Rotina-base` para `Rotina`, corrigir a baseline técnica e não alterar a direção visual aprovada.
 
 ## 2. Hoje
 
@@ -125,3 +125,19 @@ Existe a ideia de um **estado visual do Dayforge** (por exemplo, expressão/íco
 - deve ser opcional e não infantilizar a experiência.
 
 A definição visual exata permanece pendente de UX.
+
+## 12. Persistência local
+
+### Atual
+
+- `rotina-369:data:v1` em `localStorage`;
+- validação estrutural superficial;
+- falha de leitura carrega defaults e pode permitir que o autosave sobrescreva o conteúdo original;
+- backup JSON cobre apenas o planner v1.
+
+### Alvo
+
+- Etapa 0.2 impede sobrescrita automática após falha de leitura, sem introduzir novo store;
+- Etapa 1 adota IndexedDB com Dexie;
+- migração v1 validada, idempotente, reversível e não destrutiva;
+- backup v2 e restauração completos antes de arquivos locais.

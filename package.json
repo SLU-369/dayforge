@@ -11,6 +11,8 @@
     "start": "vinext start",
     "test": "npm run build && node --test tests/*.test.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
+    "docs:master": "node tooling/docs/generate-master.mjs",
+    "docs:master:check": "node tooling/docs/generate-master.mjs --check",
     "db:generate": "drizzle-kit generate"
   },
   "dependencies": {

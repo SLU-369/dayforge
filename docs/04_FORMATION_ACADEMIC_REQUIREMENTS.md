@@ -206,6 +206,8 @@ Cursos rápidos compartilham a mesma base dos técnicos:
 
 A diferença é classificatória/carga/duração, não estrutural.
 
+`Curso rápido` é uma categoria selecionada pelo usuário. Quantidade de horas, inclusive a referência histórica de aproximadamente 30 horas, não é regra universal nem critério automático do produto.
+
 ## 11. Importação de estrutura por texto
 
 Fluxo futuro desejado:
@@ -243,6 +245,8 @@ Registrar conclusão → carga horária → certificado → histórico
 ```
 
 Certificados devem permanecer acessíveis no histórico.
+
+Arquivos locais só entram depois que IndexedDB v2 estiver estável, o backup v2 estiver funcional, a restauração estiver testada e limites/quota tiverem comportamento definido. Até lá, o domínio pode evoluir sem persistir binários.
 
 ## 13. Leituras
 

@@ -8,9 +8,9 @@ O Dayforge deve transmitir controle, não cobrança. A interface deve ser rápid
 
 Preservar e refinar:
 
-- tema dark;
-- tema light;
-- modo de acompanhar preferência do sistema;
+- tema Escuro;
+- tema Claro;
+- modo Solar, com mudança automática baseada no comportamento solar já existente;
 - atmosfera do fundo atual;
 - estética azulada/escura;
 - laranja como accent principal;
@@ -18,6 +18,8 @@ Preservar e refinar:
 - sensação premium e pessoal.
 
 O experimento 3D foi descartado. O fundo 2D permanece como base visual.
+
+Os três modos oficiais desta fase são `Claro`, `Escuro` e `Solar`. Não existe uma quarta opção `Sistema` nesta fase; seguir explicitamente o tema do sistema operacional permanece uma possibilidade futura.
 
 ## 3. O que evitar
 

@@ -140,6 +140,8 @@ Período:
 Semana | Mês | Ano | Tudo (futuro)
 ```
 
+`Formação` é o domínio principal. Faculdade, Cursos e Leituras são subdomínios/filtros internos, nunca novas áreas globais. Métricas adicionais aparecem somente quando derivadas de fatos reais de execução.
+
 ## 8. Hoje
 
 A Home deve convergir dados dos outros domínios sem expor sua estrutura interna.

@@ -51,6 +51,8 @@ Deve preservar:
 - histórico;
 - anexos/certificados quando backend permitir.
 
+A persistência local v2 aprovada será IndexedDB com Dexie. O backup v2 deve cobrir todo o store local que represente dados do usuário e possuir restauração validada antes de arquivos binários serem aceitos.
+
 ## 5. Certificados e anexos
 
 Arquivos aceitos inicialmente:
@@ -61,6 +63,8 @@ Arquivos aceitos inicialmente:
 - PNG.
 
 Backend futuro deve isolar anexos por usuário e impedir acesso cruzado.
+
+No modo local, PDF, JPG, JPEG e PNG só podem ser habilitados depois que IndexedDB v2, backup, restauração, limites e comportamento de quota estiverem estáveis e testados.
 
 ## 6. Evolução para cloud
 
@@ -106,7 +110,9 @@ Visão futura:
 - sincronização ao recuperar conexão;
 - política clara de conflitos.
 
-IndexedDB é uma opção possível para fila/cache local, mas não está congelada como tecnologia.
+IndexedDB com Dexie é a tecnologia aprovada para a persistência local v2. A futura fila de sincronização pode reutilizar essa base, mas outbox, conflitos e sincronização não entram antes de existir uma necessidade cloud concreta.
+
+O payload `rotina-369:data:v1` deve permanecer intacto durante a migração. A migração futura será validada, idempotente, reversível e testada; nunca removerá ou sobrescreverá o original antes de validar o destino. Já na Etapa 0.2, uma proteção mínima deve impedir que defaults sejam gravados sobre um payload v1 cuja leitura falhou.
 
 ## 10. Multiusuário
 

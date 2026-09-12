@@ -1,16 +1,22 @@
 # Dayforge 2.0 — Documentação oficial de produto
 
-**Status:** baseline inicial pós-Etapa B3, antes da reconstrução funcional do produto  
-**Data:** 10/09/2026  
+**Status:** decisões arquiteturais da Etapa 0.1 consolidadas, antes da baseline técnica 0.2
+**Data:** 12/09/2026
 **Objetivo:** transformar as decisões de produto, UX, domínio e arquitetura discutidas até aqui em uma fonte oficial de verdade para o repositório e para o Codex.
 
 ## Como usar esta documentação
 
-1. O Codex deve ler **todos os arquivos desta pasta** antes de propor qualquer novo plano de implementação.
-2. A documentação é normativa para produto e UX. Quando código e documentação entrarem em conflito, o conflito deve ser explicitado antes de implementar.
-3. Ideias antigas que foram refinadas posteriormente foram consolidadas na forma mais atual.
-4. Decisões ainda não fechadas aparecem em `11_DECISIONS_AND_OPEN_QUESTIONS.md`.
-5. Toda mudança relevante de produto deve atualizar a documentação e o registro de decisões.
+1. Os arquivos numerados `00_*.md` a `16_*.md` são a fonte canônica de produto, UX, arquitetura e roadmap.
+2. `DAYFORGE_MASTER_SPEC.md` é um artefato derivado desses arquivos; nunca deve ser editado como fonte independente.
+3. O Codex deve ler **todos os arquivos canônicos** antes de propor qualquer novo plano de implementação.
+4. Quando código e documentação entrarem em conflito, o conflito deve ser explicitado antes de implementar.
+5. Ideias antigas que foram refinadas posteriormente foram consolidadas na forma mais atual.
+6. Decisões ainda não fechadas aparecem em `11_DECISIONS_AND_OPEN_QUESTIONS.md`.
+7. Toda mudança relevante de produto deve atualizar a documentação e o registro de decisões.
+
+## Master derivado
+
+Execute `npm.cmd run docs:master` após alterar qualquer documento canônico. O comando recompõe o master em ordem numérica, sem timestamp ou conteúdo autoral próprio. `npm.cmd run docs:master:check` verifica divergência sem modificar arquivos e deve integrar a CI a partir da Etapa 0.2.
 
 ## Visão em uma frase
 
@@ -59,4 +65,4 @@ A Etapa B/B3 concluiu a fundação visual inicial do App Shell:
 - navegação principal atual: **Hoje, Planejamento, Formação, Academia, Nutri, Progresso**;
 - o conteúdo funcional antigo da página Hoje ainda é legado e será reformulado posteriormente.
 
-Antes da próxima grande etapa funcional, recomenda-se apenas um possível **B4 curto de congelamento de taxonomia**, principalmente para consolidar `Cursos rápidos` dentro de Formação e revisar nomes de itens como `Rotina-base` → `Rotina`.
+A próxima etapa autorizável é a **0.2/B4 curta de baseline técnica**: consolidar `Cursos rápidos`, revisar `Rotina-base` → `Rotina`, corrigir o typecheck, estabelecer CI mínima e impedir sobrescrita automática do payload v1 quando sua leitura falhar. Ela não inclui reconstrução funcional, IndexedDB ou novos domínios.

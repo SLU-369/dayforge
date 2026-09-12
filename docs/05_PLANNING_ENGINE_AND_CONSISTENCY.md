@@ -4,9 +4,9 @@
 
 O assistente de planejamento não depende de IA generativa na primeira versão.
 
-Ele será um motor determinístico, orientado por perguntas, regras, datas e capacidade configurada.
+Ele será um motor determinístico, orientado por perguntas, regras, datas e capacidade configurada. Na primeira versão local, o núcleo será implementado em TypeScript puro, isolado da UI e sem regras acopladas a componentes React.
 
-Python é a linguagem desejada para esse motor, enquanto Go permanece a linguagem principal do sistema/backend.
+Python não está descartado. Permanece candidato para prototipagem, simulações, análise, otimização ou futura execução server-side quando existir justificativa técnica concreta. Não deve entrar na runtime local apenas por preferência tecnológica. Go permanece a linguagem desejada para o backend principal futuro, introduzido somente quando API, autenticação, multiusuário, cloud, sincronização, armazenamento remoto ou segurança server-side o exigirem.
 
 ## 2. Perguntas do assistente
 
@@ -238,6 +238,8 @@ dias restantes
 ```
 
 Não usar apenas “faltam X dias”.
+
+A regra v1 deve ser determinística, explicável e testável. Limiares e pesos específicos precisam ser formalizados e aprovados antes da etapa de Entregas; os exemplos de aceitação não constituem sozinhos uma fórmula.
 
 ## 17. Aplicação da proposta
 

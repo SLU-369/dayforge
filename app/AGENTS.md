@@ -17,6 +17,7 @@
 ## Local Contracts
 
 - Preserve the exact `rotina-369:data:v1` storage contract unless an explicit migration is approved.
+- A failed v1 read must preserve the original stored value and block automatic writes of defaults until explicit recovery. Implement only the minimal guard during Stage 0.2; IndexedDB belongs to Stage 1.
 - Keep historical daily records independent from later routine edits.
 - New mocked domains must not be written into the v1 planner payload.
 - `/hoje` is the primary Hoje route; `/` remains a compatible entry point. Product areas use real, directly loadable App Router routes.
@@ -30,6 +31,7 @@
 - Extend semantic tokens in `globals.css`; co-locate complex component styling and avoid rebuilding a global CSS monolith.
 - Appearance uses `dayforge:appearance:v1`, mirrors the effective theme to `dayforge:theme:v1`, and keeps a disposable solar cache in `dayforge:solar-cache:v1`. None of these fields belong in planner backups or payloads.
 - Default to manual mode and preserve the legacy theme. Automatic mode requires an explicitly selected capital; any manual theme choice disables it until the user enables it again.
+- User-facing appearance modes are Light, Dark, and Solar. Do not expose System as a fourth mode in the current roadmap.
 - `/configuracoes/aparencia` owns theme/city/motion controls, reachable from the profile and compact drawer. Calculate solar times locally, respect the selected city's timezone, and never request geolocation.
 - Re-evaluate automatic light each minute and on focus/visibility restoration. Respect reduced motion and keep bootstrap independent from hydration; expired solar cache waits briefly for client calculation, with a 1.5-second fail-open fallback.
 - Automatic mode alone tracks the sun's position and orange twilight. Solar calculations must not dim the disc based on the castle's position; the appearance layer clips sun/moon against a skyline matte in both manual and automatic modes. Manual changes use a 3.6-second visual transition; apply global theme tokens at its start, never via a midpoint timer that invalidates styles during celestial motion.
@@ -43,8 +45,8 @@
 - Keep `/nutri`, `/nutri/plano`, and `/nutri/calculadoras` ready for a future user-authored food plan without adding persistence during the frontend reconstruction.
 - The future daily target covers calories, protein, fiber, and water; the planned meal groups are breakfast, lunch, snack, and dinner.
 - Present future calculator results as general estimates, never individualized clinical prescriptions.
-- Use these formulas when calculation behavior is explicitly authorized: BMI = weight in kg / height in m²; weight loss calories = current weight × 20; maintenance calories = current weight × 30; hypertrophy calories = current weight × 35; protein = reference weight × 1.8 g; fiber = calories / 1000 × 14 g; water = current weight × 35 ml.
-- Keep Progress as a primary area; its future domain selectors include Gym, College, Technical courses, Standalone activities, and Nutri, with Week, Month, and Year periods.
+- Treat the documented nutrition formulas as historical candidates until a dedicated review explicitly approves formulas and language. Only then may the authorized calculation behavior be implemented.
+- Keep Progress as a primary area. Its principal domain selectors are Formation, Gym, Nutri, Sleep, and Exploration; College, Courses, and Reading are internal Formation filters. Analytics must derive from real execution facts, with Week, Month, and Year periods.
 
 ## Verification
 

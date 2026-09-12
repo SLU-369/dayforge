@@ -1,104 +1,121 @@
-# 10 — Roadmap e Fluxo com Codex
+# 10 — Roadmap e Fluxo de Implementação
 
-## 1. Situação atual
+## 1. Estado
 
-- Etapa B/B3 concluída.
-- App Shell horizontal criado.
-- Experimento 3D revertido.
-- Repositório migrado para ambiente pessoal do usuário.
-- Próxima grande ação: documentação → auditoria do Codex → novo planejamento.
+- Etapa B/B3 visual concluída e aprovada.
+- Etapa 0.1 documental concluída nesta baseline.
+- Nenhuma etapa funcional pode começar por consequência automática desta documentação.
 
-## 2. Possível B4 curto antes do freeze
+## 2. Etapa 0.1 — Decisões e documentação
 
-Apenas se ainda não realizado:
+Escopo:
 
-- adicionar `Cursos rápidos` ao mega menu Formação;
-- revisar `Rotina-base` → `Rotina`;
-- congelar textos/subtítulos dos mega menus;
-- não implementar novas regras de negócio;
-- não reconstruir Hoje ainda.
+- fechar decisões humanas pós-auditoria;
+- tornar os documentos numerados a fonte canônica;
+- gerar `DAYFORGE_MASTER_SPEC.md` a partir deles;
+- atualizar contratos DOX;
+- registrar o roadmap revisado.
 
-## 3. Ordem correta
+Fora de escopo: qualquer mudança funcional, persistência, UI, backend ou banco.
+
+## 3. Etapa 0.2/B4 — Taxonomia, baseline e proteção do v1
+
+Escopo restrito:
+
+- adicionar `Cursos rápidos` à taxonomia de Formação;
+- renomear `Rotina-base` para `Rotina`;
+- ajustar apenas textos necessários à taxonomia;
+- corrigir o typecheck existente;
+- estabelecer CI mínima;
+- verificar automaticamente que o master corresponde aos documentos canônicos;
+- proteger o payload v1 contra sobrescrita destrutiva após falha de leitura.
+
+Contrato mínimo de proteção:
+
+1. detectar falha ao ler `rotina-369:data:v1`;
+2. manter o conteúdo original intacto;
+3. impedir autosave de defaults enquanto a falha não for resolvida explicitamente;
+4. permitir experiência temporária em memória com aviso claro;
+5. cobrir o caso com teste de regressão.
+
+Fora de escopo:
+
+- nova Home/Hoje;
+- novos domínios;
+- IndexedDB/Dexie;
+- Formação funcional;
+- motor de planejamento;
+- Academia, Nutri ou Progresso funcional.
+
+## 4. Roadmap funcional aprovado
 
 ```text
-Documentar
+0.1 Decisões e documentação
 ↓
-Revisar documentação
+0.2 Taxonomia, baseline e proteção do v1
 ↓
-Codex lê /docs inteiro
+1 Núcleo temporal e persistência local v2
 ↓
-Codex audita repositório
+2 Hoje contextual e execução/reagendamento
 ↓
-Codex propõe novo roadmap
+3 Rotina, Agenda, Semana, Metas e consistência
 ↓
-Revisão humana do roadmap
+4 Formação, Acadêmico, Cursos e Exploração
 ↓
-Implementação por etapas
+5 Motor determinístico TypeScript
+↓
+6 Academia
+↓
+7 Sono e Nutri
+↓
+8 Progresso e Analytics
+↓
+9 Arquivos e certificados locais
+↓
+10 PWA local
+↓
+11 Backend Go, PostgreSQL, autenticação, cloud e sincronização
+↓
+12 Finanças, em ciclo futuro próprio
 ```
 
-## 4. Prompt-base para novo Plan Mode
+Cada etapa ampla deve ser subdividida em branches revisáveis antes de sua implementação. Python permanece candidato futuro e não possui etapa automática.
 
-O novo chat do Codex deve receber instrução semelhante a:
+## 5. Ordem de dependências
 
-```text
-Leia integralmente todos os arquivos em /docs antes de planejar qualquer alteração.
-Inspecione o repositório real pós-B3.
-Não implemente nada.
-Confronte código atual com requisitos documentados.
-Identifique gaps, riscos e dependências.
-Proponha novo roadmap técnico em etapas pequenas.
-Separe frontend, domínio, backend, planner e migração de dados.
-```
+- Hoje depende do núcleo temporal e não deve defini-lo dentro de componentes.
+- Rotina, Agenda e Metas fornecem restrições ao motor.
+- O motor precisa de conteúdo real para validação, por isso vem após a base de Formação.
+- Analytics depende de fatos reais de execução.
+- Arquivos dependem de store v2, backup, restauração e quota.
+- PWA depende de fluxos e persistência local estáveis.
+- Go/cloud entram apenas após necessidade concreta e aprovação própria.
 
-## 5. O Codex deve entregar
-
-- inventário do stack;
-- mapa de rotas e componentes;
-- mapa de persistência;
-- pontos reutilizáveis;
-- pontos legados a remover;
-- nova arquitetura técnica;
-- fases de implementação;
-- dependências entre fases;
-- estratégia de migração;
-- riscos;
-- testes/aceite de cada fase.
-
-## 6. Não assumir etapas antigas
-
-Nomes como C, D, E etc. eram hipóteses anteriores. Após ler esta documentação, o Codex deve recriar o roadmap com base no estado real do repositório e nos requisitos consolidados.
-
-## 7. Implementação por etapa
-
-Cada etapa deve seguir:
+## 6. Fluxo obrigatório por etapa
 
 ```text
 Planejar
-→ aprovar
-→ criar/usar branch
-→ implementar
-→ lint/build/testes
-→ revisão visual/funcional
-→ corrigir
-→ commit(s) pequenos
+→ aprovação humana
+→ partir da main atualizada
+→ criar branch específica
+→ implementar somente o escopo aprovado
+→ lint, typecheck, build e testes aplicáveis
+→ revisão funcional/visual
+→ correções
+→ commit(s) coerentes
+→ apresentar resultados
 → parar
 ```
 
-Sem push, merge ou próxima etapa sem autorização explícita, caso esse continue sendo o fluxo escolhido.
+Não fazer push, merge ou avançar de etapa sem autorização explícita. Silêncio não é aprovação.
 
-## 8. Documentação viva
+## 7. Closeout obrigatório
 
-Mudança de produto aprovada deve atualizar:
+Ao concluir qualquer etapa, apresentar resumo/comportamento, arquivos alterados, testes/resultados, riscos/pendências, documentação impactada, commits/branch e status da working tree.
 
-- requisito correspondente;
-- UX, se aplicável;
-- domínio, se aplicável;
-- `DECISIONS`;
-- roadmap, se houver impacto.
+## 8. Fonte de verdade
 
-## 9. Fonte de verdade
-
-- Chat: ideação e discussão.
-- `/docs`: decisões oficiais.
-- Codex: auditoria, planejamento e implementação.
+- Chat: discussão e aprovação.
+- Arquivos numerados em `/docs`: contratos canônicos.
+- `DAYFORGE_MASTER_SPEC.md`: compilação derivada, nunca fonte manual.
 - Git: histórico de evolução.
