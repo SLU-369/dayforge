@@ -1805,6 +1805,7 @@ Camadas futuras devem possuir testes unitários de domínio e planner, testes de
 - Etapa B/B3 visual concluída e aprovada.
 - Etapa 0.1 documental concluída.
 - Etapa 0.2/B4 de taxonomia, baseline técnica e proteção do v1 concluída.
+- Etapa 1.1 de modelo temporal e contratos do domínio aprovada para implementação.
 - Nenhuma etapa funcional pode começar por consequência automática desta documentação.
 
 ## 2. Etapa 0.1 — Decisões e documentação
@@ -1881,6 +1882,36 @@ Fora de escopo:
 ```
 
 Cada etapa ampla deve ser subdividida em branches revisáveis antes de sua implementação. Python permanece candidato futuro e não possui etapa automática.
+
+### Etapa 1.1 — Modelo temporal e contratos do domínio
+
+Escopo restrito:
+
+- núcleo TypeScript puro e independente de React, browser e persistência;
+- IDs opacos fornecidos pelo chamador, valores temporais e intervalos semiabertos;
+- recorrência semanal e `RoutineTemplate`;
+- `ScheduleOccurrence`, `ExecutionRecord` e histórico append-only de reagendamentos;
+- estados `planned`, `completed`, `completed_rescheduled`, `not_completed` e `cancelled`;
+- flexibilidade `fixed`, `preferred` e `flexible`;
+- origem desacoplada dos módulos futuros;
+- contratos mínimos de disponibilidade e testes unitários.
+
+`completed_rescheduled` é derivado pelo domínio quando uma conclusão possui
+histórico de reagendamento. Estados concluídos, não realizados e cancelados
+são terminais nesta etapa.
+
+Fora de escopo:
+
+- IndexedDB, Dexie, schemas de persistência e migração v1 para v2;
+- materialização automática de recorrências, resolução manual de DST ou motor
+  de planejamento;
+- integração com UI, novos domínios, backend, autenticação, PWA ou cloud.
+
+### Etapa 1.2 — Persistência local v2 e migração
+
+Permanece futura e depende de planejamento e aprovação próprios. Ela deverá
+tratar IndexedDB/Dexie, validação persistente, adapters e migração não
+destrutiva de `rotina-369:data:v1`; a Etapa 1.1 não antecipa esse trabalho.
 
 ## 5. Ordem de dependências
 
@@ -2119,8 +2150,18 @@ Usuário conclui aula pelo celular e o mesmo histórico aparece no desktop após
 ### RoutineTemplate
 Molde recorrente semanal. Define padrões futuros sem reescrever histórico.
 
-### RoutineOccurrence
-Ocorrência concreta em uma data. Pode divergir do template sem alterar outras semanas.
+### ScheduleOccurrence
+Ocorrência concreta e independente no calendário. Pode nascer de um template
+ou de outro domínio e divergir da origem sem alterar outras ocorrências.
+
+### ExecutionRecord
+Fato do que realmente aconteceu. Preserva execução com intervalo exato ou
+somente data quando o horário real não é conhecido, sem substituir o
+planejamento da ocorrência.
+
+### RescheduleEvent
+Alteração append-only entre o planejamento anterior e o novo. A cadeia completa
+é preservada e o planejamento original nunca é sobrescrito.
 
 ### ScheduleItem
 Conceito temporal genérico para compor o dia. Pode referenciar evento, treino, estudo, compromisso ou outra entidade.
@@ -2154,7 +2195,15 @@ Flexibilidade:
 - fixed;
 - preferred;
 - flexible;
-- opportunistic.
+
+Oportunidade não é uma quarta flexibilidade. Ela é representada separadamente
+por `AvailabilityWindow` ou por futuros contextos de disponibilidade. A Etapa
+1.1 não identifica oportunidades nem preenche a agenda automaticamente.
+
+Os estados `completed`, `completed_rescheduled`, `not_completed` e `cancelled`
+são terminais na Etapa 1.1. `completed_rescheduled` é sempre derivado ao
+concluir uma ocorrência que já possui histórico de reagendamento; consumidores
+não escolhem esse estado diretamente.
 
 ## 2. Metas e consistência
 
