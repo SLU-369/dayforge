@@ -8,8 +8,9 @@ type MotionSettings = { moving: boolean; day: number; twilight: number; duration
 type LandscapeRenderer = { update: (settings: MotionSettings) => void; dispose: () => void };
 
 function createLandscape(canvas: HTMLCanvasElement, initial: MotionSettings): LandscapeRenderer | null {
-  const gl = canvas.getContext("webgl2", { alpha: true, antialias: false, depth: false, powerPreference: "low-power" });
-  if (!gl) return null;
+  const context = canvas.getContext("webgl2", { alpha: true, antialias: false, depth: false, powerPreference: "low-power" });
+  if (!context) return null;
+  const gl: WebGL2RenderingContext = context;
   const program = gl.createProgram();
   const texture = gl.createTexture();
   if (!program || !texture) { gl.deleteProgram(program); gl.deleteTexture(texture); return null; }

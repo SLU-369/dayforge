@@ -12,12 +12,19 @@ import {
   type SetStateAction,
 } from "react";
 import { createDefaultState, type PlannerState } from "./planner-data";
-import { readPlannerState, writePlannerState } from "./planner-repository";
+import {
+  readPlannerState,
+  replacePlannerState,
+  writePlannerState,
+  type PlannerStorageStatus,
+} from "./planner-repository";
 
 type PlannerContextValue = {
   state: PlannerState;
   setState: Dispatch<SetStateAction<PlannerState>>;
+  recoverState: (state: PlannerState) => boolean;
   ready: boolean;
+  storageBlocked: boolean;
   toast: string;
   notify: (message: string) => void;
 };
@@ -27,6 +34,7 @@ const PlannerContext = createContext<PlannerContextValue | null>(null);
 export function PlannerProvider({ children }: Readonly<{ children: ReactNode }>) {
   const [state, setState] = useState<PlannerState>(() => createDefaultState());
   const [ready, setReady] = useState(false);
+  const [storageStatus, setStorageStatus] = useState<PlannerStorageStatus>("ready");
   const [toast, setToast] = useState("");
 
   const notify = useCallback((message: string) => setToast(message), []);
@@ -34,9 +42,15 @@ export function PlannerProvider({ children }: Readonly<{ children: ReactNode }>)
   useEffect(() => {
     const timer = window.setTimeout(() => {
       try {
-        setState(readPlannerState());
+        const result = readPlannerState();
+        setState(result.state);
+        setStorageStatus(result.storageStatus);
+        if (result.storageStatus === "blocked") {
+          notify("Os dados originais foram preservados. Alterações desta sessão não serão salvas.");
+        }
       } catch {
-        notify("Não foi possível ler os dados salvos. A rotina padrão foi carregada.");
+        setStorageStatus("blocked");
+        notify("O navegador bloqueou o acesso aos dados. Alterações desta sessão não serão salvas.");
       }
       setReady(true);
     }, 0);
@@ -45,14 +59,26 @@ export function PlannerProvider({ children }: Readonly<{ children: ReactNode }>)
   }, [notify]);
 
   useEffect(() => {
-    if (!ready) return;
+    if (!ready || storageStatus === "blocked") return;
     try {
-      writePlannerState(state);
+      writePlannerState(state, storageStatus);
     } catch {
       const timer = window.setTimeout(() => notify("O navegador não conseguiu salvar esta alteração."), 0);
       return () => window.clearTimeout(timer);
     }
-  }, [state, ready, notify]);
+  }, [state, ready, storageStatus, notify]);
+
+  const recoverState = useCallback((nextState: PlannerState) => {
+    try {
+      replacePlannerState(nextState);
+      setState(nextState);
+      setStorageStatus("ready");
+      return true;
+    } catch {
+      notify("O navegador não conseguiu substituir os dados locais.");
+      return false;
+    }
+  }, [notify]);
 
   useEffect(() => {
     if (!toast) return;
@@ -61,8 +87,8 @@ export function PlannerProvider({ children }: Readonly<{ children: ReactNode }>)
   }, [toast]);
 
   const value = useMemo(
-    () => ({ state, setState, ready, toast, notify }),
-    [state, ready, toast, notify],
+    () => ({ state, setState, recoverState, ready, storageBlocked: storageStatus === "blocked", toast, notify }),
+    [state, recoverState, ready, storageStatus, toast, notify],
   );
 
   return <PlannerContext.Provider value={value}>{children}</PlannerContext.Provider>;

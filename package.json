@@ -11,6 +11,7 @@
     "start": "vinext start",
     "test": "npm run build && node --test tests/*.test.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
+    "typecheck": "tsc --noEmit",
     "docs:master": "node tooling/docs/generate-master.mjs",
     "docs:master:check": "node tooling/docs/generate-master.mjs --check",
     "db:generate": "drizzle-kit generate"
@@ -27,6 +28,7 @@
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "1.37.1",
+    "@cloudflare/workers-types": "4.20260702.1",
     "@eslint/js": "9.39.4",
     "@gltf-transform/core": "4.5.0",
     "@gltf-transform/extensions": "4.5.0",

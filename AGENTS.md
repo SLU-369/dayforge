@@ -127,6 +127,7 @@ The product UI and user-facing copy are in Brazilian Portuguese.
 - `drizzle/`: generated Drizzle migration metadata.
 - `examples/d1/`: opt-in D1 example; it is not part of the current planner data path.
 - `tooling/`: source for the custom Sites/Vite packaging plugin.
+- `.github/workflows/ci.yml`: minimum pull-request and `main` verification for docs, lint, typecheck, build, and tests.
 - `build/`, `dist/`, `.next/`, `.wrangler/`: generated output; never commit these directories.
 - `.openai/`: non-secret Sites hosting bindings. Never put credentials here.
 - `tests/`: Node tests for the server-rendered shell, appearance compatibility, bootstrap, and offline solar calculations.
@@ -141,6 +142,7 @@ Use Node.js 22.13 or newer. On Windows, call `npm.cmd` to avoid PowerShell execu
 npm.cmd ci
 npm.cmd run dev
 npm.cmd run lint
+npm.cmd run typecheck
 npm.cmd run build
 npm.cmd test
 npm.cmd start
@@ -172,7 +174,7 @@ If a future OpenAI API integration is added, use the environment name `OPENAI_AP
 - Keep TypeScript strict and avoid `any`; define planner types in `app/planner-data.ts` and appearance types in `app/appearance.ts`.
 - Keep interactive browser state behind a `"use client"` boundary.
 - Preserve versioning and backward compatibility for the `rotina-369:data:v1` local-storage payload. Add a migration before changing its shape incompatibly.
-- If the v1 payload cannot be read, preserve its original bytes and block automatic persistence of defaults until explicit recovery; the minimal implementation belongs to Stage 0.2.
+- If the v1 payload cannot be read, preserve its original bytes and block automatic persistence of defaults until explicit recovery through backup import or reset. This guard is active in the current baseline.
 - Treat the weekly routine as a template and daily records as immutable historical snapshots; editing the routine must not rewrite past records.
 - Keep UI text in Brazilian Portuguese and code identifiers in descriptive English.
 - Reuse `CATEGORIES`, date helpers, and duration helpers instead of duplicating domain logic.

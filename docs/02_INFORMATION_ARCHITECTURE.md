@@ -31,7 +31,7 @@ Planejamento
 └── Metas
 ```
 
-`Rotina-base` pode ser renomeado visualmente para `Rotina`.
+`Rotina` é o nome visual oficial do molde semanal reutilizável.
 
 ### Rotina
 

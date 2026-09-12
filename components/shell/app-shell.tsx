@@ -17,7 +17,7 @@ import { AnimatedNavigationLink, NavigationIcon } from "./animated-navigation-li
 
 export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
   const pathname = usePathname();
-  const { toast } = usePlanner();
+  const { storageBlocked, toast } = usePlanner();
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -196,6 +196,13 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
           </nav>
         )}
       </header>
+
+      {storageBlocked && (
+        <div className={styles.storageWarning} role="alert">
+          <div><strong>Dados locais protegidos</strong><span>O conteúdo original não pôde ser lido e não será sobrescrito. As alterações atuais ficam somente nesta sessão.</span></div>
+          <Link href="/configuracoes/dados-e-backup" onClick={closeNavigation}>Resolver em Dados e backup</Link>
+        </div>
+      )}
 
       <main className={styles.content}>{children}</main>
 

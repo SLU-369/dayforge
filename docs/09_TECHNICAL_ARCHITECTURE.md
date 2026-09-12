@@ -12,8 +12,10 @@ Este documento separa arquitetura atual, direção aprovada e tecnologia futura.
 - estado React por Context e hooks;
 - persistência principal em `localStorage`, payload `rotina-369:data:v1`;
 - preferências de aparência em chaves locais separadas;
+- leitura inválida do payload v1 bloqueia autosave e mantém alterações temporárias em memória até recuperação explícita;
 - Worker apenas para runtime Vinext e otimização de imagens;
 - Drizzle/D1 preparado, mas schema e bindings de produção vazios;
+- CI executa verificação do master, lint, typecheck, build e testes;
 - nenhum backend de domínio, API, autenticação, sincronização ou banco ativo.
 
 ## 3. Frontend local v2
@@ -41,7 +43,7 @@ IndexedDB com Dexie é a direção aprovada. Ela substituirá `localStorage` com
 
 A migração de `rotina-369:data:v1` deve ser validada, idempotente, reversível, testada com payloads válidos, parciais e corrompidos e não destrutiva antes da validação do destino.
 
-A Etapa 0.2 antecipa somente uma proteção: falha de leitura do v1 bloqueia o autosave de defaults e preserva o conteúdo original. IndexedDB e a migração completa permanecem fora da 0.2.
+A baseline da Etapa 0.2 implementa somente uma proteção: falha de leitura do v1 bloqueia o autosave de defaults, preserva o conteúdo original e mantém a sessão em memória até importação de backup ou restauração explícita. IndexedDB e a migração completa permanecem fora da 0.2.
 
 ## 5. Motor de planejamento
 

@@ -9,7 +9,7 @@ import { downloadPlannerBackup, parsePlannerBackup } from "@/app/planner-reposit
 import styles from "./page.module.css";
 
 export default function DataBackupPage() {
-  const { state, setState, ready, notify } = usePlanner();
+  const { state, recoverState, ready, storageBlocked, notify } = usePlanner();
   const inputRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
 
@@ -23,8 +23,7 @@ export default function DataBackupPage() {
     if (!file) return;
     setImporting(true);
     try {
-      setState(await parsePlannerBackup(file));
-      notify("Backup importado com sucesso.");
+      if (recoverState(await parsePlannerBackup(file))) notify("Backup importado com sucesso.");
     } catch {
       notify("Esse arquivo não é um backup válido do Dayforge.");
     } finally {
@@ -38,8 +37,7 @@ export default function DataBackupPage() {
       "Restaurar a rotina padrão e apagar todo o histórico local? Exporte um backup antes se quiser guardar os dados.",
     );
     if (!confirmed) return;
-    setState(createDefaultState());
-    notify("Dados restaurados.");
+    if (recoverState(createDefaultState())) notify("Dados restaurados.");
   }
 
   return (
@@ -52,7 +50,7 @@ export default function DataBackupPage() {
 
       <section className={styles.statusCard}>
         <span className={styles.statusIcon}><ShieldCheck size={22} aria-hidden="true" /></span>
-        <div><strong>Armazenamento local ativo</strong><p>Exporte uma cópia antes de limpar os dados do navegador ou trocar de computador.</p></div>
+        <div><strong>{storageBlocked ? "Dados locais protegidos" : "Armazenamento local ativo"}</strong><p>{storageBlocked ? "O conteúdo salvo não pôde ser lido e permanece intacto. Importe um backup válido ou restaure o padrão para voltar a salvar." : "Exporte uma cópia antes de limpar os dados do navegador ou trocar de computador."}</p></div>
       </section>
 
       <div className={styles.actionGrid}>

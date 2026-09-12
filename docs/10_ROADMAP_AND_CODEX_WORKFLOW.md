@@ -3,7 +3,8 @@
 ## 1. Estado
 
 - Etapa B/B3 visual concluída e aprovada.
-- Etapa 0.1 documental concluída nesta baseline.
+- Etapa 0.1 documental concluída.
+- Etapa 0.2/B4 de taxonomia, baseline técnica e proteção do v1 concluída.
 - Nenhuma etapa funcional pode começar por consequência automática desta documentação.
 
 ## 2. Etapa 0.1 — Decisões e documentação

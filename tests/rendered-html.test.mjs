@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
 import vm from "node:vm";
 
 async function render(pathname = "/") {
@@ -48,6 +49,13 @@ test("renderiza o painel Dayforge", async () => {
   assert.equal(root.dataset.theme, "day", "bootstrap compilado deve ser autossuficiente");
 });
 
+test("expõe Rotina e Cursos rápidos na taxonomia da navegação", () => {
+  const navigation = readFileSync(new URL("../components/shell/navigation-config.tsx", import.meta.url), "utf8");
+  assert.match(navigation, /label: "Rotina"/);
+  assert.match(navigation, /label: "Cursos rápidos"/);
+  assert.doesNotMatch(navigation, /Rotina-base/);
+});
+
 test("mantém apenas uma área principal ativa por rota", async () => {
   const routes = ["/hoje", "/planejamento/semana", "/formacao/academico", "/academia", "/nutri/calculadoras", "/progresso"];
 
@@ -65,6 +73,7 @@ test("renderiza rotas principais do novo shell", async () => {
     ["/planejamento/rotina", /Preparando seu painel/],
     ["/hoje", /Preparando seu painel/],
     ["/formacao/academico", /Faculdade com contexto/],
+    ["/formacao/cursos-rapidos", /Aprendizados curtos, com propósito/],
     ["/academia", /Treino como prática/],
     ["/nutri", /Alimentação com direção/],
     ["/nutri/plano", /Seu plano, refeição por refeição/],

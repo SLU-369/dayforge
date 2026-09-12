@@ -4,7 +4,7 @@ Painel pessoal e local para planejar a rotina semanal, registrar o que realmente
 
 ## O que já está incluído
 
-- Rotina-base editável para os sete dias da semana.
+- Rotina editável para os sete dias da semana.
 - Registro independente de cada dia, sem alterar o histórico.
 - Conclusão de atividades e minutos efetivamente realizados.
 - Nota e nível de energia do dia.

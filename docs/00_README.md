@@ -1,6 +1,6 @@
 # Dayforge 2.0 — Documentação oficial de produto
 
-**Status:** decisões arquiteturais da Etapa 0.1 consolidadas, antes da baseline técnica 0.2
+**Status:** decisões da Etapa 0.1 e baseline técnica da Etapa 0.2 consolidadas
 **Data:** 12/09/2026
 **Objetivo:** transformar as decisões de produto, UX, domínio e arquitetura discutidas até aqui em uma fonte oficial de verdade para o repositório e para o Codex.
 
@@ -16,7 +16,7 @@
 
 ## Master derivado
 
-Execute `npm.cmd run docs:master` após alterar qualquer documento canônico. O comando recompõe o master em ordem numérica, sem timestamp ou conteúdo autoral próprio. `npm.cmd run docs:master:check` verifica divergência sem modificar arquivos e deve integrar a CI a partir da Etapa 0.2.
+Execute `npm.cmd run docs:master` após alterar qualquer documento canônico. O comando recompõe o master em ordem numérica, sem timestamp ou conteúdo autoral próprio. `npm.cmd run docs:master:check` verifica divergência sem modificar arquivos e integra a CI desde a Etapa 0.2.
 
 ## Visão em uma frase
 
@@ -63,6 +63,10 @@ A Etapa B/B3 concluiu a fundação visual inicial do App Shell:
 - tema claro, escuro e comportamento de tema refinados;
 - fundo 2D preservado após tentativa 3D que foi descartada;
 - navegação principal atual: **Hoje, Planejamento, Formação, Academia, Nutri, Progresso**;
+- Formação distingue Acadêmico, Cursos técnicos, Cursos rápidos e Leituras & Exploração;
+- `Rotina` é o nome exibido para o molde semanal;
+- lint, typecheck, build, testes e sincronização do master integram a baseline de CI;
+- falhas de leitura do payload v1 preservam o conteúdo original e bloqueiam autosave até recuperação explícita;
 - o conteúdo funcional antigo da página Hoje ainda é legado e será reformulado posteriormente.
 
-A próxima etapa autorizável é a **0.2/B4 curta de baseline técnica**: consolidar `Cursos rápidos`, revisar `Rotina-base` → `Rotina`, corrigir o typecheck, estabelecer CI mínima e impedir sobrescrita automática do payload v1 quando sua leitura falhar. Ela não inclui reconstrução funcional, IndexedDB ou novos domínios.
+A Etapa 0.2/B4 foi mantida curta e não introduziu reconstrução funcional, IndexedDB ou novos domínios. A próxima etapa do roadmap é a Etapa 1, mas depende de planejamento e aprovação humana próprios antes de qualquer implementação.

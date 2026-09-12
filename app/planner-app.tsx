@@ -375,7 +375,7 @@ function RoutineView({ state, day, onDay, onEdit, onDelete, onAdd }: {
 
   return (
     <div className="page-wrap">
-      <div className="page-topline"><div><span className="eyebrow">{"// ROTINA-BASE"}</span><h1>O molde da sua semana</h1><p>Alterações aqui valem para novos dias. Seu histórico permanece intacto.</p></div><Button icon={<Plus size={17} />} onClick={onAdd}>Nova atividade</Button></div>
+      <div className="page-topline"><div><span className="eyebrow">{"// ROTINA"}</span><h1>O molde da sua semana</h1><p>Alterações aqui valem para novos dias. Seu histórico permanece intacto.</p></div><Button icon={<Plus size={17} />} onClick={onAdd}>Nova atividade</Button></div>
       <div className="day-tabs">{DAY_ORDER.map((dayKey) => <button className={day === dayKey ? "active" : ""} key={dayKey} onClick={() => onDay(dayKey)}><span>{DAY_NAMES[dayKey].slice(0, 3)}</span><small>{hoursLabel(state.routine[dayKey].reduce((sum, entry) => sum + itemMinutes(entry), 0))}</small></button>)}</div>
       <div className="routine-layout">
         <section className="panel routine-panel"><div className="panel-heading"><div><span className="eyebrow">{DAY_NAMES[day].toUpperCase()}</span><h2>{state.routine[day].length} blocos planejados</h2></div><Button size="sm" variant="secondary" icon={<Plus size={15} />} onClick={onAdd}>Adicionar</Button></div><div className="routine-list">{state.routine[day].map((entry, index) => {
@@ -418,7 +418,7 @@ function ItemEditor({ target, onClose, onSave }: { target: NonNullable<EditorTar
   return (
     <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}>
       <form className="editor-modal" onSubmit={submit}>
-        <div className="modal-heading"><div><span className="eyebrow">{target.index === undefined ? "NOVA ATIVIDADE" : "EDITAR ATIVIDADE"}</span><h2>{target.type === "routine" ? "Rotina-base" : "Registro do dia"}</h2></div><button type="button" onClick={onClose}>×</button></div>
+        <div className="modal-heading"><div><span className="eyebrow">{target.index === undefined ? "NOVA ATIVIDADE" : "EDITAR ATIVIDADE"}</span><h2>{target.type === "routine" ? "Rotina" : "Registro do dia"}</h2></div><button type="button" onClick={onClose}>×</button></div>
         <label className="full-field"><span>Atividade</span><input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Ex.: Estudo de Go" required /></label>
         <div className="form-row"><label><span>Início</span><input type="time" value={start} onChange={(event) => setStart(event.target.value)} required /></label><label><span>Fim</span><input type="time" value={end} onChange={(event) => setEnd(event.target.value)} required /></label></div>
         <label className="full-field"><span>Categoria</span><select value={category} onChange={(event) => setCategory(event.target.value as CategoryKey)}>{(Object.keys(CATEGORIES) as CategoryKey[]).map((key) => <option key={key} value={key}>{CATEGORIES[key].label}</option>)}</select></label>

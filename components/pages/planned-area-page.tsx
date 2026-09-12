@@ -26,6 +26,7 @@ type PlannedArea =
   | "formation"
   | "academic"
   | "courses"
+  | "quick-courses"
   | "exploration"
   | "gym"
   | "gym-week"
@@ -41,9 +42,10 @@ type PlannedArea =
 const areas: Record<PlannedArea, { eyebrow: string; title: string; description: string; icon: LucideIcon }> = {
   week: { eyebrow: "Planejamento · Em preparação", title: "Sua semana, sem sobrecarga", description: "Prioridades, âncoras e blocos flexíveis ficarão reunidos aqui em uma visão semanal.", icon: CalendarDays },
   goals: { eyebrow: "Planejamento · Em preparação", title: "Metas ligadas ao que acontece", description: "Frequência, tempo, progresso e prazo transformarão intenção em direção mensurável.", icon: Target },
-  formation: { eyebrow: "Formação · Em preparação", title: "Um percurso para tudo que você aprende", description: "Acadêmico, cursos técnicos e exploração terão espaços próprios, conectados pelo seu progresso.", icon: LibraryBig },
+  formation: { eyebrow: "Formação · Em preparação", title: "Um percurso para tudo que você aprende", description: "Acadêmico, cursos técnicos, cursos rápidos e exploração terão espaços próprios, conectados pelo seu progresso.", icon: LibraryBig },
   academic: { eyebrow: "Formação · Acadêmico · Em preparação", title: "Faculdade com contexto", description: "Semestres, disciplinas, trabalhos, provas e sessões ficarão organizados aqui.", icon: GraduationCap },
   courses: { eyebrow: "Formação · Cursos", title: "Cursos com continuidade", description: "Go e IA para Devs terão níveis, sessões e progresso; Python e Git permanecerão no histórico.", icon: Code2 },
+  "quick-courses": { eyebrow: "Formação · Cursos rápidos · Em preparação", title: "Aprendizados curtos, com propósito", description: "Cursos rápidos serão uma categoria escolhida por você, sem duração obrigatória ou regra fixa de horas.", icon: Code2 },
   exploration: { eyebrow: "Formação · Exploração · Em preparação", title: "Consumir, registrar, refletir", description: "Livros, filmes, documentários, artigos e estudos livres terão um registro centrado em progresso e aprendizado.", icon: Compass },
   gym: { eyebrow: "Academia · Em preparação", title: "Treino como prática, não checklist", description: "Semana, fichas, exercícios e evolução formarão uma visão contínua do seu treino.", icon: Dumbbell },
   "gym-week": { eyebrow: "Academia · Semana", title: "O plano de treino da semana", description: "Dias preferenciais e reagendamento serão apresentados sem transformar a semana em uma lista rígida.", icon: CalendarCheck },
