@@ -9,6 +9,8 @@ export type DomainErrorCode =
   | "invalid_recurrence"
   | "invalid_template"
   | "invalid_origin"
+  | "invalid_occurrence"
+  | "invalid_reason"
   | "invalid_execution"
   | "invalid_transition"
   | "invalid_reschedule";
