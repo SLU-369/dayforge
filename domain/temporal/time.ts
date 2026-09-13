@@ -129,6 +129,10 @@ export function createTimedSchedule(input: Readonly<{
   if (!timeZone.ok) return timeZone;
   const durationMinutes = parsePositiveMinutes(input.durationMinutes);
   if (!durationMinutes.ok) return durationMinutes;
+  const endEpoch = Date.parse(startsAt.value) + durationMinutes.value * 60_000;
+  if (!Number.isFinite(endEpoch) || Math.abs(endEpoch) > 8_640_000_000_000_000) {
+    return failure("invalid_duration", "Duration must keep the scheduled interval in the supported instant range.", "durationMinutes");
+  }
   return success({ kind: "timed", startsAt: startsAt.value, timeZone: timeZone.value, durationMinutes: durationMinutes.value });
 }
 
@@ -187,11 +191,13 @@ export function createAbsoluteInterval(input: Readonly<{
   return success({ start: start.value, end: end.value });
 }
 
-export function intervalForTimedSchedule(schedule: TimedSchedule): AbsoluteInterval {
-  const end = new Date(
-    Date.parse(schedule.startsAt) + schedule.durationMinutes * 60_000,
-  ).toISOString() as UtcInstant;
-  return { start: schedule.startsAt, end };
+export function intervalForTimedSchedule(schedule: TimedSchedule): DomainResult<AbsoluteInterval> {
+  const endEpoch = Date.parse(schedule.startsAt) + schedule.durationMinutes * 60_000;
+  if (!Number.isFinite(endEpoch) || Math.abs(endEpoch) > 8_640_000_000_000_000) {
+    return failure("invalid_interval", "Timed schedule exceeds the supported instant range.", "durationMinutes");
+  }
+  const end = new Date(endEpoch).toISOString() as UtcInstant;
+  return success({ start: schedule.startsAt, end });
 }
 
 export function copyOccurrenceSchedule(schedule: OccurrenceSchedule): OccurrenceSchedule {

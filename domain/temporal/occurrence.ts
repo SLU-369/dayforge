@@ -25,6 +25,7 @@ import type {
   OriginReference,
   RoutineTemplate,
 } from "./template.ts";
+import { FLEXIBILITIES, ORIGIN_KINDS, createOriginReference } from "./template.ts";
 
 export type TemporalReason = Readonly<{
   code: string;
@@ -142,6 +143,24 @@ function copyOrigin(origin: OriginReference): OriginReference {
 
 function copyReason(reason: TemporalReason | undefined): TemporalReason | undefined {
   return reason ? { ...reason } : undefined;
+}
+
+function copyRescheduleEvent(event: RescheduleEvent): RescheduleEvent {
+  return {
+    ...event,
+    from: copyOccurrenceSchedule(event.from),
+    to: copyOccurrenceSchedule(event.to),
+    ...(event.reason ? { reason: copyReason(event.reason) } : {}),
+  };
+}
+
+function copyExecution(execution: ExecutionRecord): ExecutionRecord {
+  return {
+    ...execution,
+    timing: execution.timing.kind === "timed"
+      ? { ...execution.timing, interval: { ...execution.timing.interval } }
+      : { ...execution.timing },
+  };
 }
 
 function validateNote(note: string | undefined, field: string): DomainResult<string | undefined> {
@@ -270,13 +289,21 @@ export function createOccurrence(input: Readonly<{
   const origin = input.source.kind === "template"
     ? input.source.template.origin
     : input.source.origin;
+  if (!(FLEXIBILITIES as readonly string[]).includes(flexibility)) {
+    return failure("invalid_occurrence", "Occurrence flexibility is not supported.", "flexibility");
+  }
+  if (!(ORIGIN_KINDS as readonly string[]).includes(origin.kind)) {
+    return failure("invalid_occurrence", "Occurrence origin is not supported.", "origin.kind");
+  }
+  const validatedOrigin = createOriginReference(origin);
+  if (!validatedOrigin.ok) return validatedOrigin;
 
   return success({
     id: input.id,
     templateId,
     title,
     flexibility,
-    origin: copyOrigin(origin),
+    origin: copyOrigin(validatedOrigin.value),
     status: "planned",
     originalSchedule: copyOccurrenceSchedule(input.schedule),
     currentSchedule: copyOccurrenceSchedule(input.schedule),
@@ -315,8 +342,10 @@ export function rescheduleOccurrence(
 
   return success({
     ...planned.value,
+    origin: copyOrigin(planned.value.origin),
+    originalSchedule: copyOccurrenceSchedule(planned.value.originalSchedule),
     currentSchedule: copyOccurrenceSchedule(command.schedule),
-    rescheduleHistory: [...planned.value.rescheduleHistory, event],
+    rescheduleHistory: [...planned.value.rescheduleHistory.map(copyRescheduleEvent), event],
     updatedAt: changedAt.value,
   });
 }
@@ -333,12 +362,10 @@ export function completeOccurrence(
 
   const base = {
     ...planned.value,
-    execution: {
-      ...execution,
-      timing: execution.timing.kind === "timed"
-        ? { ...execution.timing, interval: { ...execution.timing.interval } }
-        : { ...execution.timing },
-    },
+    origin: copyOrigin(planned.value.origin),
+    originalSchedule: copyOccurrenceSchedule(planned.value.originalSchedule),
+    currentSchedule: copyOccurrenceSchedule(planned.value.currentSchedule),
+    execution: copyExecution(execution),
     resolution: null,
     updatedAt: execution.recordedAt,
   };
@@ -347,7 +374,7 @@ export function completeOccurrence(
     return success({ ...base, status: "completed", rescheduleHistory: [] });
   }
 
-  const [first, ...remaining] = planned.value.rescheduleHistory;
+  const [first, ...remaining] = planned.value.rescheduleHistory.map(copyRescheduleEvent);
   return success({
     ...base,
     status: "completed_rescheduled",
@@ -373,8 +400,11 @@ function resolveWithoutExecution(
   };
   const base = {
     ...planned.value,
+    origin: copyOrigin(planned.value.origin),
+    originalSchedule: copyOccurrenceSchedule(planned.value.originalSchedule),
+    currentSchedule: copyOccurrenceSchedule(planned.value.currentSchedule),
     execution: null,
-    rescheduleHistory: [...planned.value.rescheduleHistory],
+    rescheduleHistory: planned.value.rescheduleHistory.map(copyRescheduleEvent),
     updatedAt: resolvedAt.value,
   };
 

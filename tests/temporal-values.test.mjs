@@ -70,7 +70,7 @@ test("keeps timed, date-only, and all-day schedules distinct", () => {
   assert.equal(timed.kind, "timed");
   assert.equal(dateOnly.kind, "date_only");
   assert.equal(allDay.kind, "all_day");
-  assert.deepEqual(intervalForTimedSchedule(timed), {
+  assert.deepEqual(value(intervalForTimedSchedule(timed)), {
     start: "2026-09-15T09:30:00.000Z",
     end: "2026-09-15T10:30:00.000Z",
   });
@@ -79,6 +79,12 @@ test("keeps timed, date-only, and all-day schedules distinct", () => {
     startsOn: "2026-09-15",
     endsBefore: "2026-09-15",
     timeZone: "America/Sao_Paulo",
+  }).ok, false);
+
+  assert.equal(createTimedSchedule({
+    startsAt: "9999-12-31T23:59:59.999Z",
+    timeZone: "America/Sao_Paulo",
+    durationMinutes: Number.MAX_SAFE_INTEGER,
   }).ok, false);
 });
 
