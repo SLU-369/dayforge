@@ -1,7 +1,7 @@
 # Dayforge 2.0 — Documentação oficial de produto
 
-**Status:** decisões da Etapa 0.1 e baseline técnica da Etapa 0.2 consolidadas
-**Data:** 12/09/2026
+**Status:** decisões da Etapa 0.1, baseline da Etapa 0.2 e domínio temporal da Etapa 1.1 consolidados
+**Data:** 14/09/2026
 **Objetivo:** transformar as decisões de produto, UX, domínio e arquitetura discutidas até aqui em uma fonte oficial de verdade para o repositório e para o Codex.
 
 ## Como usar esta documentação
@@ -67,6 +67,11 @@ A Etapa B/B3 concluiu a fundação visual inicial do App Shell:
 - `Rotina` é o nome exibido para o molde semanal;
 - lint, typecheck, build, testes e sincronização do master integram a baseline de CI;
 - falhas de leitura do payload v1 preservam o conteúdo original e bloqueiam autosave até recuperação explícita;
+- o núcleo TypeScript puro em `domain/temporal/` define templates, ocorrências,
+  execução, reagendamento, estados terminais e disponibilidade mínima sem
+  depender de React, browser ou persistência;
 - o conteúdo funcional antigo da página Hoje ainda é legado e será reformulado posteriormente.
 
-A Etapa 0.2/B4 foi mantida curta e não introduziu reconstrução funcional, IndexedDB ou novos domínios. A próxima etapa do roadmap é a Etapa 1, mas depende de planejamento e aprovação humana próprios antes de qualquer implementação.
+A Etapa 1.1 não integrou o novo domínio ao planner legado nem iniciou
+IndexedDB, Dexie ou migração. A Etapa 1.2 permanece futura e depende de
+planejamento e aprovação humana próprios antes de qualquer implementação.

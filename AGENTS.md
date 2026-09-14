@@ -86,12 +86,15 @@ When the user requests a durable behavior change, record it here or in the relev
 - The numbered files in `docs/` are the canonical product and architecture source. `docs/DAYFORGE_MASTER_SPEC.md` is generated from them and must not be edited independently.
 - Official appearance modes for the current roadmap are Light, Dark, and Solar. Do not add an explicit System mode without a later approved decision.
 - The first local planning engine will use deterministic TypeScript isolated from React UI. Python remains a candidate for justified prototyping, simulation, optimization, or future server-side execution; do not add it to the local production runtime by preference alone.
+- Temporal flexibility has exactly `fixed`, `preferred`, and `flexible`. Opportunity is represented by availability windows or contexts, never by an `opportunistic` flexibility value.
+- Temporal terminal states are `completed`, `completed_rescheduled`, `not_completed`, and `cancelled`. Corrections require a future explicitly audited operation; no terminal state silently returns to `planned`.
 - IndexedDB with Dexie is the approved local v2 persistence direction. Preserve `rotina-369:data:v1` through a validated, idempotent, reversible migration; before that migration, a read failure must never cause defaults to overwrite the original payload.
 - Go remains the desired future backend language and starts as a modular monolith only when API, authentication, multi-user, cloud, sync, remote storage, or server-side security creates a concrete need.
 
 ## Child DOX Index
 
 - `app/AGENTS.md`: frontend routes, shell, client-state boundary, local persistence, and UI architecture.
+- `domain/AGENTS.md`: pure TypeScript domain contracts, temporal invariants, and dependency boundaries.
 - `components/appearance/AGENTS.md`: atmospheric castle composition, solar transition, and motion scheduling.
 - `public/backgrounds/hogwarts/AGENTS.md`: generated scene assets, provenance, and optimization constraints.
 - `public/scenes/AGENTS.md`: retained licensed GLB and texture decoder assets for the inactive 3D experiment.
@@ -118,6 +121,7 @@ The product UI and user-facing copy are in Brazilian Portuguese.
 ## Directory map
 
 - `app/`: App Router pages, layout, planner state/repository, domain types/default data, global styles, and ChatGPT auth helper.
+- `domain/`: browser-independent TypeScript domain contracts and pure rules shared by future product areas.
 - `components/shell/`: horizontal navigation, contextual navigation, mega menus, profile menu, and compact drawer.
 - `components/pages/`: shared page-level presentation used by staged product areas.
 - `components/ui/`: reusable interactive UI primitives.
@@ -171,7 +175,7 @@ If a future OpenAI API integration is added, use the environment name `OPENAI_AP
 
 ## Code conventions
 
-- Keep TypeScript strict and avoid `any`; define planner types in `app/planner-data.ts` and appearance types in `app/appearance.ts`.
+- Keep TypeScript strict and avoid `any`; keep legacy v1 planner payload types in `app/planner-data.ts`, new domain contracts in `domain/`, and appearance types in `app/appearance.ts`.
 - Keep interactive browser state behind a `"use client"` boundary.
 - Preserve versioning and backward compatibility for the `rotina-369:data:v1` local-storage payload. Add a migration before changing its shape incompatibly.
 - If the v1 payload cannot be read, preserve its original bytes and block automatic persistence of defaults until explicit recovery through backup import or reset. This guard is active in the current baseline.

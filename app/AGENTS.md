@@ -10,13 +10,14 @@
 - The layout mounts the photographic `AppearanceBackdrop` once across route changes. Old `?scene=3d` URLs must also show this approved background; the castle model is no longer activated.
 - `planner-context.tsx` owns shared client state and persistence lifecycle.
 - `planner-repository.ts` owns browser storage and JSON backup I/O.
-- `planner-data.ts` owns the versioned planner domain types, defaults, and reusable date/duration helpers.
+- `planner-data.ts` owns only the versioned legacy v1 planner payload types, defaults, and its existing date/duration helpers. New product-domain contracts live in root `domain/`.
 - `appearance.ts` owns appearance preferences, the offline capital catalog, solar calculations, and the standalone theme bootstrap; `theme-provider.tsx` owns their browser lifecycle.
 - Route folders own only their page composition; shared navigation belongs in `components/shell/navigation-config.tsx`.
 
 ## Local Contracts
 
 - Preserve the exact `rotina-369:data:v1` storage contract unless an explicit migration is approved.
+- Do not adapt the v1 planner payload to the root temporal domain before the separately approved Stage 1.2 migration.
 - A failed v1 read preserves the original stored value, blocks automatic writes, and keeps changes in memory with a persistent warning until explicit recovery through backup import or reset. IndexedDB belongs to Stage 1.
 - Keep historical daily records independent from later routine edits.
 - New mocked domains must not be written into the v1 planner payload.

@@ -5,6 +5,7 @@
 - Etapa B/B3 visual concluída e aprovada.
 - Etapa 0.1 documental concluída.
 - Etapa 0.2/B4 de taxonomia, baseline técnica e proteção do v1 concluída.
+- Etapa 1.1 de modelo temporal e contratos do domínio concluída.
 - Nenhuma etapa funcional pode começar por consequência automática desta documentação.
 
 ## 2. Etapa 0.1 — Decisões e documentação
@@ -81,6 +82,44 @@ Fora de escopo:
 ```
 
 Cada etapa ampla deve ser subdividida em branches revisáveis antes de sua implementação. Python permanece candidato futuro e não possui etapa automática.
+
+### Etapa 1.1 — Modelo temporal e contratos do domínio
+
+Status: concluída em 14/09/2026.
+
+Escopo restrito:
+
+- núcleo TypeScript puro e independente de React, browser e persistência;
+- IDs opacos fornecidos pelo chamador, valores temporais e intervalos semiabertos;
+- recorrência semanal e `RoutineTemplate`;
+- `ScheduleOccurrence`, `ExecutionRecord` e histórico append-only de reagendamentos;
+- estados `planned`, `completed`, `completed_rescheduled`, `not_completed` e `cancelled`;
+- flexibilidade `fixed`, `preferred` e `flexible`;
+- origem desacoplada dos módulos futuros;
+- contratos mínimos de disponibilidade e testes unitários.
+
+`completed_rescheduled` é derivado pelo domínio quando uma conclusão possui
+histórico de reagendamento. Estados concluídos, não realizados e cancelados
+são terminais nesta etapa.
+
+Fora de escopo:
+
+- IndexedDB, Dexie, schemas de persistência e migração v1 para v2;
+- materialização automática de recorrências, resolução manual de DST ou motor
+  de planejamento;
+- integração com UI, novos domínios, backend, autenticação, PWA ou cloud.
+
+Resultado implementado: `domain/temporal/` expõe contratos e funções puras para
+valores temporais, recorrência semanal, templates, ocorrências, execução,
+reagendamento, transições e disponibilidade mínima. Os testes cobrem estados,
+imutabilidade, intervalos e casos de borda. O payload v1 e seus adapters não
+foram alterados.
+
+### Etapa 1.2 — Persistência local v2 e migração
+
+Permanece futura e depende de planejamento e aprovação próprios. Ela deverá
+tratar IndexedDB/Dexie, validação persistente, adapters e migração não
+destrutiva de `rotina-369:data:v1`; a Etapa 1.1 não antecipa esse trabalho.
 
 ## 5. Ordem de dependências
 
