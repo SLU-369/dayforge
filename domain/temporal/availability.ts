@@ -1,4 +1,4 @@
-import { success, type DomainResult } from "./errors.ts";
+import { failure, success, type DomainResult } from "./errors.ts";
 import type {
   AvailabilityWindowId,
   RoutineTemplateId,
@@ -132,8 +132,18 @@ export function absoluteIntervalsOverlap(left: AbsoluteInterval, right: Absolute
   return left.start < right.end && right.start < left.end;
 }
 
-export function allDayRangesOverlap(left: AllDaySchedule, right: AllDaySchedule) {
-  return left.startsOn < right.endsBefore && right.startsOn < left.endsBefore;
+export function allDayRangesOverlap(
+  left: AllDaySchedule,
+  right: AllDaySchedule,
+): DomainResult<boolean> {
+  if (left.timeZone !== right.timeZone) {
+    return failure(
+      "invalid_interval",
+      "All-day civil ranges can only be compared directly within the same time zone.",
+      "timeZone",
+    );
+  }
+  return success(left.startsOn < right.endsBefore && right.startsOn < left.endsBefore);
 }
 
 function copyWindow(window: ScheduleWindow): ScheduleWindow {

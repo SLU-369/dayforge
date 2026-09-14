@@ -58,8 +58,15 @@ test("uses semi-open overlap semantics for all-day civil ranges", () => {
     endsBefore: "2026-09-17",
     timeZone: "America/Sao_Paulo",
   }));
-  assert.equal(allDayRangesOverlap(first, adjacent), false);
-  assert.equal(allDayRangesOverlap(first, overlapping), true);
+  assert.equal(value(allDayRangesOverlap(first, adjacent)), false);
+  assert.equal(value(allDayRangesOverlap(first, overlapping)), true);
+
+  const otherTimeZone = value(createAllDaySchedule({
+    startsOn: "2026-09-15",
+    endsBefore: "2026-09-16",
+    timeZone: "America/New_York",
+  }));
+  assert.equal(allDayRangesOverlap(first, otherTimeZone).error.code, "invalid_interval");
 });
 
 test("represents available, unavailable, occupied, and anchor contracts separately", () => {
