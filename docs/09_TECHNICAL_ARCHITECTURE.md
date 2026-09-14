@@ -16,6 +16,9 @@ Este documento separa arquitetura atual, direção aprovada e tecnologia futura.
 - Worker apenas para runtime Vinext e otimização de imagens;
 - Drizzle/D1 preparado, mas schema e bindings de produção vazios;
 - CI executa verificação do master, lint, typecheck, build e testes;
+- núcleo temporal puro em `domain/temporal/`, com valores validados, templates
+  semanais, ocorrências independentes, execução, reagendamento append-only,
+  transições terminais e contratos mínimos de disponibilidade;
 - nenhum backend de domínio, API, autenticação, sincronização ou banco ativo.
 
 ## 3. Frontend local v2

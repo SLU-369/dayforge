@@ -5,8 +5,8 @@
 
 # Dayforge 2.0 — Documentação oficial de produto
 
-**Status:** decisões da Etapa 0.1 e baseline técnica da Etapa 0.2 consolidadas
-**Data:** 12/09/2026
+**Status:** decisões da Etapa 0.1, baseline da Etapa 0.2 e domínio temporal da Etapa 1.1 consolidados
+**Data:** 14/09/2026
 **Objetivo:** transformar as decisões de produto, UX, domínio e arquitetura discutidas até aqui em uma fonte oficial de verdade para o repositório e para o Codex.
 
 ## Como usar esta documentação
@@ -72,9 +72,14 @@ A Etapa B/B3 concluiu a fundação visual inicial do App Shell:
 - `Rotina` é o nome exibido para o molde semanal;
 - lint, typecheck, build, testes e sincronização do master integram a baseline de CI;
 - falhas de leitura do payload v1 preservam o conteúdo original e bloqueiam autosave até recuperação explícita;
+- o núcleo TypeScript puro em `domain/temporal/` define templates, ocorrências,
+  execução, reagendamento, estados terminais e disponibilidade mínima sem
+  depender de React, browser ou persistência;
 - o conteúdo funcional antigo da página Hoje ainda é legado e será reformulado posteriormente.
 
-A Etapa 0.2/B4 foi mantida curta e não introduziu reconstrução funcional, IndexedDB ou novos domínios. A próxima etapa do roadmap é a Etapa 1, mas depende de planejamento e aprovação humana próprios antes de qualquer implementação.
+A Etapa 1.1 não integrou o novo domínio ao planner legado nem iniciou
+IndexedDB, Dexie ou migração. A Etapa 1.2 permanece futura e depende de
+planejamento e aprovação humana próprios antes de qualquer implementação.
 
 ---
 
@@ -1734,6 +1739,9 @@ Este documento separa arquitetura atual, direção aprovada e tecnologia futura.
 - Worker apenas para runtime Vinext e otimização de imagens;
 - Drizzle/D1 preparado, mas schema e bindings de produção vazios;
 - CI executa verificação do master, lint, typecheck, build e testes;
+- núcleo temporal puro em `domain/temporal/`, com valores validados, templates
+  semanais, ocorrências independentes, execução, reagendamento append-only,
+  transições terminais e contratos mínimos de disponibilidade;
 - nenhum backend de domínio, API, autenticação, sincronização ou banco ativo.
 
 ## 3. Frontend local v2
@@ -1805,7 +1813,7 @@ Camadas futuras devem possuir testes unitários de domínio e planner, testes de
 - Etapa B/B3 visual concluída e aprovada.
 - Etapa 0.1 documental concluída.
 - Etapa 0.2/B4 de taxonomia, baseline técnica e proteção do v1 concluída.
-- Etapa 1.1 de modelo temporal e contratos do domínio aprovada para implementação.
+- Etapa 1.1 de modelo temporal e contratos do domínio concluída.
 - Nenhuma etapa funcional pode começar por consequência automática desta documentação.
 
 ## 2. Etapa 0.1 — Decisões e documentação
@@ -1885,6 +1893,8 @@ Cada etapa ampla deve ser subdividida em branches revisáveis antes de sua imple
 
 ### Etapa 1.1 — Modelo temporal e contratos do domínio
 
+Status: concluída em 14/09/2026.
+
 Escopo restrito:
 
 - núcleo TypeScript puro e independente de React, browser e persistência;
@@ -1906,6 +1916,12 @@ Fora de escopo:
 - materialização automática de recorrências, resolução manual de DST ou motor
   de planejamento;
 - integração com UI, novos domínios, backend, autenticação, PWA ou cloud.
+
+Resultado implementado: `domain/temporal/` expõe contratos e funções puras para
+valores temporais, recorrência semanal, templates, ocorrências, execução,
+reagendamento, transições e disponibilidade mínima. Os testes cobrem estados,
+imutabilidade, intervalos e casos de borda. O payload v1 e seus adapters não
+foram alterados.
 
 ### Etapa 1.2 — Persistência local v2 e migração
 
@@ -2542,6 +2558,26 @@ A definição visual exata permanece pendente de UX.
 - Etapa 1 adota IndexedDB com Dexie;
 - migração v1 validada, idempotente, reversível e não destrutiva;
 - backup v2 e restauração completos antes de arquivos locais.
+
+## 13. Núcleo temporal
+
+### Atual pós-1.1
+
+- `domain/temporal/` independente de React, browser e persistência;
+- IDs opacos e instantes fornecidos pelos chamadores;
+- datas civis, horários locais, timezone IANA, instantes UTC e durações
+  validados explicitamente;
+- templates semanais separados de ocorrências e execuções;
+- planejamento original, planejamento atual e reagendamentos append-only;
+- cinco estados temporais, com conclusão reagendada derivada e estados finais
+  terminais;
+- disponibilidade, indisponibilidade, ocupação e âncoras apenas como contratos
+  mínimos, sem motor de agenda.
+
+### Próxima evolução autorizável
+
+A Etapa 1.2 poderá planejar IndexedDB/Dexie, schemas persistentes e migração v1
+para v2. O núcleo temporal ainda não está conectado ao planner legado ou à UI.
 
 ---
 

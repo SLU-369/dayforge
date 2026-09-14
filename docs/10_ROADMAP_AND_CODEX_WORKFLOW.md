@@ -5,7 +5,7 @@
 - Etapa B/B3 visual concluída e aprovada.
 - Etapa 0.1 documental concluída.
 - Etapa 0.2/B4 de taxonomia, baseline técnica e proteção do v1 concluída.
-- Etapa 1.1 de modelo temporal e contratos do domínio aprovada para implementação.
+- Etapa 1.1 de modelo temporal e contratos do domínio concluída.
 - Nenhuma etapa funcional pode começar por consequência automática desta documentação.
 
 ## 2. Etapa 0.1 — Decisões e documentação
@@ -85,6 +85,8 @@ Cada etapa ampla deve ser subdividida em branches revisáveis antes de sua imple
 
 ### Etapa 1.1 — Modelo temporal e contratos do domínio
 
+Status: concluída em 14/09/2026.
+
 Escopo restrito:
 
 - núcleo TypeScript puro e independente de React, browser e persistência;
@@ -106,6 +108,12 @@ Fora de escopo:
 - materialização automática de recorrências, resolução manual de DST ou motor
   de planejamento;
 - integração com UI, novos domínios, backend, autenticação, PWA ou cloud.
+
+Resultado implementado: `domain/temporal/` expõe contratos e funções puras para
+valores temporais, recorrência semanal, templates, ocorrências, execução,
+reagendamento, transições e disponibilidade mínima. Os testes cobrem estados,
+imutabilidade, intervalos e casos de borda. O payload v1 e seus adapters não
+foram alterados.
 
 ### Etapa 1.2 — Persistência local v2 e migração
 

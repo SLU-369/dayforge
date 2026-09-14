@@ -144,3 +144,23 @@ A definição visual exata permanece pendente de UX.
 - Etapa 1 adota IndexedDB com Dexie;
 - migração v1 validada, idempotente, reversível e não destrutiva;
 - backup v2 e restauração completos antes de arquivos locais.
+
+## 13. Núcleo temporal
+
+### Atual pós-1.1
+
+- `domain/temporal/` independente de React, browser e persistência;
+- IDs opacos e instantes fornecidos pelos chamadores;
+- datas civis, horários locais, timezone IANA, instantes UTC e durações
+  validados explicitamente;
+- templates semanais separados de ocorrências e execuções;
+- planejamento original, planejamento atual e reagendamentos append-only;
+- cinco estados temporais, com conclusão reagendada derivada e estados finais
+  terminais;
+- disponibilidade, indisponibilidade, ocupação e âncoras apenas como contratos
+  mínimos, sem motor de agenda.
+
+### Próxima evolução autorizável
+
+A Etapa 1.2 poderá planejar IndexedDB/Dexie, schemas persistentes e migração v1
+para v2. O núcleo temporal ainda não está conectado ao planner legado ou à UI.
