@@ -1,0 +1,83 @@
+import {
+  DATABASE_METADATA_KEY,
+  decodeDatabaseMetadata,
+  decodePlannerDocument,
+  type DatabaseMetadataRecord,
+  type LocalPersistenceRepository,
+  type PersistenceReadTransaction,
+  type PersistenceWriteTransaction,
+  type PlannerDocumentRecord,
+} from "../contracts/index.ts";
+import { DayforgeDatabase, openAndValidateDatabase } from "./dayforge-database.ts";
+
+class IndexedDbTransaction implements PersistenceWriteTransaction {
+  private readonly metadata: DayforgeDatabase["metadata"];
+  private readonly plannerDocuments: DayforgeDatabase["plannerDocuments"];
+
+  constructor(
+    metadata: DayforgeDatabase["metadata"],
+    plannerDocuments: DayforgeDatabase["plannerDocuments"],
+  ) {
+    this.metadata = metadata;
+    this.plannerDocuments = plannerDocuments;
+  }
+
+  async getDatabaseMetadata() {
+    return decodeDatabaseMetadata(await this.metadata.get(DATABASE_METADATA_KEY));
+  }
+
+  async getPlannerDocument(id: string) {
+    const document = await this.plannerDocuments.get(id);
+    return document === undefined ? null : decodePlannerDocument(document);
+  }
+
+  async listPlannerDocuments() {
+    return Promise.all((await this.plannerDocuments.toArray()).map(decodePlannerDocument));
+  }
+
+  async putDatabaseMetadata(metadata: DatabaseMetadataRecord) {
+    await this.metadata.put(decodeDatabaseMetadata(metadata));
+  }
+
+  async putPlannerDocument(document: PlannerDocumentRecord) {
+    await this.plannerDocuments.put(decodePlannerDocument(document));
+  }
+
+  async deletePlannerDocument(id: string) {
+    await this.plannerDocuments.delete(id);
+  }
+}
+
+export class IndexedDbPersistenceRepository implements LocalPersistenceRepository {
+  private readonly database: DayforgeDatabase;
+
+  constructor(database: DayforgeDatabase = new DayforgeDatabase()) {
+    this.database = database;
+  }
+
+  open() {
+    return openAndValidateDatabase(this.database);
+  }
+
+  close() {
+    this.database.close();
+  }
+
+  async read<T>(operation: (transaction: PersistenceReadTransaction) => Promise<T>) {
+    return this.database.transaction(
+      "r",
+      this.database.metadata,
+      this.database.plannerDocuments,
+      () => operation(new IndexedDbTransaction(this.database.metadata, this.database.plannerDocuments)),
+    );
+  }
+
+  async write<T>(operation: (transaction: PersistenceWriteTransaction) => Promise<T>) {
+    return this.database.transaction(
+      "rw",
+      this.database.metadata,
+      this.database.plannerDocuments,
+      () => operation(new IndexedDbTransaction(this.database.metadata, this.database.plannerDocuments)),
+    );
+  }
+}
