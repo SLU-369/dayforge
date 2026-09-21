@@ -10,6 +10,8 @@ import {
   DayforgeDatabase,
   IndexedDbPersistenceRepository,
   PersistenceValidationError,
+  createDatabaseMetadata,
+  decodeDatabaseMetadata,
   decodePlannerDocument,
 } from "../persistence/index.ts";
 
@@ -30,6 +32,17 @@ function activeDocument(overrides = {}) {
     payload: { version: 1, routine: {} },
     ...overrides,
   };
+}
+
+function validationError(code) {
+  return (error) => error instanceof PersistenceValidationError && error.code === code;
+}
+
+async function seedMetadata(name, metadata) {
+  const database = new DayforgeDatabase(name);
+  await database.open();
+  await database.metadata.put(metadata);
+  database.close();
 }
 
 test("creates only the approved schema and required database metadata", async (t) => {
@@ -70,6 +83,54 @@ test("persists validated planner documents across database reopening", async (t)
   reopened.close();
 });
 
+test("read and write perform a validated open when the consumer does not call open", async (t) => {
+  const readName = databaseName("implicit-read-open");
+  const writeName = databaseName("implicit-write-open");
+  t.after(() => Promise.all([Dexie.delete(readName), Dexie.delete(writeName)]));
+
+  const reader = new IndexedDbPersistenceRepository(new DayforgeDatabase(readName));
+  const metadata = await reader.read((transaction) => transaction.getDatabaseMetadata());
+  assert.equal(metadata.schemaVersion, DEXIE_SCHEMA_VERSION);
+  reader.close();
+
+  const writer = new IndexedDbPersistenceRepository(new DayforgeDatabase(writeName));
+  await writer.write((transaction) => transaction.putPlannerDocument(activeDocument()));
+  assert.deepEqual(
+    await writer.read((transaction) => transaction.getPlannerDocument("planner/current")),
+    activeDocument(),
+  );
+  writer.close();
+});
+
+test("open is idempotent while validation is pending or complete", async (t) => {
+  const name = databaseName("idempotent-open");
+  t.after(() => Dexie.delete(name));
+  const repository = new IndexedDbPersistenceRepository(new DayforgeDatabase(name));
+
+  const [first, second] = await Promise.all([repository.open(), repository.open()]);
+
+  assert.deepEqual(first, second);
+  assert.equal(first.schemaVersion, DEXIE_SCHEMA_VERSION);
+  repository.close();
+});
+
+test("replaces an existing document without creating a duplicate", async (t) => {
+  const name = databaseName("replace");
+  t.after(() => Dexie.delete(name));
+  const repository = new IndexedDbPersistenceRepository(new DayforgeDatabase(name));
+
+  await repository.write((transaction) => transaction.putPlannerDocument(activeDocument()));
+  const replacement = activeDocument({ payload: { version: 2, routine: { seg: [] } } });
+  await repository.write((transaction) => transaction.putPlannerDocument(replacement));
+
+  assert.deepEqual(
+    await repository.read((transaction) => transaction.getPlannerDocument("planner/current")),
+    replacement,
+  );
+  assert.equal((await repository.read((transaction) => transaction.listPlannerDocuments())).length, 1);
+  repository.close();
+});
+
 test("rolls back every write when a repository transaction fails", async (t) => {
   const name = databaseName("rollback");
   t.after(() => Dexie.delete(name));
@@ -91,6 +152,32 @@ test("rolls back every write when a repository transaction fails", async (t) => 
   repository.close();
 });
 
+test("rolls back metadata and planner documents from the same failed transaction", async (t) => {
+  const name = databaseName("two-table-rollback");
+  t.after(() => Dexie.delete(name));
+  const repository = new IndexedDbPersistenceRepository(new DayforgeDatabase(name));
+
+  await assert.rejects(
+    repository.write(async (transaction) => {
+      await transaction.putDatabaseMetadata({
+        ...createDatabaseMetadata(),
+        activeDocumentId: "planner/current",
+      });
+      await transaction.putPlannerDocument(activeDocument());
+      throw new Error("forced two-table rollback");
+    }),
+    /forced two-table rollback/,
+  );
+
+  const result = await repository.read(async (transaction) => ({
+    metadata: await transaction.getDatabaseMetadata(),
+    document: await transaction.getPlannerDocument("planner/current"),
+  }));
+  assert.equal(result.metadata.activeDocumentId, null);
+  assert.equal(result.document, null);
+  repository.close();
+});
+
 test("rejects invalid records before they reach IndexedDB", async (t) => {
   const name = databaseName("validation");
   t.after(() => Dexie.delete(name));
@@ -109,6 +196,74 @@ test("rejects invalid records before they reach IndexedDB", async (t) => {
   repository.close();
 });
 
+test("accepts only real JSON values in planner document payloads", () => {
+  const nullPrototype = Object.create(null);
+  nullPrototype.value = "supported";
+  const document = decodePlannerDocument(activeDocument({
+    payload: {
+      nullValue: null,
+      booleanValue: true,
+      stringValue: "value",
+      numberValue: 42.5,
+      arrayValue: [null, false, "item", 3, { nested: "value" }],
+      objectValue: { nested: [1, 2, 3] },
+      nullPrototype,
+    },
+  }));
+
+  assert.equal(document.payload.nullValue, null);
+  assert.deepEqual(document.payload.arrayValue, [null, false, "item", 3, { nested: "value" }]);
+  assert.equal(document.payload.nullPrototype.value, "supported");
+});
+
+test("rejects structured-clone objects that are not JSON objects", () => {
+  class CustomPayload {
+    value = "custom";
+  }
+
+  for (const value of [new Date(), new Map(), new Set(), new CustomPayload()]) {
+    assert.throws(
+      () => decodePlannerDocument(activeDocument({ payload: { value } })),
+      validationError("invalid_planner_document"),
+    );
+  }
+});
+
+test("rejects cyclic objects and arrays without overflowing", () => {
+  const cyclicObject = {};
+  cyclicObject.self = cyclicObject;
+  const cyclicArray = [];
+  cyclicArray.push(cyclicArray);
+
+  for (const value of [cyclicObject, cyclicArray]) {
+    assert.throws(
+      () => decodePlannerDocument(activeDocument({ payload: { value } })),
+      validationError("invalid_planner_document"),
+    );
+  }
+});
+
+test("rejects unknown envelope fields instead of preserving them", () => {
+  const withSymbol = activeDocument();
+  withSymbol[Symbol("unknown")] = "value";
+  assert.throws(
+    () => decodePlannerDocument({ ...activeDocument(), unknown: "value" }),
+    validationError("invalid_planner_document"),
+  );
+  assert.throws(
+    () => decodePlannerDocument({ ...activeDocument(), unknown: new Date() }),
+    validationError("invalid_planner_document"),
+  );
+  assert.throws(
+    () => decodeDatabaseMetadata({ ...createDatabaseMetadata(), unknown: "value" }),
+    validationError("invalid_database_metadata"),
+  );
+  assert.throws(
+    () => decodePlannerDocument(withSymbol),
+    validationError("invalid_planner_document"),
+  );
+});
+
 test("requires a content fingerprint for migration-source documents", () => {
   assert.throws(
     () => decodePlannerDocument(activeDocument({
@@ -120,7 +275,7 @@ test("requires a content fingerprint for migration-source documents", () => {
   );
 });
 
-test("rejects missing or incompatible database metadata on reopen", async (t) => {
+test("missing database metadata blocks read and write on every attempt", async (t) => {
   const name = databaseName("metadata");
   t.after(() => Dexie.delete(name));
   const database = new DayforgeDatabase(name);
@@ -131,11 +286,40 @@ test("rejects missing or incompatible database metadata on reopen", async (t) =>
 
   const reopened = new IndexedDbPersistenceRepository(new DayforgeDatabase(name));
   await assert.rejects(
-    reopened.open(),
-    (error) => error instanceof PersistenceValidationError
-      && error.code === "invalid_database_metadata",
+    reopened.read((transaction) => transaction.listPlannerDocuments()),
+    validationError("invalid_database_metadata"),
+  );
+  await assert.rejects(
+    reopened.write((transaction) => transaction.putPlannerDocument(activeDocument())),
+    validationError("invalid_database_metadata"),
   );
   reopened.close();
+});
+
+test("invalid metadata fields block read and write without implicit recovery", async (t) => {
+  const invalidMetadata = [
+    { ...createDatabaseMetadata(), kind: "invalid" },
+    { ...createDatabaseMetadata(), activeDocumentId: 42 },
+    { ...createDatabaseMetadata(), persistenceGeneration: PERSISTENCE_GENERATION + 1 },
+    { ...createDatabaseMetadata(), schemaVersion: DEXIE_SCHEMA_VERSION + 1 },
+  ];
+
+  for (const [index, metadata] of invalidMetadata.entries()) {
+    const name = databaseName(`invalid-metadata-${index}`);
+    t.after(() => Dexie.delete(name));
+    await seedMetadata(name, metadata);
+    const repository = new IndexedDbPersistenceRepository(new DayforgeDatabase(name));
+
+    await assert.rejects(
+      repository.read((transaction) => transaction.listPlannerDocuments()),
+      validationError("invalid_database_metadata"),
+    );
+    await assert.rejects(
+      repository.write((transaction) => transaction.putPlannerDocument(activeDocument())),
+      validationError("invalid_database_metadata"),
+    );
+    repository.close();
+  }
 });
 
 test("refuses a database created with a newer internal schema", async (t) => {
@@ -151,9 +335,12 @@ test("refuses a database created with a newer internal schema", async (t) => {
 
   const repository = new IndexedDbPersistenceRepository(new DayforgeDatabase(name));
   await assert.rejects(
-    repository.open(),
-    (error) => error instanceof PersistenceValidationError
-      && error.code === "unsupported_schema_version",
+    repository.read((transaction) => transaction.listPlannerDocuments()),
+    validationError("unsupported_schema_version"),
+  );
+  await assert.rejects(
+    repository.write((transaction) => transaction.putPlannerDocument(activeDocument())),
+    validationError("unsupported_schema_version"),
   );
   repository.close();
 });
