@@ -138,12 +138,18 @@ A definição visual exata permanece pendente de UX.
 - validação estrutural superficial;
 - falha de leitura preserva o payload original, bloqueia autosave e mantém uma sessão temporária em memória com aviso persistente;
 - backup JSON cobre apenas o planner v1.
+- fundação 1.2A isolada em `persistence/`, com Dexie schema interno 1,
+  `metadata`, `plannerDocuments`, codecs e repositórios transacionais;
+- a fundação v2 ainda não é importada pelo planner e não lê o payload v1.
 
 ### Alvo
 
 - Etapa 1 adota IndexedDB com Dexie;
-- migração v1 validada, idempotente, reversível e não destrutiva;
+- migração v1 validada, semanticamente conservadora, idempotente e não destrutiva;
 - backup v2 e restauração completos antes de arquivos locais.
+- backup/restauração v2 completos antes do cutover;
+- metadata ativa no IndexedDB como autoridade e marker externo como sentinel
+  contra fallback para v1 desatualizado.
 
 ## 13. Núcleo temporal
 
@@ -162,5 +168,6 @@ A definição visual exata permanece pendente de UX.
 
 ### Próxima evolução autorizável
 
-A Etapa 1.2 poderá planejar IndexedDB/Dexie, schemas persistentes e migração v1
-para v2. O núcleo temporal ainda não está conectado ao planner legado ou à UI.
+Após revisão e merge da fundação 1.2A, a 1.2B poderá implementar a migração
+validada do snapshot legado. O núcleo temporal continua sem conexão automática
+com o planner legado ou com a UI.

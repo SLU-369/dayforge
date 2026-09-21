@@ -89,3 +89,19 @@ Usuário tenta apagar todos os dados. Sistema oferece backup, confirma repetidam
 ## Cenário 22 — Futuro PWA
 
 Usuário conclui aula pelo celular e o mesmo histórico aparece no desktop após sincronização, sem duplicar registros.
+
+## Cenário 23 — Migração local não destrutiva
+
+O mesmo conteúdo v1 com formatações JSON diferentes registra origens cruas distintas, mas produz uma única migração operacional. Falha em qualquer escrita v2 aborta a transação e mantém os bytes v1 intactos.
+
+## Cenário 24 — Primeiro uso no v2
+
+Sem IndexedDB, marker ou payload v1, o Dayforge preserva a rotina inicial atual de `createDefaultState()` e, após o cutover, persiste-a somente no v2.
+
+## Cenário 25 — Cutover sem fallback destrutivo
+
+Com metadata v2 ativa e marker ausente, o Dayforge usa v2 e repara o marker. Com marker ativo ou inválido e IndexedDB ausente, inacessível ou inválido, bloqueia persistência e mantém a sessão em memória sem usar o v1 preservado.
+
+## Cenário 26 — Backup antes do cutover
+
+O mecanismo v2 passa por round-trip e rollback enquanto a tela continua usando backup v1. Somente a subetapa de cutover conecta a UI ao backup v2, mantendo importação compatível de arquivos v1.

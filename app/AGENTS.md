@@ -18,7 +18,9 @@
 
 - Preserve the exact `rotina-369:data:v1` storage contract unless an explicit migration is approved.
 - Do not adapt the v1 planner payload to the root temporal domain before the separately approved Stage 1.2 migration.
-- A failed v1 read preserves the original stored value, blocks automatic writes, and keeps changes in memory with a persistent warning until explicit recovery through backup import or reset. IndexedDB belongs to Stage 1.
+- A failed v1 read preserves the original stored value, blocks automatic writes, and keeps changes in memory with a persistent warning until explicit recovery through backup import or reset.
+- The planner continues to use the v1 repository through Stage 1.2C. Stage 1.2D alone may integrate v2 backup/restore into the existing UI and cut the planner over to IndexedDB.
+- After cutover, valid active IndexedDB metadata is authoritative and `dayforge:persistence:v2` is a fail-safe sentinel. Never fall back silently to the preserved but stale v1 payload when the marker is active or invalid.
 - Keep historical daily records independent from later routine edits.
 - New mocked domains must not be written into the v1 planner payload.
 - `/hoje` is the primary Hoje route; `/` remains a compatible entry point. Product areas use real, directly loadable App Router routes.
