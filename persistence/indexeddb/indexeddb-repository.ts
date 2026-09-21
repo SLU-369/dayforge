@@ -50,20 +50,23 @@ class IndexedDbTransaction implements PersistenceWriteTransaction {
 
 export class IndexedDbPersistenceRepository implements LocalPersistenceRepository {
   private readonly database: DayforgeDatabase;
+  private validatedOpen: Promise<DatabaseMetadataRecord> | null = null;
 
   constructor(database: DayforgeDatabase = new DayforgeDatabase()) {
     this.database = database;
   }
 
   open() {
-    return openAndValidateDatabase(this.database);
+    return this.ensureValidatedOpen();
   }
 
   close() {
     this.database.close();
+    this.validatedOpen = null;
   }
 
   async read<T>(operation: (transaction: PersistenceReadTransaction) => Promise<T>) {
+    await this.ensureValidatedOpen();
     return this.database.transaction(
       "r",
       this.database.metadata,
@@ -73,11 +76,23 @@ export class IndexedDbPersistenceRepository implements LocalPersistenceRepositor
   }
 
   async write<T>(operation: (transaction: PersistenceWriteTransaction) => Promise<T>) {
+    await this.ensureValidatedOpen();
     return this.database.transaction(
       "rw",
       this.database.metadata,
       this.database.plannerDocuments,
       () => operation(new IndexedDbTransaction(this.database.metadata, this.database.plannerDocuments)),
     );
+  }
+
+  private ensureValidatedOpen() {
+    if (this.validatedOpen !== null) return this.validatedOpen;
+
+    const attempt = openAndValidateDatabase(this.database).catch((error: unknown) => {
+      if (this.validatedOpen === attempt) this.validatedOpen = null;
+      throw error;
+    });
+    this.validatedOpen = attempt;
+    return attempt;
   }
 }
