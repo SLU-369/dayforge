@@ -75,15 +75,20 @@ function validationError(code) {
   return (error) => error instanceof PersistenceValidationError && error.code === code;
 }
 
-async function createRepository(t, label) {
+async function createPersistence(t, label) {
   const name = databaseName(label);
-  const repository = new IndexedDbPersistenceRepository(new DayforgeDatabase(name));
+  const database = new DayforgeDatabase(name);
+  const repository = new IndexedDbPersistenceRepository(database);
   await repository.open();
   t.after(async () => {
     repository.close();
     await Dexie.delete(name);
   });
-  return repository;
+  return { database, repository };
+}
+
+async function createRepository(t, label) {
+  return (await createPersistence(t, label)).repository;
 }
 
 test("SHA-256 uses the exact UTF-8 source bytes", async () => {
@@ -247,7 +252,7 @@ test("a semantic change creates a distinct operational migration", async (t) => 
   );
 });
 
-test("an incomplete prior migration blocks retry and rolls back a new source", async (t) => {
+test("an existing migration reconciles a missing current document", async (t) => {
   const repository = await createRepository(t, "incomplete-retry");
   const state = legacyState();
   const first = await migrateLegacyPlannerV1({
@@ -256,32 +261,221 @@ test("an incomplete prior migration blocks retry and rolls back a new source", a
     repository,
   });
   await repository.write((transaction) => transaction.deletePlannerDocument(CURRENT_PLANNER_DOCUMENT_ID));
-  const alternateRaw = JSON.stringify({
-    records: state.records,
-    routine: state.routine,
-    monthlyGoals: state.monthlyGoals,
-    version: state.version,
-  }, null, 2);
-  const alternateRawFingerprint = sha256(alternateRaw);
-
-  await assert.rejects(
-    migrateLegacyPlannerV1({
-      raw: alternateRaw,
-      migratedAt: "2026-09-23T12:00:00.000Z",
-      repository,
-    }),
-    (error) => error?.code === "migration_integrity_error",
-  );
+  const retry = await migrateLegacyPlannerV1({
+    raw: JSON.stringify(state),
+    migratedAt: "2026-09-23T12:00:00.000Z",
+    repository,
+  });
+  assert.equal(retry.outcome, "reconciled");
   assert.equal(
-    await repository.read((transaction) => (
-      transaction.getPlannerDocument(`legacy-v1/source/${alternateRawFingerprint}`)
-    )),
-    null,
+    (await repository.read((transaction) => (
+      transaction.getPlannerDocument(CURRENT_PLANNER_DOCUMENT_ID)
+    ))).sourceContentFingerprint,
+    first.contentFingerprint,
   );
   const metadata = await repository.read((transaction) => transaction.getMetadata(
     `${LEGACY_V1_MIGRATION_KEY_PREFIX}${first.contentFingerprint}`,
   ));
   assert.deepEqual(metadata.sourceRawFingerprints, [first.rawFingerprint]);
+});
+
+test("A-B-A reuses migration identities and converges current back to A", async (t) => {
+  const { database, repository } = await createPersistence(t, "a-b-a");
+  const rawA = JSON.stringify(legacyState());
+  const rawB = JSON.stringify(legacyState({ monthlyGoals: { "2026-09": "Conteúdo B" } }));
+
+  const firstA = await migrateLegacyPlannerV1({
+    raw: rawA,
+    migratedAt: "2026-09-22T12:00:00.000Z",
+    repository,
+  });
+  assert.equal(
+    (await repository.read((transaction) => transaction.getPlannerDocument(
+      CURRENT_PLANNER_DOCUMENT_ID,
+    ))).sourceContentFingerprint,
+    firstA.contentFingerprint,
+  );
+
+  const migrationB = await migrateLegacyPlannerV1({
+    raw: rawB,
+    migratedAt: "2026-09-23T12:00:00.000Z",
+    repository,
+  });
+  assert.equal(
+    (await repository.read((transaction) => transaction.getPlannerDocument(
+      CURRENT_PLANNER_DOCUMENT_ID,
+    ))).sourceContentFingerprint,
+    migrationB.contentFingerprint,
+  );
+
+  const repeatedA = await migrateLegacyPlannerV1({
+    raw: rawA,
+    migratedAt: "2026-09-24T12:00:00.000Z",
+    repository,
+  });
+  const current = await repository.read((transaction) => transaction.getPlannerDocument(
+    CURRENT_PLANNER_DOCUMENT_ID,
+  ));
+  const databaseMetadata = await repository.read((transaction) => transaction.getDatabaseMetadata());
+  const migrationMetadata = (await database.metadata.toArray()).filter(
+    (metadata) => metadata.kind === "legacy-v1-migration",
+  );
+  const documents = await repository.read((transaction) => transaction.listPlannerDocuments());
+
+  assert.equal(repeatedA.outcome, "reconciled");
+  assert.equal(current.sourceContentFingerprint, firstA.contentFingerprint);
+  assert.equal(migrationMetadata.length, 2);
+  assert.equal(migrationMetadata.filter(
+    (metadata) => metadata.contentFingerprint === firstA.contentFingerprint,
+  ).length, 1);
+  assert.equal(migrationMetadata.filter(
+    (metadata) => metadata.contentFingerprint === migrationB.contentFingerprint,
+  ).length, 1);
+  assert.ok(migrationMetadata.every((metadata) => metadata.status === "validated"));
+  assert.equal(documents.length, 3);
+  assert.equal(new Set(documents.map((document) => document.id)).size, documents.length);
+  assert.equal(databaseMetadata.activeDocumentId, null);
+});
+
+test("A(raw1)-B-A(raw2) preserves both A sources and converges current", async (t) => {
+  const { database, repository } = await createPersistence(t, "a-b-a-different-raw");
+  const stateA = legacyState();
+  const rawA1 = JSON.stringify(stateA);
+  const rawA2 = JSON.stringify({
+    records: stateA.records,
+    routine: stateA.routine,
+    monthlyGoals: stateA.monthlyGoals,
+    version: stateA.version,
+  }, null, 2);
+  const rawB = JSON.stringify(legacyState({ monthlyGoals: { "2026-09": "Conteúdo B" } }));
+
+  const firstA = await migrateLegacyPlannerV1({
+    raw: rawA1,
+    migratedAt: "2026-09-22T12:00:00.000Z",
+    repository,
+  });
+  await migrateLegacyPlannerV1({
+    raw: rawB,
+    migratedAt: "2026-09-23T12:00:00.000Z",
+    repository,
+  });
+  const secondA = await migrateLegacyPlannerV1({
+    raw: rawA2,
+    migratedAt: "2026-09-24T12:00:00.000Z",
+    repository,
+  });
+
+  const metadataA = await repository.read((transaction) => transaction.getMetadata(
+    `${LEGACY_V1_MIGRATION_KEY_PREFIX}${firstA.contentFingerprint}`,
+  ));
+  const current = await repository.read((transaction) => transaction.getPlannerDocument(
+    CURRENT_PLANNER_DOCUMENT_ID,
+  ));
+  const sourceDocumentsA = (await repository.read(
+    (transaction) => transaction.listPlannerDocuments(),
+  )).filter((document) => (
+    document.role === "migration-source"
+      && document.sourceContentFingerprint === firstA.contentFingerprint
+  ));
+  const migrationMetadata = (await database.metadata.toArray()).filter(
+    (metadata) => metadata.kind === "legacy-v1-migration",
+  );
+
+  assert.notEqual(firstA.rawFingerprint, secondA.rawFingerprint);
+  assert.equal(firstA.contentFingerprint, secondA.contentFingerprint);
+  assert.equal(secondA.outcome, "reconciled");
+  assert.equal(sourceDocumentsA.length, 2);
+  assert.deepEqual(
+    metadataA.sourceRawFingerprints,
+    [firstA.rawFingerprint, secondA.rawFingerprint].sort(),
+  );
+  assert.equal(new Set(metadataA.sourceRawFingerprints).size, 2);
+  assert.equal(migrationMetadata.filter(
+    (metadata) => metadata.contentFingerprint === firstA.contentFingerprint,
+  ).length, 1);
+  assert.equal(current.sourceContentFingerprint, firstA.contentFingerprint);
+  assert.equal(metadataA.status, "validated");
+  assert.equal(
+    (await repository.read((transaction) => transaction.getDatabaseMetadata())).activeDocumentId,
+    null,
+  );
+});
+
+test("A-B-A reconciliation rolls back source, metadata, and current together", async (t) => {
+  const repository = await createRepository(t, "a-b-a-rollback");
+  const stateA = legacyState();
+  const rawA1 = JSON.stringify(stateA);
+  const rawA2 = JSON.stringify({
+    records: stateA.records,
+    routine: stateA.routine,
+    monthlyGoals: stateA.monthlyGoals,
+    version: stateA.version,
+  }, null, 2);
+  const rawB = JSON.stringify(legacyState({ monthlyGoals: { "2026-09": "Conteúdo B" } }));
+  const firstA = await migrateLegacyPlannerV1({
+    raw: rawA1,
+    migratedAt: "2026-09-22T12:00:00.000Z",
+    repository,
+  });
+  const migrationB = await migrateLegacyPlannerV1({
+    raw: rawB,
+    migratedAt: "2026-09-23T12:00:00.000Z",
+    repository,
+  });
+  const metadataABefore = await repository.read((transaction) => transaction.getMetadata(
+    `${LEGACY_V1_MIGRATION_KEY_PREFIX}${firstA.contentFingerprint}`,
+  ));
+  const currentBefore = await repository.read((transaction) => transaction.getPlannerDocument(
+    CURRENT_PLANNER_DOCUMENT_ID,
+  ));
+  assert.equal(currentBefore.sourceContentFingerprint, migrationB.contentFingerprint);
+  const rawFingerprintA2 = sha256(rawA2);
+  const failingRepository = {
+    open: () => repository.open(),
+    close: () => repository.close(),
+    read: (operation) => repository.read(operation),
+    write: (operation) => repository.write((transaction) => operation({
+      getDatabaseMetadata: () => transaction.getDatabaseMetadata(),
+      getMetadata: (key) => transaction.getMetadata(key),
+      getPlannerDocument: (id) => transaction.getPlannerDocument(id),
+      listPlannerDocuments: () => transaction.listPlannerDocuments(),
+      putDatabaseMetadata: (metadata) => transaction.putDatabaseMetadata(metadata),
+      putMetadata: async (metadata) => {
+        await transaction.putMetadata(metadata);
+        throw new Error("forced reconciliation rollback");
+      },
+      deletePlannerDocument: (id) => transaction.deletePlannerDocument(id),
+      putPlannerDocument: (document) => transaction.putPlannerDocument(document),
+    })),
+  };
+
+  await assert.rejects(
+    migrateLegacyPlannerV1({
+      raw: rawA2,
+      migratedAt: "2026-09-24T12:00:00.000Z",
+      repository: failingRepository,
+    }),
+    /forced reconciliation rollback/,
+  );
+
+  const currentAfter = await repository.read((transaction) => transaction.getPlannerDocument(
+    CURRENT_PLANNER_DOCUMENT_ID,
+  ));
+  const metadataAAfter = await repository.read((transaction) => transaction.getMetadata(
+    `${LEGACY_V1_MIGRATION_KEY_PREFIX}${firstA.contentFingerprint}`,
+  ));
+  assert.deepEqual(currentAfter, currentBefore);
+  assert.deepEqual(metadataAAfter, metadataABefore);
+  assert.equal(
+    await repository.read((transaction) => transaction.getPlannerDocument(
+      `legacy-v1/source/${rawFingerprintA2}`,
+    )),
+    null,
+  );
+  assert.equal(
+    (await repository.read((transaction) => transaction.getDatabaseMetadata())).activeDocumentId,
+    null,
+  );
 });
 
 test("invalid legacy data is rejected before any IndexedDB write", async (t) => {
