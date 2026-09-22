@@ -1,16 +1,22 @@
 import {
   DATABASE_METADATA_KEY,
+  CURRENT_PLANNER_DOCUMENT_ID,
   DEXIE_SCHEMA_VERSION,
+  LEGACY_V1_MIGRATION_KEY_PREFIX,
   PERSISTENCE_GENERATION,
   PLANNER_DOCUMENT_ROLES,
   type DatabaseMetadataRecord,
   type JsonObject,
   type JsonValue,
+  type LegacyV1MigrationMetadataRecord,
+  type PersistenceMetadataRecord,
   type PlannerDocumentRecord,
 } from "./records.ts";
 
 export type PersistenceValidationErrorCode =
   | "invalid_database_metadata"
+  | "invalid_migration_metadata"
+  | "invalid_persistence_metadata"
   | "invalid_planner_document"
   | "unsupported_schema_version";
 
@@ -41,6 +47,17 @@ const PLANNER_DOCUMENT_FIELDS = [
   "payload",
 ] as const;
 
+const LEGACY_V1_MIGRATION_FIELDS = [
+  "key",
+  "kind",
+  "sourceVersion",
+  "contentFingerprint",
+  "sourceRawFingerprints",
+  "status",
+  "migratedAt",
+  "documentId",
+] as const;
+
 function isPlainObjectRecord(value: unknown): value is Record<string, unknown> {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
   const prototype = Object.getPrototypeOf(value);
@@ -55,6 +72,19 @@ function hasExactFields(value: Record<string, unknown>, fields: readonly string[
 
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
+}
+
+function isSha256Fingerprint(value: unknown): value is string {
+  return typeof value === "string" && /^[a-f0-9]{64}$/.test(value);
+}
+
+function isCanonicalUtcInstant(value: unknown): value is string {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value)) {
+    return false;
+  }
+
+  const timestamp = Date.parse(value);
+  return Number.isFinite(timestamp) && new Date(timestamp).toISOString() === value;
 }
 
 function isJsonValue(value: unknown, seen: WeakSet<object>): value is JsonValue {
@@ -101,6 +131,60 @@ export function decodeDatabaseMetadata(value: unknown): DatabaseMetadataRecord {
     schemaVersion: value.schemaVersion,
     activeDocumentId: value.activeDocumentId,
   };
+}
+
+export function decodeLegacyV1MigrationMetadata(
+  value: unknown,
+): LegacyV1MigrationMetadataRecord {
+  const rawFingerprints = isPlainObjectRecord(value)
+    ? value.sourceRawFingerprints
+    : undefined;
+  const validRawFingerprints = Array.isArray(rawFingerprints)
+    && rawFingerprints.length > 0
+    && rawFingerprints.every(isSha256Fingerprint)
+    && rawFingerprints.every((fingerprint, index) => (
+      index === 0 || rawFingerprints[index - 1] < fingerprint
+    ));
+
+  if (!isPlainObjectRecord(value)
+    || !hasExactFields(value, LEGACY_V1_MIGRATION_FIELDS)
+    || value.kind !== "legacy-v1-migration"
+    || value.sourceVersion !== 1
+    || !isSha256Fingerprint(value.contentFingerprint)
+    || value.key !== `${LEGACY_V1_MIGRATION_KEY_PREFIX}${value.contentFingerprint}`
+    || !validRawFingerprints
+    || value.status !== "validated"
+    || !isCanonicalUtcInstant(value.migratedAt)
+    || value.documentId !== CURRENT_PLANNER_DOCUMENT_ID) {
+    throw new PersistenceValidationError(
+      "invalid_migration_metadata",
+      "Metadados da migração do planner legado são inválidos.",
+    );
+  }
+
+  return {
+    key: `${LEGACY_V1_MIGRATION_KEY_PREFIX}${value.contentFingerprint}`,
+    kind: value.kind,
+    sourceVersion: value.sourceVersion,
+    contentFingerprint: value.contentFingerprint,
+    sourceRawFingerprints: [...rawFingerprints],
+    status: value.status,
+    migratedAt: value.migratedAt,
+    documentId: value.documentId,
+  };
+}
+
+export function decodePersistenceMetadata(value: unknown): PersistenceMetadataRecord {
+  if (isPlainObjectRecord(value) && value.kind === "database") {
+    return decodeDatabaseMetadata(value);
+  }
+  if (isPlainObjectRecord(value) && value.kind === "legacy-v1-migration") {
+    return decodeLegacyV1MigrationMetadata(value);
+  }
+  throw new PersistenceValidationError(
+    "invalid_persistence_metadata",
+    "Registro de metadados da persistência local é inválido.",
+  );
 }
 
 export function decodePlannerDocument(value: unknown): PlannerDocumentRecord {

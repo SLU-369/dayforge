@@ -5,8 +5,8 @@
 
 # Dayforge 2.0 — Documentação oficial de produto
 
-**Status:** Etapas 0.1, 0.2 e 1.1 concluídas; plano da Etapa 1.2 aprovado e fundação 1.2A isolada do planner ativo
-**Data:** 21/09/2026
+**Status:** Etapas 0.1, 0.2 e 1.1 concluídas; fundação 1.2A e migração validada 1.2B isoladas do planner ativo
+**Data:** 22/09/2026
 **Objetivo:** transformar as decisões de produto, UX, domínio e arquitetura discutidas até aqui em uma fonte oficial de verdade para o repositório e para o Codex.
 
 ## Como usar esta documentação
@@ -78,10 +78,10 @@ A Etapa B/B3 concluiu a fundação visual inicial do App Shell:
 - o conteúdo funcional antigo da página Hoje ainda é legado e será reformulado posteriormente.
 
 A Etapa 1.1 não integrou o novo domínio ao planner legado. A Etapa 1.2 foi
-planejada em quatro subetapas com gates próprios. A fundação 1.2A introduz o
-schema interno Dexie v1 e repositórios tipados sem alterar o planner ativo,
-ler o payload legado ou iniciar migração. Migração, backup v2 e cutover
-permanecem respectivamente nas subetapas 1.2B, 1.2C e 1.2D.
+planejada em quatro subetapas com gates próprios. A fundação 1.2A introduziu o
+schema interno Dexie v1 e repositórios tipados. A 1.2B acrescentou a migração
+validada, idempotente e transacional, mantendo o payload v1 intacto e principal.
+Backup v2 e cutover permanecem respectivamente nas subetapas 1.2C e 1.2D.
 
 ---
 
@@ -1951,7 +1951,7 @@ Branch: `feature/persistence-v2-base`.
 
 #### 1.2B — Migração validada v1 → v2
 
-Branch futura: `feature/v1-v2-migration`, somente após aprovação e merge da 1.2A.
+Branch: `feature/v1-v2-migration`.
 
 - preservar `LegacyPlannerSnapshotV1` tipado, sem inventar timezone, estados,
   horários reais, origem temporal ou vínculos ausentes;
@@ -1963,6 +1963,10 @@ Branch futura: `feature/v1-v2-migration`, somente após aprovação e merge da 1
   migração operacional;
 - manter v1 principal e intacto; transação v2 integralmente reversível antes
   do cutover.
+
+Implementada de forma isolada do bootstrap e da UI: a metadata da migração fica
+em `validated`, enquanto `metadata/database.activeDocumentId` permanece `null`.
+Assim, os documentos v2 preparados não se tornam autoridade nesta subetapa.
 
 #### 1.2C — Backup e restauração v2
 
@@ -2649,7 +2653,10 @@ A definição visual exata permanece pendente de UX.
 - backup JSON cobre apenas o planner v1.
 - fundação 1.2A isolada em `persistence/`, com Dexie schema interno 1,
   `metadata`, `plannerDocuments`, codecs e repositórios transacionais;
-- a fundação v2 ainda não é importada pelo planner e não lê o payload v1.
+- migração 1.2B isolada em `persistence/legacy` e `persistence/migration`, com
+  snapshot v1 tipado, fingerprints raw/content, idempotência e rollback;
+- a persistência v2 ainda não é importada pelo planner; v1 permanece principal
+  e não é escrito, substituído ou removido pela migração.
 
 ### Alvo
 
@@ -2677,9 +2684,9 @@ A definição visual exata permanece pendente de UX.
 
 ### Próxima evolução autorizável
 
-Após revisão e merge da fundação 1.2A, a 1.2B poderá implementar a migração
-validada do snapshot legado. O núcleo temporal continua sem conexão automática
-com o planner legado ou com a UI.
+Após revisão e merge da migração 1.2B, a 1.2C poderá implementar backup e
+restauração v2, validação, rollback e compatibilidade com backup v1. A UI atual
+de backup v1 e o planner ativo continuam sem conexão com o v2 até a 1.2D.
 
 ---
 

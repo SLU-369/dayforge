@@ -133,7 +133,7 @@ Branch: `feature/persistence-v2-base`.
 
 #### 1.2B — Migração validada v1 → v2
 
-Branch futura: `feature/v1-v2-migration`, somente após aprovação e merge da 1.2A.
+Branch: `feature/v1-v2-migration`.
 
 - preservar `LegacyPlannerSnapshotV1` tipado, sem inventar timezone, estados,
   horários reais, origem temporal ou vínculos ausentes;
@@ -145,6 +145,10 @@ Branch futura: `feature/v1-v2-migration`, somente após aprovação e merge da 1
   migração operacional;
 - manter v1 principal e intacto; transação v2 integralmente reversível antes
   do cutover.
+
+Implementada de forma isolada do bootstrap e da UI: a metadata da migração fica
+em `validated`, enquanto `metadata/database.activeDocumentId` permanece `null`.
+Assim, os documentos v2 preparados não se tornam autoridade nesta subetapa.
 
 #### 1.2C — Backup e restauração v2
 
