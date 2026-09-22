@@ -1,9 +1,11 @@
 import {
   DATABASE_METADATA_KEY,
   decodeDatabaseMetadata,
+  decodePersistenceMetadata,
   decodePlannerDocument,
   type DatabaseMetadataRecord,
   type LocalPersistenceRepository,
+  type PersistenceMetadataRecord,
   type PersistenceReadTransaction,
   type PersistenceWriteTransaction,
   type PlannerDocumentRecord,
@@ -26,6 +28,11 @@ class IndexedDbTransaction implements PersistenceWriteTransaction {
     return decodeDatabaseMetadata(await this.metadata.get(DATABASE_METADATA_KEY));
   }
 
+  async getMetadata(key: PersistenceMetadataRecord["key"]) {
+    const metadata = await this.metadata.get(key);
+    return metadata === undefined ? null : decodePersistenceMetadata(metadata);
+  }
+
   async getPlannerDocument(id: string) {
     const document = await this.plannerDocuments.get(id);
     return document === undefined ? null : decodePlannerDocument(document);
@@ -37,6 +44,10 @@ class IndexedDbTransaction implements PersistenceWriteTransaction {
 
   async putDatabaseMetadata(metadata: DatabaseMetadataRecord) {
     await this.metadata.put(decodeDatabaseMetadata(metadata));
+  }
+
+  async putMetadata(metadata: PersistenceMetadataRecord) {
+    await this.metadata.put(decodePersistenceMetadata(metadata));
   }
 
   async putPlannerDocument(document: PlannerDocumentRecord) {

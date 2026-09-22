@@ -140,7 +140,10 @@ A definição visual exata permanece pendente de UX.
 - backup JSON cobre apenas o planner v1.
 - fundação 1.2A isolada em `persistence/`, com Dexie schema interno 1,
   `metadata`, `plannerDocuments`, codecs e repositórios transacionais;
-- a fundação v2 ainda não é importada pelo planner e não lê o payload v1.
+- migração 1.2B isolada em `persistence/legacy` e `persistence/migration`, com
+  snapshot v1 tipado, fingerprints raw/content, idempotência e rollback;
+- a persistência v2 ainda não é importada pelo planner; v1 permanece principal
+  e não é escrito, substituído ou removido pela migração.
 
 ### Alvo
 
@@ -168,6 +171,6 @@ A definição visual exata permanece pendente de UX.
 
 ### Próxima evolução autorizável
 
-Após revisão e merge da fundação 1.2A, a 1.2B poderá implementar a migração
-validada do snapshot legado. O núcleo temporal continua sem conexão automática
-com o planner legado ou com a UI.
+Após revisão e merge da migração 1.2B, a 1.2C poderá implementar backup e
+restauração v2, validação, rollback e compatibilidade com backup v1. A UI atual
+de backup v1 e o planner ativo continuam sem conexão com o v2 até a 1.2D.

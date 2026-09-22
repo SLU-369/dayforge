@@ -5,7 +5,7 @@ import {
   createDatabaseMetadata,
   decodeDatabaseMetadata,
   PersistenceValidationError,
-  type DatabaseMetadataRecord,
+  type PersistenceMetadataRecord,
   type PlannerDocumentRecord,
 } from "../contracts/index.ts";
 
@@ -13,7 +13,7 @@ export const DAYFORGE_DATABASE_NAME = "dayforge-local";
 const DEXIE_NATIVE_VERSION_FACTOR = 10;
 
 export class DayforgeDatabase extends Dexie {
-  metadata!: EntityTable<DatabaseMetadataRecord, "key">;
+  metadata!: EntityTable<PersistenceMetadataRecord, "key">;
   plannerDocuments!: EntityTable<PlannerDocumentRecord, "id">;
 
   constructor(name = DAYFORGE_DATABASE_NAME) {
@@ -25,7 +25,7 @@ export class DayforgeDatabase extends Dexie {
     });
 
     this.on("populate", (transaction) =>
-      transaction.table<DatabaseMetadataRecord>("metadata").add(createDatabaseMetadata()));
+      transaction.table<PersistenceMetadataRecord>("metadata").add(createDatabaseMetadata()));
   }
 }
 
