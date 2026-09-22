@@ -21,6 +21,7 @@
 - Keep `domain/` independent from Dexie, IndexedDB, browser globals, and legacy planner data.
 - Stage 1.2B may read `rotina-369:data:v1` only through the read-only legacy boundary. It must never write, replace, or delete that key and must not change the active planner repository.
 - Raw SHA-256 identifies `legacy-v1/source/<rawFingerprint>`; canonical content SHA-256 identifies `migration/v1/<contentFingerprint>`.
+- Migration metadata records content already validated and provenance; it does not identify the currently prepared content. Every successful migration must converge `planner/current` to the currently observed v1 content without duplicating migration identity.
 - Migration metadata remains `validated` and database metadata keeps `activeDocumentId: null` until the separately approved cutover.
 
 ## Work Guidance

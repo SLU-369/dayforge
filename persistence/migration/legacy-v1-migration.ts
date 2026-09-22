@@ -3,6 +3,7 @@ import {
   LEGACY_V1_MIGRATION_KEY_PREFIX,
   type LegacyV1MigrationMetadataRecord,
   type LocalPersistenceRepository,
+  type PersistenceWriteTransaction,
   type PlannerDocumentRecord,
 } from "../contracts/index.ts";
 import {
@@ -19,7 +20,7 @@ export const LEGACY_V1_SOURCE_FORMAT = "dayforge/legacy-v1-source" as const;
 export const PLANNER_DOCUMENT_FORMAT = "dayforge/legacy-planner-state" as const;
 
 export type LegacyV1MigrationResult = Readonly<{
-  outcome: "migrated" | "source-recorded" | "already-migrated";
+  outcome: "migrated" | "reconciled" | "source-recorded" | "already-migrated";
   rawFingerprint: string;
   contentFingerprint: string;
   sourceDocumentId: string;
@@ -93,6 +94,17 @@ function assertMatchingSource(
   }
 }
 
+function plannerDocumentsMatch(
+  existing: PlannerDocumentRecord,
+  expected: PlannerDocumentRecord,
+) {
+  return existing.role === expected.role
+    && existing.format === expected.format
+    && existing.formatVersion === expected.formatVersion
+    && existing.sourceContentFingerprint === expected.sourceContentFingerprint
+    && canonicalStringify(existing.payload) === canonicalStringify(expected.payload);
+}
+
 function assertMatchingMigration(
   metadata: LegacyV1MigrationMetadataRecord,
   contentFingerprint: string,
@@ -102,6 +114,39 @@ function assertMatchingMigration(
     || metadata.documentId !== CURRENT_PLANNER_DOCUMENT_ID) {
     throw new LegacyV1MigrationIntegrityError();
   }
+}
+
+async function assertPersistedMigration(
+  transaction: PersistenceWriteTransaction,
+  source: PlannerDocumentRecord,
+  current: PlannerDocumentRecord,
+  metadataKey: LegacyV1MigrationMetadataRecord["key"],
+  rawFingerprint: string,
+  contentFingerprint: string,
+) {
+  const [databaseMetadata, persistedSource, persistedCurrent, persistedMetadata] =
+    await Promise.all([
+      transaction.getDatabaseMetadata(),
+      transaction.getPlannerDocument(source.id),
+      transaction.getPlannerDocument(CURRENT_PLANNER_DOCUMENT_ID),
+      transaction.getMetadata(metadataKey),
+    ]);
+  if (databaseMetadata.activeDocumentId !== null
+    || persistedSource === null
+    || persistedCurrent === null
+    || persistedMetadata === null
+    || persistedMetadata.kind !== "legacy-v1-migration"
+    || persistedMetadata.status !== "validated"
+    || persistedMetadata.sourceRawFingerprints.filter(
+      (fingerprint) => fingerprint === rawFingerprint,
+    ).length !== 1) {
+    throw new LegacyV1MigrationIntegrityError();
+  }
+  assertMatchingSource(persistedSource, source);
+  if (!plannerDocumentsMatch(persistedCurrent, current)) {
+    throw new LegacyV1MigrationIntegrityError();
+  }
+  assertMatchingMigration(persistedMetadata, contentFingerprint);
 }
 
 export async function migrateLegacyPlannerV1(options: Readonly<{
@@ -139,28 +184,32 @@ export async function migrateLegacyPlannerV1(options: Readonly<{
       assertMatchingMigration(existingMetadata, contentFingerprint);
 
       const existingCurrent = await transaction.getPlannerDocument(CURRENT_PLANNER_DOCUMENT_ID);
-      if (existingCurrent === null
-        || existingCurrent.role !== current.role
-        || existingCurrent.format !== current.format
-        || existingCurrent.formatVersion !== current.formatVersion
-        || existingCurrent.sourceContentFingerprint !== contentFingerprint
-        || canonicalStringify(existingCurrent.payload) !== canonicalStringify(current.payload)) {
-        throw new LegacyV1MigrationIntegrityError();
-      }
+      const currentNeedsReconciliation = existingCurrent === null
+        || !plannerDocumentsMatch(existingCurrent, current);
 
       const alreadyKnown = existingMetadata.sourceRawFingerprints.includes(rawFingerprint);
+      if (currentNeedsReconciliation) {
+        await transaction.putPlannerDocument(current);
+      }
       if (!alreadyKnown) {
         await transaction.putMetadata({
           ...existingMetadata,
           sourceRawFingerprints: [...existingMetadata.sourceRawFingerprints, rawFingerprint].sort(),
         });
       }
-      const persistedSource = await transaction.getPlannerDocument(source.id);
-      if (persistedSource === null) throw new LegacyV1MigrationIntegrityError();
-      assertMatchingSource(persistedSource, source);
+      await assertPersistedMigration(
+        transaction,
+        source,
+        current,
+        metadataKey,
+        rawFingerprint,
+        contentFingerprint,
+      );
 
       return {
-        outcome: alreadyKnown ? "already-migrated" : "source-recorded",
+        outcome: currentNeedsReconciliation
+          ? "reconciled"
+          : alreadyKnown ? "already-migrated" : "source-recorded",
         rawFingerprint,
         contentFingerprint,
         sourceDocumentId: source.id,
@@ -180,22 +229,14 @@ export async function migrateLegacyPlannerV1(options: Readonly<{
     };
     await transaction.putPlannerDocument(current);
     await transaction.putMetadata(metadata);
-
-    const [persistedSource, persistedCurrent, persistedMetadata] = await Promise.all([
-      transaction.getPlannerDocument(source.id),
-      transaction.getPlannerDocument(CURRENT_PLANNER_DOCUMENT_ID),
-      transaction.getMetadata(metadataKey),
-    ]);
-    if (persistedSource === null || persistedCurrent === null
-      || persistedMetadata === null || persistedMetadata.kind !== "legacy-v1-migration") {
-      throw new LegacyV1MigrationIntegrityError();
-    }
-    assertMatchingSource(persistedSource, source);
-    if (canonicalStringify(persistedCurrent.payload) !== canonicalStringify(current.payload)
-      || persistedCurrent.sourceContentFingerprint !== contentFingerprint) {
-      throw new LegacyV1MigrationIntegrityError();
-    }
-    assertMatchingMigration(persistedMetadata, contentFingerprint);
+    await assertPersistedMigration(
+      transaction,
+      source,
+      current,
+      metadataKey,
+      rawFingerprint,
+      contentFingerprint,
+    );
 
     return {
       outcome: "migrated",
