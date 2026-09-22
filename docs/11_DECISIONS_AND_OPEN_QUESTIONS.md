@@ -80,6 +80,18 @@ Não impor limite universal de horas.
 ### D-026 — Taxonomia de Progresso
 Domínios principais: Formação, Academia, Nutri, Sono e Exploração. Faculdade, Cursos e Leituras são filtros internos de Formação. Analytics deriva de fatos reais.
 
+### D-027 — Ordem da persistência v2
+Executar fundação, migração, backup/restauração e somente então cutover. IndexedDB não se torna principal antes do backup v2 validado.
+
+### D-028 — Migração preserva semântica legada
+Persistir snapshot v1 tipado sem inventar timezone, estado temporal, execução real, `OriginKind` ou relações ausentes. Identidade crua usa os bytes da origem; identidade semântica controla idempotência.
+
+### D-029 — Autoridade após cutover
+Metadata ativa e válida no IndexedDB é autoridade principal. O marker `dayforge:persistence:v2` impede fallback silencioso. V1 permanece somente leitura, sem dual-write ou promessa de rollback sem perda depois do cutover.
+
+### D-030 — Schema mínimo
+O schema Dexie interno 1 contém somente `metadata` e `plannerDocuments`. Tipos temporais não geram tabelas sem produtor e consumidor reais.
+
 ## Questões abertas antes das etapas correspondentes
 
 1. Quais limiares e pesos formam a primeira regra de risco de Entregas?

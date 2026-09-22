@@ -6,6 +6,7 @@
 - Etapa 0.1 documental concluída.
 - Etapa 0.2/B4 de taxonomia, baseline técnica e proteção do v1 concluída.
 - Etapa 1.1 de modelo temporal e contratos do domínio concluída.
+- Plano da Etapa 1.2 aprovado; cada subetapa exige branch, validação, revisão e autorização próprias.
 - Nenhuma etapa funcional pode começar por consequência automática desta documentação.
 
 ## 2. Etapa 0.1 — Decisões e documentação
@@ -117,9 +118,65 @@ foram alterados.
 
 ### Etapa 1.2 — Persistência local v2 e migração
 
-Permanece futura e depende de planejamento e aprovação próprios. Ela deverá
-tratar IndexedDB/Dexie, validação persistente, adapters e migração não
-destrutiva de `rotina-369:data:v1`; a Etapa 1.1 não antecipa esse trabalho.
+Plano aprovado em 21/09/2026. A implementação é dividida nesta ordem:
+
+#### 1.2A — Fundação da persistência v2
+
+Branch: `feature/persistence-v2-base`.
+
+- adicionar Dexie e `fake-indexeddb`;
+- criar `persistence/` independente de React e do domínio puro;
+- schema Dexie interno 1 apenas com `metadata` e `plannerDocuments`;
+- contratos, codecs, repository interfaces e transações explícitas;
+- testar schema, índices, reabertura, persistência, validação e rollback;
+- não ler nem alterar v1, não migrar e não integrar o planner.
+
+#### 1.2B — Migração validada v1 → v2
+
+Branch futura: `feature/v1-v2-migration`, somente após aprovação e merge da 1.2A.
+
+- preservar `LegacyPlannerSnapshotV1` tipado, sem inventar timezone, estados,
+  horários reais, origem temporal ou vínculos ausentes;
+- identificar cada fonte por SHA-256 dos bytes crus e cada migração operacional
+  pela SHA-256 do conteúdo canônico validado;
+- usar `legacy-v1/source/<rawFingerprint>` e
+  `migration/v1/<contentFingerprint>`;
+- permitir fontes cruas distintas semanticamente equivalentes sem duplicar a
+  migração operacional;
+- manter v1 principal e intacto; transação v2 integralmente reversível antes
+  do cutover.
+
+#### 1.2C — Backup e restauração v2
+
+Branch futura: `feature/backup-v2`, somente após aprovação e merge da 1.2B.
+
+- implementar formato lógico v2 desacoplado das tabelas Dexie;
+- separar versão do backup, geração da persistência e schema interno;
+- validar envelope, dados, referências, fingerprints e procedência;
+- restaurar atomicamente com rollback integral;
+- aceitar backup v1 pela migração validada;
+- manter a UI visível de backup v1 funcionalmente intacta enquanto v1 for a
+  fonte principal.
+
+#### 1.2D — Bootstrap e cutover para v2
+
+Branch futura: `feature/persistence-v2-cutover`, somente após aprovação e merge da 1.2C.
+
+- integrar backup/restauração v2 à UI existente;
+- preservar o first-run atual com `createDefaultState()`;
+- tornar v2 principal somente com metadata `active` validada;
+- manter v1 somente leitura e encerrar escrita contínua nele;
+- usar `dayforge:persistence:v2` como sentinel fail-safe;
+- reparar marker ausente ou inválido quando o banco ativo for autoridade válida;
+- bloquear persistência, sem fallback para v1, quando marker ativo/inválido não
+  tiver IndexedDB ativo validável;
+- manter sessão temporária em memória com aviso persistente em falha;
+- não incluir mudanças da Etapa 2.
+
+Não existem tabelas temporais no schema inicial: os tipos de domínio não são
+persistidos até haver fluxos reais que os produzam e consumam. Depois do
+cutover, recuperação usa backup/restauração v2; não existe promessa de rollback
+sem perda para v1 após dados exclusivos surgirem no v2.
 
 ## 5. Ordem de dependências
 

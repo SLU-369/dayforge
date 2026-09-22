@@ -5,8 +5,8 @@
 
 # Dayforge 2.0 — Documentação oficial de produto
 
-**Status:** decisões da Etapa 0.1, baseline da Etapa 0.2 e domínio temporal da Etapa 1.1 consolidados
-**Data:** 14/09/2026
+**Status:** Etapas 0.1, 0.2 e 1.1 concluídas; plano da Etapa 1.2 aprovado e fundação 1.2A isolada do planner ativo
+**Data:** 21/09/2026
 **Objetivo:** transformar as decisões de produto, UX, domínio e arquitetura discutidas até aqui em uma fonte oficial de verdade para o repositório e para o Codex.
 
 ## Como usar esta documentação
@@ -77,9 +77,11 @@ A Etapa B/B3 concluiu a fundação visual inicial do App Shell:
   depender de React, browser ou persistência;
 - o conteúdo funcional antigo da página Hoje ainda é legado e será reformulado posteriormente.
 
-A Etapa 1.1 não integrou o novo domínio ao planner legado nem iniciou
-IndexedDB, Dexie ou migração. A Etapa 1.2 permanece futura e depende de
-planejamento e aprovação humana próprios antes de qualquer implementação.
+A Etapa 1.1 não integrou o novo domínio ao planner legado. A Etapa 1.2 foi
+planejada em quatro subetapas com gates próprios. A fundação 1.2A introduz o
+schema interno Dexie v1 e repositórios tipados sem alterar o planner ativo,
+ler o payload legado ou iniciar migração. Migração, backup v2 e cutover
+permanecem respectivamente nas subetapas 1.2B, 1.2C e 1.2D.
 
 ---
 
@@ -1699,7 +1701,11 @@ Visão futura:
 
 IndexedDB com Dexie é a tecnologia aprovada para a persistência local v2. A futura fila de sincronização pode reutilizar essa base, mas outbox, conflitos e sincronização não entram antes de existir uma necessidade cloud concreta.
 
-O payload `rotina-369:data:v1` deve permanecer intacto durante a migração. A migração futura será validada, idempotente, reversível e testada; nunca removerá ou sobrescreverá o original antes de validar o destino. Desde a Etapa 0.2, uma proteção mínima impede que defaults sejam gravados sobre um payload v1 cuja leitura falhou; importação de backup ou restauração do padrão são as recuperações explícitas disponíveis.
+O payload `rotina-369:data:v1` deve permanecer intacto durante e depois da migração. A migração será validada, idempotente e testada; nunca removerá ou sobrescreverá o original. Reversibilidade significa que, antes do cutover, falha ou aborto mantém v1 como fonte principal e faz rollback integral da transação v2. Depois do cutover, v1 é somente leitura, não existe dual-write e dados exclusivos do v2 não precisam ser traduzidos de volta; recuperação depende de backup/restauração v2, sem promessa de retorno ao v1 sem perda.
+
+Backup/restauração v2 deve estar implementado e validado antes do cutover. Enquanto v1 for a fonte principal, a tela existente continua operando backup v1 sem mudança visível. A subetapa de cutover integra a UI ao formato v2, que separa versão pública do backup, geração da persistência e versão interna do schema. Restauração valida envelope, entidades, referências e procedência antes de substituir dados atomicamente; backup v1 continua aceito pela migração validada.
+
+Desde a Etapa 0.2, uma proteção mínima impede que defaults sejam gravados sobre um payload v1 cuja leitura falhou; importação de backup ou restauração do padrão são as recuperações explícitas disponíveis.
 
 ## 10. Multiusuário
 
@@ -1765,9 +1771,13 @@ Repositórios
 
 ## 4. Persistência local v2
 
-IndexedDB com Dexie é a direção aprovada. Ela substituirá `localStorage` como store principal dos novos domínios, sem destruir o legado.
+IndexedDB com Dexie é a direção aprovada. Ela substituirá `localStorage` como store principal somente no cutover da Etapa 1.2D, depois que backup e restauração v2 estiverem implementados e validados, sem destruir o legado.
 
-A migração de `rotina-369:data:v1` deve ser validada, idempotente, reversível, testada com payloads válidos, parciais e corrompidos e não destrutiva antes da validação do destino.
+A geração arquitetural da persistência é v2; sua primeira versão interna de schema Dexie é 1. O schema inicial possui apenas `metadata` e `plannerDocuments`. `routineTemplates`, `scheduleOccurrences`, `executionRecords` e disponibilidade não ganham tabelas antes de existir produtor e consumidor reais. O núcleo temporal continua desacoplado da persistência.
+
+A migração de `rotina-369:data:v1` preserva um `LegacyPlannerSnapshotV1` tipado e não reinterpreta ambiguidades como fatos temporais. SHA-256 dos bytes crus identifica cada origem por `legacy-v1/source/<rawFingerprint>`; SHA-256 da representação canônica validada identifica a operação idempotente por `migration/v1/<contentFingerprint>`. Origens byte a byte distintas com o mesmo conteúdo semântico coexistem sem repetir a migração operacional. IDs, fingerprints e transformação não usam relógio, aleatoriedade ou UUID; o instante auditável é fornecido separadamente.
+
+Antes do cutover, v1 permanece principal e qualquer falha aborta a transação v2. Depois do cutover, metadata `active` validada no IndexedDB é a autoridade principal, não existe dual-write e `dayforge:persistence:v2` funciona como sentinel externo contra fallback destrutivo. Marker ativo ou inválido sem banco ativo validável bloqueia persistência e mantém a sessão em memória; banco ativo com marker ausente ou inválido usa v2 e repara o marker quando seguro.
 
 A baseline da Etapa 0.2 implementa somente uma proteção: falha de leitura do v1 bloqueia o autosave de defaults, preserva o conteúdo original e mantém a sessão em memória até importação de backup ou restauração explícita. IndexedDB e a migração completa permanecem fora da 0.2.
 
@@ -1814,6 +1824,7 @@ Camadas futuras devem possuir testes unitários de domínio e planner, testes de
 - Etapa 0.1 documental concluída.
 - Etapa 0.2/B4 de taxonomia, baseline técnica e proteção do v1 concluída.
 - Etapa 1.1 de modelo temporal e contratos do domínio concluída.
+- Plano da Etapa 1.2 aprovado; cada subetapa exige branch, validação, revisão e autorização próprias.
 - Nenhuma etapa funcional pode começar por consequência automática desta documentação.
 
 ## 2. Etapa 0.1 — Decisões e documentação
@@ -1925,9 +1936,65 @@ foram alterados.
 
 ### Etapa 1.2 — Persistência local v2 e migração
 
-Permanece futura e depende de planejamento e aprovação próprios. Ela deverá
-tratar IndexedDB/Dexie, validação persistente, adapters e migração não
-destrutiva de `rotina-369:data:v1`; a Etapa 1.1 não antecipa esse trabalho.
+Plano aprovado em 21/09/2026. A implementação é dividida nesta ordem:
+
+#### 1.2A — Fundação da persistência v2
+
+Branch: `feature/persistence-v2-base`.
+
+- adicionar Dexie e `fake-indexeddb`;
+- criar `persistence/` independente de React e do domínio puro;
+- schema Dexie interno 1 apenas com `metadata` e `plannerDocuments`;
+- contratos, codecs, repository interfaces e transações explícitas;
+- testar schema, índices, reabertura, persistência, validação e rollback;
+- não ler nem alterar v1, não migrar e não integrar o planner.
+
+#### 1.2B — Migração validada v1 → v2
+
+Branch futura: `feature/v1-v2-migration`, somente após aprovação e merge da 1.2A.
+
+- preservar `LegacyPlannerSnapshotV1` tipado, sem inventar timezone, estados,
+  horários reais, origem temporal ou vínculos ausentes;
+- identificar cada fonte por SHA-256 dos bytes crus e cada migração operacional
+  pela SHA-256 do conteúdo canônico validado;
+- usar `legacy-v1/source/<rawFingerprint>` e
+  `migration/v1/<contentFingerprint>`;
+- permitir fontes cruas distintas semanticamente equivalentes sem duplicar a
+  migração operacional;
+- manter v1 principal e intacto; transação v2 integralmente reversível antes
+  do cutover.
+
+#### 1.2C — Backup e restauração v2
+
+Branch futura: `feature/backup-v2`, somente após aprovação e merge da 1.2B.
+
+- implementar formato lógico v2 desacoplado das tabelas Dexie;
+- separar versão do backup, geração da persistência e schema interno;
+- validar envelope, dados, referências, fingerprints e procedência;
+- restaurar atomicamente com rollback integral;
+- aceitar backup v1 pela migração validada;
+- manter a UI visível de backup v1 funcionalmente intacta enquanto v1 for a
+  fonte principal.
+
+#### 1.2D — Bootstrap e cutover para v2
+
+Branch futura: `feature/persistence-v2-cutover`, somente após aprovação e merge da 1.2C.
+
+- integrar backup/restauração v2 à UI existente;
+- preservar o first-run atual com `createDefaultState()`;
+- tornar v2 principal somente com metadata `active` validada;
+- manter v1 somente leitura e encerrar escrita contínua nele;
+- usar `dayforge:persistence:v2` como sentinel fail-safe;
+- reparar marker ausente ou inválido quando o banco ativo for autoridade válida;
+- bloquear persistência, sem fallback para v1, quando marker ativo/inválido não
+  tiver IndexedDB ativo validável;
+- manter sessão temporária em memória com aviso persistente em falha;
+- não incluir mudanças da Etapa 2.
+
+Não existem tabelas temporais no schema inicial: os tipos de domínio não são
+persistidos até haver fluxos reais que os produzam e consumam. Depois do
+cutover, recuperação usa backup/restauração v2; não existe promessa de rollback
+sem perda para v1 após dados exclusivos surgirem no v2.
 
 ## 5. Ordem de dependências
 
@@ -2052,6 +2119,18 @@ Não impor limite universal de horas.
 ### D-026 — Taxonomia de Progresso
 Domínios principais: Formação, Academia, Nutri, Sono e Exploração. Faculdade, Cursos e Leituras são filtros internos de Formação. Analytics deriva de fatos reais.
 
+### D-027 — Ordem da persistência v2
+Executar fundação, migração, backup/restauração e somente então cutover. IndexedDB não se torna principal antes do backup v2 validado.
+
+### D-028 — Migração preserva semântica legada
+Persistir snapshot v1 tipado sem inventar timezone, estado temporal, execução real, `OriginKind` ou relações ausentes. Identidade crua usa os bytes da origem; identidade semântica controla idempotência.
+
+### D-029 — Autoridade após cutover
+Metadata ativa e válida no IndexedDB é autoridade principal. O marker `dayforge:persistence:v2` impede fallback silencioso. V1 permanece somente leitura, sem dual-write ou promessa de rollback sem perda depois do cutover.
+
+### D-030 — Schema mínimo
+O schema Dexie interno 1 contém somente `metadata` e `plannerDocuments`. Tipos temporais não geram tabelas sem produtor e consumidor reais.
+
 ## Questões abertas antes das etapas correspondentes
 
 1. Quais limiares e pesos formam a primeira regra de risco de Entregas?
@@ -2154,6 +2233,22 @@ Usuário tenta apagar todos os dados. Sistema oferece backup, confirma repetidam
 ## Cenário 22 — Futuro PWA
 
 Usuário conclui aula pelo celular e o mesmo histórico aparece no desktop após sincronização, sem duplicar registros.
+
+## Cenário 23 — Migração local não destrutiva
+
+O mesmo conteúdo v1 com formatações JSON diferentes registra origens cruas distintas, mas produz uma única migração operacional. Falha em qualquer escrita v2 aborta a transação e mantém os bytes v1 intactos.
+
+## Cenário 24 — Primeiro uso no v2
+
+Sem IndexedDB, marker ou payload v1, o Dayforge preserva a rotina inicial atual de `createDefaultState()` e, após o cutover, persiste-a somente no v2.
+
+## Cenário 25 — Cutover sem fallback destrutivo
+
+Com metadata v2 ativa e marker ausente, o Dayforge usa v2 e repara o marker. Com marker ativo ou inválido e IndexedDB ausente, inacessível ou inválido, bloqueia persistência e mantém a sessão em memória sem usar o v1 preservado.
+
+## Cenário 26 — Backup antes do cutover
+
+O mecanismo v2 passa por round-trip e rollback enquanto a tela continua usando backup v1. Somente a subetapa de cutover conecta a UI ao backup v2, mantendo importação compatível de arquivos v1.
 
 ---
 
@@ -2552,12 +2647,18 @@ A definição visual exata permanece pendente de UX.
 - validação estrutural superficial;
 - falha de leitura preserva o payload original, bloqueia autosave e mantém uma sessão temporária em memória com aviso persistente;
 - backup JSON cobre apenas o planner v1.
+- fundação 1.2A isolada em `persistence/`, com Dexie schema interno 1,
+  `metadata`, `plannerDocuments`, codecs e repositórios transacionais;
+- a fundação v2 ainda não é importada pelo planner e não lê o payload v1.
 
 ### Alvo
 
 - Etapa 1 adota IndexedDB com Dexie;
-- migração v1 validada, idempotente, reversível e não destrutiva;
+- migração v1 validada, semanticamente conservadora, idempotente e não destrutiva;
 - backup v2 e restauração completos antes de arquivos locais.
+- backup/restauração v2 completos antes do cutover;
+- metadata ativa no IndexedDB como autoridade e marker externo como sentinel
+  contra fallback para v1 desatualizado.
 
 ## 13. Núcleo temporal
 
@@ -2576,8 +2677,9 @@ A definição visual exata permanece pendente de UX.
 
 ### Próxima evolução autorizável
 
-A Etapa 1.2 poderá planejar IndexedDB/Dexie, schemas persistentes e migração v1
-para v2. O núcleo temporal ainda não está conectado ao planner legado ou à UI.
+Após revisão e merge da fundação 1.2A, a 1.2B poderá implementar a migração
+validada do snapshot legado. O núcleo temporal continua sem conexão automática
+com o planner legado ou com a UI.
 
 ---
 

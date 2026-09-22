@@ -112,7 +112,11 @@ Visão futura:
 
 IndexedDB com Dexie é a tecnologia aprovada para a persistência local v2. A futura fila de sincronização pode reutilizar essa base, mas outbox, conflitos e sincronização não entram antes de existir uma necessidade cloud concreta.
 
-O payload `rotina-369:data:v1` deve permanecer intacto durante a migração. A migração futura será validada, idempotente, reversível e testada; nunca removerá ou sobrescreverá o original antes de validar o destino. Desde a Etapa 0.2, uma proteção mínima impede que defaults sejam gravados sobre um payload v1 cuja leitura falhou; importação de backup ou restauração do padrão são as recuperações explícitas disponíveis.
+O payload `rotina-369:data:v1` deve permanecer intacto durante e depois da migração. A migração será validada, idempotente e testada; nunca removerá ou sobrescreverá o original. Reversibilidade significa que, antes do cutover, falha ou aborto mantém v1 como fonte principal e faz rollback integral da transação v2. Depois do cutover, v1 é somente leitura, não existe dual-write e dados exclusivos do v2 não precisam ser traduzidos de volta; recuperação depende de backup/restauração v2, sem promessa de retorno ao v1 sem perda.
+
+Backup/restauração v2 deve estar implementado e validado antes do cutover. Enquanto v1 for a fonte principal, a tela existente continua operando backup v1 sem mudança visível. A subetapa de cutover integra a UI ao formato v2, que separa versão pública do backup, geração da persistência e versão interna do schema. Restauração valida envelope, entidades, referências e procedência antes de substituir dados atomicamente; backup v1 continua aceito pela migração validada.
+
+Desde a Etapa 0.2, uma proteção mínima impede que defaults sejam gravados sobre um payload v1 cuja leitura falhou; importação de backup ou restauração do padrão são as recuperações explícitas disponíveis.
 
 ## 10. Multiusuário
 

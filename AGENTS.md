@@ -89,12 +89,15 @@ When the user requests a durable behavior change, record it here or in the relev
 - Temporal flexibility has exactly `fixed`, `preferred`, and `flexible`. Opportunity is represented by availability windows or contexts, never by an `opportunistic` flexibility value.
 - Temporal terminal states are `completed`, `completed_rescheduled`, `not_completed`, and `cancelled`. Corrections require a future explicitly audited operation; no terminal state silently returns to `planned`.
 - IndexedDB with Dexie is the approved local v2 persistence direction. Preserve `rotina-369:data:v1` through a validated, idempotent, reversible migration; before that migration, a read failure must never cause defaults to overwrite the original payload.
+- Stage 1.2 is approved as four separately gated substages: persistence foundation, validated v1-to-v2 migration, v2 backup/restore, then bootstrap and cutover. IndexedDB cannot become authoritative before v2 backup and restore are validated. The initial internal Dexie schema is version 1 with only `metadata` and `plannerDocuments`; do not persist temporal entities without real producers and consumers.
+- Migration preserves a typed legacy snapshot instead of inventing missing temporal semantics. Raw SHA-256 identifies byte-specific sources; canonical content SHA-256 controls operational idempotency. Before cutover, v1 remains authoritative and migration failures roll back v2. After cutover there is no dual-write or lossless rollback promise to v1; IndexedDB metadata is authoritative when valid, while `dayforge:persistence:v2` is a fail-safe sentinel that prevents fallback to stale v1 data.
 - Go remains the desired future backend language and starts as a modular monolith only when API, authentication, multi-user, cloud, sync, remote storage, or server-side security creates a concrete need.
 
 ## Child DOX Index
 
 - `app/AGENTS.md`: frontend routes, shell, client-state boundary, local persistence, and UI architecture.
 - `domain/AGENTS.md`: pure TypeScript domain contracts, temporal invariants, and dependency boundaries.
+- `persistence/AGENTS.md`: local persistence generation v2, validated storage contracts, Dexie schema, and repository boundaries.
 - `components/appearance/AGENTS.md`: atmospheric castle composition, solar transition, and motion scheduling.
 - `public/backgrounds/hogwarts/AGENTS.md`: generated scene assets, provenance, and optimization constraints.
 - `public/scenes/AGENTS.md`: retained licensed GLB and texture decoder assets for the inactive 3D experiment.
