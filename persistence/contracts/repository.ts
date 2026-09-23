@@ -7,6 +7,7 @@ import type {
 export interface PersistenceReadTransaction {
   getDatabaseMetadata(): Promise<DatabaseMetadataRecord>;
   getMetadata(key: PersistenceMetadataRecord["key"]): Promise<PersistenceMetadataRecord | null>;
+  listMetadata(): Promise<readonly PersistenceMetadataRecord[]>;
   getPlannerDocument(id: string): Promise<PlannerDocumentRecord | null>;
   listPlannerDocuments(): Promise<readonly PlannerDocumentRecord[]>;
 }
@@ -14,6 +15,7 @@ export interface PersistenceReadTransaction {
 export interface PersistenceWriteTransaction extends PersistenceReadTransaction {
   putDatabaseMetadata(metadata: DatabaseMetadataRecord): Promise<void>;
   putMetadata(metadata: PersistenceMetadataRecord): Promise<void>;
+  deleteMetadata(key: PersistenceMetadataRecord["key"]): Promise<void>;
   putPlannerDocument(document: PlannerDocumentRecord): Promise<void>;
   deletePlannerDocument(id: string): Promise<void>;
 }

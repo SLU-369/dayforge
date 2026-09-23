@@ -131,6 +131,36 @@ test("replaces an existing document without creating a duplicate", async (t) => 
   repository.close();
 });
 
+test("lists and deletes validated metadata without exposing Dexie", async (t) => {
+  const name = databaseName("metadata-operations");
+  t.after(() => Dexie.delete(name));
+  const repository = new IndexedDbPersistenceRepository(new DayforgeDatabase(name));
+  const contentFingerprint = "a".repeat(64);
+  const migration = {
+    key: `migration/v1/${contentFingerprint}`,
+    kind: "legacy-v1-migration",
+    sourceVersion: 1,
+    contentFingerprint,
+    sourceRawFingerprints: ["b".repeat(64)],
+    importOrigins: ["local-storage-v1"],
+    status: "validated",
+    migratedAt: "2026-09-23T12:00:00.000Z",
+    documentId: "planner/current",
+  };
+
+  await repository.write((transaction) => transaction.putMetadata(migration));
+  assert.deepEqual(
+    await repository.read((transaction) => transaction.listMetadata()),
+    [createDatabaseMetadata(), migration],
+  );
+  await repository.write((transaction) => transaction.deleteMetadata(migration.key));
+  assert.deepEqual(
+    await repository.read((transaction) => transaction.listMetadata()),
+    [createDatabaseMetadata()],
+  );
+  repository.close();
+});
+
 test("rolls back every write when a repository transaction fails", async (t) => {
   const name = databaseName("rollback");
   t.after(() => Dexie.delete(name));

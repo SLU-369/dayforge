@@ -192,17 +192,7 @@ function invalidPayload() {
   );
 }
 
-export function parseLegacyPlannerSnapshotV1(raw: string): LegacyPlannerSnapshotV1 {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw) as unknown;
-  } catch {
-    throw new LegacyPlannerValidationError(
-      "invalid_legacy_json",
-      "Os dados locais v1 não contêm JSON válido.",
-    );
-  }
-
+export function decodeLegacyPlannerSnapshotV1(parsed: unknown): LegacyPlannerSnapshotV1 {
   const allowedFields = [...SNAPSHOT_REQUIRED_FIELDS, "monthlyGoals"];
   if (!isPlainObject(parsed)
     || !hasAllFields(parsed, SNAPSHOT_REQUIRED_FIELDS)
@@ -218,6 +208,19 @@ export function parseLegacyPlannerSnapshotV1(raw: string): LegacyPlannerSnapshot
   };
   if (!Object.hasOwn(parsed, "monthlyGoals")) return snapshot;
   return { ...snapshot, monthlyGoals: decodeMonthlyGoals(parsed.monthlyGoals) };
+}
+
+export function parseLegacyPlannerSnapshotV1(raw: string): LegacyPlannerSnapshotV1 {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw) as unknown;
+  } catch {
+    throw new LegacyPlannerValidationError(
+      "invalid_legacy_json",
+      "Os dados locais v1 não contêm JSON válido.",
+    );
+  }
+  return decodeLegacyPlannerSnapshotV1(parsed);
 }
 
 export function normalizeLegacyPlannerSnapshotV1(

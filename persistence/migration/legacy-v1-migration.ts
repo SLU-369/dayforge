@@ -2,6 +2,7 @@ import {
   CURRENT_PLANNER_DOCUMENT_ID,
   LEGACY_V1_MIGRATION_KEY_PREFIX,
   type LegacyV1MigrationMetadataRecord,
+  type LegacyImportOrigin,
   type LocalPersistenceRepository,
   type PersistenceWriteTransaction,
   type PlannerDocumentRecord,
@@ -45,7 +46,7 @@ function assertCanonicalUtcInstant(value: string) {
   }
 }
 
-function sourceDocument(
+export function createLegacyV1SourceDocument(
   raw: string,
   rawFingerprint: string,
   contentFingerprint: string,
@@ -67,7 +68,7 @@ function sourceDocument(
   };
 }
 
-function activeDocument(
+export function createLegacyPlannerDocument(
   contentFingerprint: string,
   snapshot: ReturnType<typeof normalizeLegacyPlannerSnapshotV1>,
 ): PlannerDocumentRecord {
@@ -123,6 +124,7 @@ async function assertPersistedMigration(
   metadataKey: LegacyV1MigrationMetadataRecord["key"],
   rawFingerprint: string,
   contentFingerprint: string,
+  origin: LegacyImportOrigin,
 ) {
   const [databaseMetadata, persistedSource, persistedCurrent, persistedMetadata] =
     await Promise.all([
@@ -137,6 +139,7 @@ async function assertPersistedMigration(
     || persistedMetadata === null
     || persistedMetadata.kind !== "legacy-v1-migration"
     || persistedMetadata.status !== "validated"
+    || !persistedMetadata.importOrigins.includes(origin)
     || persistedMetadata.sourceRawFingerprints.filter(
       (fingerprint) => fingerprint === rawFingerprint,
     ).length !== 1) {
@@ -154,21 +157,33 @@ export async function migrateLegacyPlannerV1(options: Readonly<{
   migratedAt: string;
   repository: LocalPersistenceRepository;
   hasher?: Sha256Hasher;
+  origin?: LegacyImportOrigin;
 }>): Promise<LegacyV1MigrationResult> {
   assertCanonicalUtcInstant(options.migratedAt);
   const snapshot = parseLegacyPlannerSnapshotV1(options.raw);
   const normalized = normalizeLegacyPlannerSnapshotV1(snapshot);
   const hasher = options.hasher ?? new WebCryptoSha256Hasher();
+  const origin = options.origin ?? "local-storage-v1";
   const [rawFingerprint, contentFingerprint] = await Promise.all([
     hasher.digestUtf8(options.raw),
     hasher.digestUtf8(canonicalStringify(encodeNormalizedLegacyPlannerV1(normalized))),
   ]);
-  const source = sourceDocument(options.raw, rawFingerprint, contentFingerprint, snapshot);
-  const current = activeDocument(contentFingerprint, normalized);
+  const source = createLegacyV1SourceDocument(
+    options.raw,
+    rawFingerprint,
+    contentFingerprint,
+    snapshot,
+  );
+  const current = createLegacyPlannerDocument(contentFingerprint, normalized);
   const metadataKey: `${typeof LEGACY_V1_MIGRATION_KEY_PREFIX}${string}` =
     `${LEGACY_V1_MIGRATION_KEY_PREFIX}${contentFingerprint}`;
 
   return options.repository.write(async (transaction) => {
+    if ((await transaction.getDatabaseMetadata()).activeDocumentId !== null) {
+      throw new LegacyV1MigrationIntegrityError(
+        "A migração v1 exige que a persistência v2 permaneça inativa.",
+      );
+    }
     const existingSource = await transaction.getPlannerDocument(source.id);
     if (existingSource === null) {
       await transaction.putPlannerDocument(source);
@@ -188,6 +203,7 @@ export async function migrateLegacyPlannerV1(options: Readonly<{
         || !plannerDocumentsMatch(existingCurrent, current);
 
       const alreadyKnown = existingMetadata.sourceRawFingerprints.includes(rawFingerprint);
+      const originAlreadyKnown = existingMetadata.importOrigins.includes(origin);
       if (currentNeedsReconciliation) {
         await transaction.putPlannerDocument(current);
       }
@@ -197,6 +213,16 @@ export async function migrateLegacyPlannerV1(options: Readonly<{
           sourceRawFingerprints: [...existingMetadata.sourceRawFingerprints, rawFingerprint].sort(),
         });
       }
+      if (!originAlreadyKnown) {
+        const latestMetadata = await transaction.getMetadata(metadataKey);
+        if (latestMetadata === null || latestMetadata.kind !== "legacy-v1-migration") {
+          throw new LegacyV1MigrationIntegrityError();
+        }
+        await transaction.putMetadata({
+          ...latestMetadata,
+          importOrigins: [...latestMetadata.importOrigins, origin].sort(),
+        });
+      }
       await assertPersistedMigration(
         transaction,
         source,
@@ -204,6 +230,7 @@ export async function migrateLegacyPlannerV1(options: Readonly<{
         metadataKey,
         rawFingerprint,
         contentFingerprint,
+        origin,
       );
 
       return {
@@ -223,6 +250,7 @@ export async function migrateLegacyPlannerV1(options: Readonly<{
       sourceVersion: 1,
       contentFingerprint,
       sourceRawFingerprints: [rawFingerprint],
+      importOrigins: [origin],
       status: "validated",
       migratedAt: options.migratedAt,
       documentId: CURRENT_PLANNER_DOCUMENT_ID,
@@ -236,6 +264,7 @@ export async function migrateLegacyPlannerV1(options: Readonly<{
       metadataKey,
       rawFingerprint,
       contentFingerprint,
+      origin,
     );
 
     return {
