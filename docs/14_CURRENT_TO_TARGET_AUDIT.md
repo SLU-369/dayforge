@@ -142,8 +142,13 @@ A definição visual exata permanece pendente de UX.
   `metadata`, `plannerDocuments`, codecs e repositórios transacionais;
 - migração 1.2B isolada em `persistence/legacy` e `persistence/migration`, com
   snapshot v1 tipado, fingerprints raw/content, idempotência e rollback;
+- backup/restauração 1.2C isolado em `persistence/backup`, com contrato lógico,
+  export consistente, validação de provenance/fingerprints, importação v1 pela
+  migração existente e restauração atômica com rollback integral;
 - a persistência v2 ainda não é importada pelo planner; v1 permanece principal
-  e não é escrito, substituído ou removido pela migração.
+  e não é escrito, substituído ou removido pela migração ou pelo backup interno;
+- a UI continua exportando e importando backup v1; database metadata permanece
+  inativa e não existe marker de cutover.
 
 ### Alvo
 
@@ -171,6 +176,6 @@ A definição visual exata permanece pendente de UX.
 
 ### Próxima evolução autorizável
 
-Após revisão e merge da migração 1.2B, a 1.2C poderá implementar backup e
-restauração v2, validação, rollback e compatibilidade com backup v1. A UI atual
-de backup v1 e o planner ativo continuam sem conexão com o v2 até a 1.2D.
+Após revisão e merge da 1.2C, somente uma autorização separada poderá iniciar a
+1.2D para bootstrap, marker, integração da UI e cutover. Até lá, a UI atual de
+backup v1 e o planner ativo continuam sem conexão com o v2 preparado.

@@ -6,6 +6,7 @@
 - Etapa 0.1 documental concluída.
 - Etapa 0.2/B4 de taxonomia, baseline técnica e proteção do v1 concluída.
 - Etapa 1.1 de modelo temporal e contratos do domínio concluída.
+- Etapas 1.2A, 1.2B e 1.2C concluídas internamente; v1 e a UI v1 permanecem principais até uma autorização separada da 1.2D.
 - Plano da Etapa 1.2 aprovado; cada subetapa exige branch, validação, revisão e autorização próprias.
 - Nenhuma etapa funcional pode começar por consequência automática desta documentação.
 
@@ -152,7 +153,7 @@ Assim, os documentos v2 preparados não se tornam autoridade nesta subetapa.
 
 #### 1.2C — Backup e restauração v2
 
-Branch futura: `feature/backup-v2`, somente após aprovação e merge da 1.2B.
+Branch de implementação: `feature/backup-v2`.
 
 - implementar formato lógico v2 desacoplado das tabelas Dexie;
 - separar versão do backup, geração da persistência e schema interno;
@@ -161,6 +162,11 @@ Branch futura: `feature/backup-v2`, somente após aprovação e merge da 1.2B.
 - aceitar backup v1 pela migração validada;
 - manter a UI visível de backup v1 funcionalmente intacta enquanto v1 for a
   fonte principal.
+
+Implementada como mecanismo interno: exportação usa snapshot lógico consistente,
+restauração substitui atomicamente apenas o conjunto preparado e importação v1
+reutiliza a pipeline 1.2B com provenance `backup-v1`. Database metadata continua
+inativa, a UI não importa o módulo e não existe marker ou cutover.
 
 #### 1.2D — Bootstrap e cutover para v2
 

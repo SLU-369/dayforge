@@ -1703,7 +1703,7 @@ IndexedDB com Dexie é a tecnologia aprovada para a persistência local v2. A fu
 
 O payload `rotina-369:data:v1` deve permanecer intacto durante e depois da migração. A migração será validada, idempotente e testada; nunca removerá ou sobrescreverá o original. Reversibilidade significa que, antes do cutover, falha ou aborto mantém v1 como fonte principal e faz rollback integral da transação v2. Depois do cutover, v1 é somente leitura, não existe dual-write e dados exclusivos do v2 não precisam ser traduzidos de volta; recuperação depende de backup/restauração v2, sem promessa de retorno ao v1 sem perda.
 
-Backup/restauração v2 deve estar implementado e validado antes do cutover. Enquanto v1 for a fonte principal, a tela existente continua operando backup v1 sem mudança visível. A subetapa de cutover integra a UI ao formato v2, que separa versão pública do backup, geração da persistência e versão interna do schema. Restauração valida envelope, entidades, referências e procedência antes de substituir dados atomicamente; backup v1 continua aceito pela migração validada.
+Backup/restauração v2 está implementado internamente antes do cutover como contrato lógico desacoplado das tabelas Dexie. O formato separa versão pública do backup, geração da persistência e versão interna do schema; exportação recalcula fingerprints e restauração valida envelope, conteúdo, referências e procedência antes de substituir atomicamente somente o conjunto preparado. Backup v1 é aceito pela migração validada com origem `backup-v1`. Enquanto v1 for a fonte principal, a tela existente continua operando backup v1 sem mudança visível; somente a Etapa 1.2D poderá integrar a UI, criar o marker e ativar v2.
 
 Desde a Etapa 0.2, uma proteção mínima impede que defaults sejam gravados sobre um payload v1 cuja leitura falhou; importação de backup ou restauração do padrão são as recuperações explícitas disponíveis.
 
@@ -1777,6 +1777,8 @@ A geração arquitetural da persistência é v2; sua primeira versão interna de
 
 A migração de `rotina-369:data:v1` preserva um `LegacyPlannerSnapshotV1` tipado e não reinterpreta ambiguidades como fatos temporais. SHA-256 dos bytes crus identifica cada origem por `legacy-v1/source/<rawFingerprint>`; SHA-256 da representação canônica validada identifica a operação idempotente por `migration/v1/<contentFingerprint>`. Origens byte a byte distintas com o mesmo conteúdo semântico coexistem sem repetir a migração operacional. IDs, fingerprints e transformação não usam relógio, aleatoriedade ou UUID; o instante auditável é fornecido separadamente.
 
+A Etapa 1.2C implementa internamente backup v2 lógico, sem expor o layout Dexie. Uma transação readonly captura `planner/current`, provenance e fontes legadas; todos os fingerprints são recalculados antes da exportação. Restauração valida e materializa o estado antes de abrir uma transação read-write, exige `metadata/database` existente, compatível e inativa, substitui apenas o conjunto preparado e relê os records antes do commit. Importação v1 reutiliza a migração 1.2B e registra origem `backup-v1`. O mecanismo não acessa a UI nem o localStorage v1.
+
 Antes do cutover, v1 permanece principal e qualquer falha aborta a transação v2. Depois do cutover, metadata `active` validada no IndexedDB é a autoridade principal, não existe dual-write e `dayforge:persistence:v2` funciona como sentinel externo contra fallback destrutivo. Marker ativo ou inválido sem banco ativo validável bloqueia persistência e mantém a sessão em memória; banco ativo com marker ausente ou inválido usa v2 e repara o marker quando seguro.
 
 A baseline da Etapa 0.2 implementa somente uma proteção: falha de leitura do v1 bloqueia o autosave de defaults, preserva o conteúdo original e mantém a sessão em memória até importação de backup ou restauração explícita. IndexedDB e a migração completa permanecem fora da 0.2.
@@ -1824,6 +1826,7 @@ Camadas futuras devem possuir testes unitários de domínio e planner, testes de
 - Etapa 0.1 documental concluída.
 - Etapa 0.2/B4 de taxonomia, baseline técnica e proteção do v1 concluída.
 - Etapa 1.1 de modelo temporal e contratos do domínio concluída.
+- Etapas 1.2A, 1.2B e 1.2C concluídas internamente; v1 e a UI v1 permanecem principais até uma autorização separada da 1.2D.
 - Plano da Etapa 1.2 aprovado; cada subetapa exige branch, validação, revisão e autorização próprias.
 - Nenhuma etapa funcional pode começar por consequência automática desta documentação.
 
@@ -1970,7 +1973,7 @@ Assim, os documentos v2 preparados não se tornam autoridade nesta subetapa.
 
 #### 1.2C — Backup e restauração v2
 
-Branch futura: `feature/backup-v2`, somente após aprovação e merge da 1.2B.
+Branch de implementação: `feature/backup-v2`.
 
 - implementar formato lógico v2 desacoplado das tabelas Dexie;
 - separar versão do backup, geração da persistência e schema interno;
@@ -1979,6 +1982,11 @@ Branch futura: `feature/backup-v2`, somente após aprovação e merge da 1.2B.
 - aceitar backup v1 pela migração validada;
 - manter a UI visível de backup v1 funcionalmente intacta enquanto v1 for a
   fonte principal.
+
+Implementada como mecanismo interno: exportação usa snapshot lógico consistente,
+restauração substitui atomicamente apenas o conjunto preparado e importação v1
+reutiliza a pipeline 1.2B com provenance `backup-v1`. Database metadata continua
+inativa, a UI não importa o módulo e não existe marker ou cutover.
 
 #### 1.2D — Bootstrap e cutover para v2
 
@@ -2655,8 +2663,13 @@ A definição visual exata permanece pendente de UX.
   `metadata`, `plannerDocuments`, codecs e repositórios transacionais;
 - migração 1.2B isolada em `persistence/legacy` e `persistence/migration`, com
   snapshot v1 tipado, fingerprints raw/content, idempotência e rollback;
+- backup/restauração 1.2C isolado em `persistence/backup`, com contrato lógico,
+  export consistente, validação de provenance/fingerprints, importação v1 pela
+  migração existente e restauração atômica com rollback integral;
 - a persistência v2 ainda não é importada pelo planner; v1 permanece principal
-  e não é escrito, substituído ou removido pela migração.
+  e não é escrito, substituído ou removido pela migração ou pelo backup interno;
+- a UI continua exportando e importando backup v1; database metadata permanece
+  inativa e não existe marker de cutover.
 
 ### Alvo
 
@@ -2684,9 +2697,9 @@ A definição visual exata permanece pendente de UX.
 
 ### Próxima evolução autorizável
 
-Após revisão e merge da migração 1.2B, a 1.2C poderá implementar backup e
-restauração v2, validação, rollback e compatibilidade com backup v1. A UI atual
-de backup v1 e o planner ativo continuam sem conexão com o v2 até a 1.2D.
+Após revisão e merge da 1.2C, somente uma autorização separada poderá iniciar a
+1.2D para bootstrap, marker, integração da UI e cutover. Até lá, a UI atual de
+backup v1 e o planner ativo continuam sem conexão com o v2 preparado.
 
 ---
 
