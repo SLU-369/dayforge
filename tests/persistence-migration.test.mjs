@@ -437,6 +437,7 @@ test("A-B-A reconciliation rolls back source, metadata, and current together", a
     write: (operation) => repository.write((transaction) => operation({
       getDatabaseMetadata: () => transaction.getDatabaseMetadata(),
       getMetadata: (key) => transaction.getMetadata(key),
+      listMetadata: () => transaction.listMetadata(),
       getPlannerDocument: (id) => transaction.getPlannerDocument(id),
       listPlannerDocuments: () => transaction.listPlannerDocuments(),
       putDatabaseMetadata: (metadata) => transaction.putDatabaseMetadata(metadata),
@@ -444,6 +445,7 @@ test("A-B-A reconciliation rolls back source, metadata, and current together", a
         await transaction.putMetadata(metadata);
         throw new Error("forced reconciliation rollback");
       },
+      deleteMetadata: (key) => transaction.deleteMetadata(key),
       deletePlannerDocument: (id) => transaction.deletePlannerDocument(id),
       putPlannerDocument: (document) => transaction.putPlannerDocument(document),
     })),
@@ -529,6 +531,7 @@ test("a failure after both tables were written rolls the whole migration back", 
     write: (operation) => repository.write((transaction) => operation({
       getDatabaseMetadata: () => transaction.getDatabaseMetadata(),
       getMetadata: (key) => transaction.getMetadata(key),
+      listMetadata: () => transaction.listMetadata(),
       getPlannerDocument: (id) => transaction.getPlannerDocument(id),
       listPlannerDocuments: () => transaction.listPlannerDocuments(),
       putDatabaseMetadata: (metadata) => transaction.putDatabaseMetadata(metadata),
@@ -538,6 +541,7 @@ test("a failure after both tables were written rolls the whole migration back", 
         await transaction.putMetadata(metadata);
         throw new Error("forced migration rollback");
       },
+      deleteMetadata: (key) => transaction.deleteMetadata(key),
     })),
   };
 
@@ -566,7 +570,14 @@ test("migration metadata is strict, content-addressed, and source-addressed", ()
     migratedAt: "2026-09-22T12:00:00.000Z",
     documentId: CURRENT_PLANNER_DOCUMENT_ID,
   };
-  assert.deepEqual(decodeLegacyV1MigrationMetadata(valid), valid);
+  assert.deepEqual(decodeLegacyV1MigrationMetadata(valid), {
+    ...valid,
+    importOrigins: ["local-storage-v1"],
+  });
+  assert.deepEqual(decodeLegacyV1MigrationMetadata({
+    ...valid,
+    importOrigins: ["backup-v1", "local-storage-v1"],
+  }).importOrigins, ["backup-v1", "local-storage-v1"]);
   assert.throws(
     () => decodeLegacyV1MigrationMetadata({ ...valid, key: "migration/v1" }),
     validationError("invalid_migration_metadata"),
@@ -577,6 +588,10 @@ test("migration metadata is strict, content-addressed, and source-addressed", ()
   );
   assert.throws(
     () => decodeLegacyV1MigrationMetadata({ ...valid, migratedAt: "now" }),
+    validationError("invalid_migration_metadata"),
+  );
+  assert.throws(
+    () => decodeLegacyV1MigrationMetadata({ ...valid, importOrigins: ["unknown"] }),
     validationError("invalid_migration_metadata"),
   );
 });
