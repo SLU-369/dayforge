@@ -3,11 +3,13 @@ import {
   CURRENT_PLANNER_DOCUMENT_ID,
   DEXIE_SCHEMA_VERSION,
   LEGACY_V1_MIGRATION_KEY_PREFIX,
+  LEGACY_IMPORT_ORIGINS,
   PERSISTENCE_GENERATION,
   PLANNER_DOCUMENT_ROLES,
   type DatabaseMetadataRecord,
   type JsonObject,
   type JsonValue,
+  type LegacyImportOrigin,
   type LegacyV1MigrationMetadataRecord,
   type PersistenceMetadataRecord,
   type PlannerDocumentRecord,
@@ -53,10 +55,15 @@ const LEGACY_V1_MIGRATION_FIELDS = [
   "sourceVersion",
   "contentFingerprint",
   "sourceRawFingerprints",
+  "importOrigins",
   "status",
   "migratedAt",
   "documentId",
 ] as const;
+
+const LEGACY_V1_MIGRATION_LEGACY_FIELDS = LEGACY_V1_MIGRATION_FIELDS.filter(
+  (field) => field !== "importOrigins",
+);
 
 function isPlainObjectRecord(value: unknown): value is Record<string, unknown> {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
@@ -76,6 +83,20 @@ function isNonEmptyString(value: unknown): value is string {
 
 function isSha256Fingerprint(value: unknown): value is string {
   return typeof value === "string" && /^[a-f0-9]{64}$/.test(value);
+}
+
+function isLegacyImportOrigin(value: unknown): value is LegacyImportOrigin {
+  return LEGACY_IMPORT_ORIGINS.some((origin) => origin === value);
+}
+
+function decodeImportOrigins(value: unknown): LegacyImportOrigin[] | null {
+  if (!Array.isArray(value)
+    || value.length === 0
+    || !value.every(isLegacyImportOrigin)
+    || !value.every((origin, index) => index === 0 || value[index - 1] < origin)) {
+    return null;
+  }
+  return [...value];
 }
 
 function isCanonicalUtcInstant(value: unknown): value is string {
@@ -145,14 +166,20 @@ export function decodeLegacyV1MigrationMetadata(
     && rawFingerprints.every((fingerprint, index) => (
       index === 0 || rawFingerprints[index - 1] < fingerprint
     ));
+  const rawImportOrigins = isPlainObjectRecord(value) && Object.hasOwn(value, "importOrigins")
+    ? value.importOrigins
+    : ["local-storage-v1"];
+  const importOrigins = decodeImportOrigins(rawImportOrigins);
 
   if (!isPlainObjectRecord(value)
-    || !hasExactFields(value, LEGACY_V1_MIGRATION_FIELDS)
+    || !(hasExactFields(value, LEGACY_V1_MIGRATION_FIELDS)
+      || hasExactFields(value, LEGACY_V1_MIGRATION_LEGACY_FIELDS))
     || value.kind !== "legacy-v1-migration"
     || value.sourceVersion !== 1
     || !isSha256Fingerprint(value.contentFingerprint)
     || value.key !== `${LEGACY_V1_MIGRATION_KEY_PREFIX}${value.contentFingerprint}`
     || !validRawFingerprints
+    || importOrigins === null
     || value.status !== "validated"
     || !isCanonicalUtcInstant(value.migratedAt)
     || value.documentId !== CURRENT_PLANNER_DOCUMENT_ID) {
@@ -168,6 +195,7 @@ export function decodeLegacyV1MigrationMetadata(
     sourceVersion: value.sourceVersion,
     contentFingerprint: value.contentFingerprint,
     sourceRawFingerprints: [...rawFingerprints],
+    importOrigins,
     status: value.status,
     migratedAt: value.migratedAt,
     documentId: value.documentId,

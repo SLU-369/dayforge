@@ -33,6 +33,10 @@ class IndexedDbTransaction implements PersistenceWriteTransaction {
     return metadata === undefined ? null : decodePersistenceMetadata(metadata);
   }
 
+  async listMetadata() {
+    return Promise.all((await this.metadata.toArray()).map(decodePersistenceMetadata));
+  }
+
   async getPlannerDocument(id: string) {
     const document = await this.plannerDocuments.get(id);
     return document === undefined ? null : decodePlannerDocument(document);
@@ -48,6 +52,10 @@ class IndexedDbTransaction implements PersistenceWriteTransaction {
 
   async putMetadata(metadata: PersistenceMetadataRecord) {
     await this.metadata.put(decodePersistenceMetadata(metadata));
+  }
+
+  async deleteMetadata(key: PersistenceMetadataRecord["key"]) {
+    await this.metadata.delete(key);
   }
 
   async putPlannerDocument(document: PlannerDocumentRecord) {

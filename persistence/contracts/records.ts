@@ -3,10 +3,12 @@ export const DEXIE_SCHEMA_VERSION = 1 as const;
 export const DATABASE_METADATA_KEY = "database" as const;
 export const LEGACY_V1_MIGRATION_KEY_PREFIX = "migration/v1/" as const;
 export const CURRENT_PLANNER_DOCUMENT_ID = "planner/current" as const;
+export const LEGACY_IMPORT_ORIGINS = ["backup-v1", "local-storage-v1"] as const;
 
 export type JsonPrimitive = string | number | boolean | null;
 export type JsonValue = JsonPrimitive | JsonObject | JsonValue[];
 export type JsonObject = { readonly [key: string]: JsonValue };
+export type LegacyImportOrigin = (typeof LEGACY_IMPORT_ORIGINS)[number];
 
 export type DatabaseMetadataRecord = Readonly<{
   key: typeof DATABASE_METADATA_KEY;
@@ -22,6 +24,7 @@ export type LegacyV1MigrationMetadataRecord = Readonly<{
   sourceVersion: 1;
   contentFingerprint: string;
   sourceRawFingerprints: readonly string[];
+  importOrigins: readonly LegacyImportOrigin[];
   status: "validated";
   migratedAt: string;
   documentId: typeof CURRENT_PLANNER_DOCUMENT_ID;
