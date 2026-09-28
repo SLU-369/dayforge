@@ -7,6 +7,7 @@
 - Etapa 0.2/B4 de taxonomia, baseline técnica e proteção do v1 concluída.
 - Etapa 1.1 de modelo temporal e contratos do domínio concluída.
 - Etapas 1.2A–1.2D implementadas; v2 é o store principal e v1 permanece somente leitura.
+- Etapa 2A de contexto diário somente para leitura concluída; execução e reagendamento não iniciados.
 - Plano da Etapa 1.2 aprovado; cada subetapa exige branch, validação, revisão e autorização próprias.
 - Nenhuma etapa funcional pode começar por consequência automática desta documentação.
 
@@ -193,7 +194,40 @@ metadata ativa como autoridade, gravação serializada do planner no v2 e UI de
 backup v2 com importação v1 compatível. Falha de bootstrap ou escrita mantém
 sessão em memória com aviso persistente; recuperação explícita pode importar
 backup ou restaurar o padrão quando o banco compatível estiver acessível.
-O payload v1 permanece intacto, sem dual-write. A Etapa 2 não começou.
+O payload v1 permanece intacto, sem dual-write. A 1.2D não incluiu mudanças da
+Etapa 2.
+
+### Etapa 2A — Hoje contextual e read model temporal
+
+Status: concluída em 28/09/2026; execução e reagendamento não iniciados.
+Branch: `feature/today-context`, a partir do checkpoint validado da 1.2D.
+
+Escopo: derivar em memória, com instante de referência controlável, uma visão
+diária determinística com Agora, Próximo, Depois, Atenção e Resumo; integrar a
+visão à página Hoje com estados de carregamento, vazio, erro e dados válidos.
+O `planner/current` v2 ainda possui formato legado v1; a 2A pode projetar seus
+horários locais apenas para leitura no fuso IANA do dispositivo, passado
+explicitamente ao read model. Horário final igual ou anterior ao inicial
+atravessa a meia-noite. Não persistir timezone, status temporal inferido nem
+`ScheduleOccurrence` a partir dessa projeção. Em transições de horário de
+verão, escolher a primeira ocorrência de um horário ambíguo e avançar um
+horário inexistente; intervalos não representáveis bloqueiam a projeção.
+Agora usa uma ocorrência elegível cujo intervalo contém o instante; Próximo
+contém no máximo uma ocorrência futura do dia; Depois contém as demais futuras
+em ordem determinística. Atenção usa somente decisões já fundamentadas no
+domínio: um item legado cujo intervalo terminou sem registro de conclusão é
+mostrado como `Aguardando decisão`, sem inferir atraso, falha ou estado terminal.
+Resumo apresenta fatos, sem pontuação ou julgamento.
+
+Aceite: cobrir dia vazio, itens futuros e ativos, Atenção fundamentada, bordas
+semiabertas, virada de dia, ordenação, determinismo e leitura sem escrita.
+Preservar autoridade v2, payload v1 somente leitura, marker fail-safe, bloqueio
+de persistência em falha e integridade de backup/restauração.
+
+Fora de escopo: conclusão, execução, timer, adiamento, reagendamento, edição de
+templates, histórico novo, notificações, IA, scoring, sincronização, cloud e
+mudanças de schema ou geração de persistência sem necessidade demonstrada.
+Execução e reagendamento pertencem a uma subdivisão futura ainda não iniciada.
 
 ## 5. Ordem de dependências
 

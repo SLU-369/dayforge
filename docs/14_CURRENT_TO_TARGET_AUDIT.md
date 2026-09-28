@@ -19,14 +19,14 @@ Manter a fundação visual e a baseline concluída na Etapa 0.2/B4 sem alterar a
 ## 2. Hoje
 
 ### Atual
-- cabeçalho `Seu dia, em uma visão`;
-- cards Progresso, Tempo concluído, Foco AI/LLM e Energia do dia;
-- linha do tempo vertical extensa;
-- fechamento/nota do dia;
-- atividades antigas em sequência.
+- contexto somente de leitura com Agora, Próximo, Depois, Atenção e Resumo,
+  projetado em memória do planner v2 com referência temporal controlável;
+- linha do tempo, controles de execução legados, energia e nota do dia
+  acessíveis na visão secundária `Ver dia completo`;
+- nenhuma ocorrência temporal canônica é persistida pela visão contextual.
 
 ### Alvo
-Substituir experiência principal por:
+Manter a experiência principal contextual:
 
 ```text
 Agora
@@ -36,7 +36,8 @@ Atenção
 Resumo
 ```
 
-Timeline completa continua acessível sob demanda.
+Timeline completa permanece acessível sob demanda. Execução e reagendamento
+canônicos pertencem a uma subdivisão futura, ainda não iniciada.
 
 `Energia do dia` sai da experiência principal. `Foco AI/LLM` deixa de ser métrica fixa. Progresso deixa de ser um número genérico sem contexto.
 
@@ -173,5 +174,7 @@ A definição visual exata permanece pendente de UX.
 
 ### Próxima evolução autorizável
 
-A Etapa 1.2D encerra a migração da persistência do planner legado. A Etapa 2
-continua sujeita a autorização própria; não foi iniciada por este cutover.
+A Etapa 1.2D encerrou a migração da persistência do planner legado. A 2A
+introduziu somente o contexto de leitura de Hoje, sem persistir entidades
+temporais canônicas. Execução, reagendamento e novos produtores temporais
+continuam sujeitos a autorização própria.

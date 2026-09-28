@@ -5,7 +5,7 @@
 
 # Dayforge 2.0 — Documentação oficial de produto
 
-**Status:** Etapas 0.1, 0.2, 1.1 e 1.2A–1.2D implementadas; persistência v2 ativa no planner
+**Status:** Etapas 0.1, 0.2, 1.1, 1.2A–1.2D e 2A implementadas; persistência v2 ativa no planner
 **Data:** 28/09/2026
 **Objetivo:** transformar as decisões de produto, UX, domínio e arquitetura discutidas até aqui em uma fonte oficial de verdade para o repositório e para o Codex.
 
@@ -75,14 +75,15 @@ A Etapa B/B3 concluiu a fundação visual inicial do App Shell:
 - o núcleo TypeScript puro em `domain/temporal/` define templates, ocorrências,
   execução, reagendamento, estados terminais e disponibilidade mínima sem
   depender de React, browser ou persistência;
-- o conteúdo funcional antigo da página Hoje ainda é legado e será reformulado posteriormente.
+- a página Hoje apresenta contexto derivado somente para leitura; seus controles funcionais legados permanecem na visão secundária do dia completo.
 
 A Etapa 1.1 não integrou o novo domínio temporal ao planner legado. A Etapa 1.2
 foi implementada em quatro subetapas: fundação Dexie, migração validada,
 backup/restauração lógica v2 e bootstrap/cutover. O planner atual usa
 `planner/current` no IndexedDB com metadata ativa; `rotina-369:data:v1`
 permanece intacto e somente leitura. A tela de Dados e backup exporta v2 e
-aceita arquivos v2 e v1. Nenhuma funcionalidade da Etapa 2 foi iniciada.
+aceita arquivos v2 e v1. A Etapa 2A adiciona somente o read model contextual;
+execução e reagendamento canônicos não foram iniciados.
 
 ---
 
@@ -1742,16 +1743,16 @@ Este documento separa arquitetura atual, direção aprovada e tecnologia futura.
 - APIs App Router compiladas por Vinext/Vite;
 - Tailwind CSS 4, CSS próprio e CSS Modules;
 - estado React por Context e hooks;
-- persistência principal em `localStorage`, payload `rotina-369:data:v1`;
+- IndexedDB/Dexie v2 como autoridade operacional do planner; `rotina-369:data:v1` preservado em `localStorage` somente para leitura legada, sem fallback automático;
 - preferências de aparência em chaves locais separadas;
-- leitura inválida do payload v1 bloqueia autosave e mantém alterações temporárias em memória até recuperação explícita;
+- falha de bootstrap, banco ou metadata v2 bloqueia autosave e mantém alterações temporárias em memória até recuperação explícita;
 - Worker apenas para runtime Vinext e otimização de imagens;
 - Drizzle/D1 preparado, mas schema e bindings de produção vazios;
 - CI executa verificação do master, lint, typecheck, build e testes;
 - núcleo temporal puro em `domain/temporal/`, com valores validados, templates
   semanais, ocorrências independentes, execução, reagendamento append-only,
   transições terminais e contratos mínimos de disponibilidade;
-- nenhum backend de domínio, API, autenticação, sincronização ou banco ativo.
+- nenhum backend de domínio, API, autenticação, sincronização ou banco servidor ativo.
 
 ## 3. Frontend local v2
 
@@ -1771,6 +1772,12 @@ Repositórios
 - persistência e backup
 - adaptação do payload legado
 ```
+
+A Etapa 2A deriva o contexto de Hoje em memória a partir do `planner/current`,
+que ainda carrega o snapshot legado v1. O adaptador de leitura recebe instante e
+fuso IANA explícitos, interpreta horários locais sem persistir inferências e
+não cria registros temporais canônicos nem novas tabelas. A UI mantém os
+controles legados na visão secundária do dia completo.
 
 ## 4. Persistência local v2
 
@@ -1832,6 +1839,7 @@ Camadas futuras devem possuir testes unitários de domínio e planner, testes de
 - Etapa 0.2/B4 de taxonomia, baseline técnica e proteção do v1 concluída.
 - Etapa 1.1 de modelo temporal e contratos do domínio concluída.
 - Etapas 1.2A–1.2D implementadas; v2 é o store principal e v1 permanece somente leitura.
+- Etapa 2A de contexto diário somente para leitura concluída; execução e reagendamento não iniciados.
 - Plano da Etapa 1.2 aprovado; cada subetapa exige branch, validação, revisão e autorização próprias.
 - Nenhuma etapa funcional pode começar por consequência automática desta documentação.
 
@@ -2018,7 +2026,40 @@ metadata ativa como autoridade, gravação serializada do planner no v2 e UI de
 backup v2 com importação v1 compatível. Falha de bootstrap ou escrita mantém
 sessão em memória com aviso persistente; recuperação explícita pode importar
 backup ou restaurar o padrão quando o banco compatível estiver acessível.
-O payload v1 permanece intacto, sem dual-write. A Etapa 2 não começou.
+O payload v1 permanece intacto, sem dual-write. A 1.2D não incluiu mudanças da
+Etapa 2.
+
+### Etapa 2A — Hoje contextual e read model temporal
+
+Status: concluída em 28/09/2026; execução e reagendamento não iniciados.
+Branch: `feature/today-context`, a partir do checkpoint validado da 1.2D.
+
+Escopo: derivar em memória, com instante de referência controlável, uma visão
+diária determinística com Agora, Próximo, Depois, Atenção e Resumo; integrar a
+visão à página Hoje com estados de carregamento, vazio, erro e dados válidos.
+O `planner/current` v2 ainda possui formato legado v1; a 2A pode projetar seus
+horários locais apenas para leitura no fuso IANA do dispositivo, passado
+explicitamente ao read model. Horário final igual ou anterior ao inicial
+atravessa a meia-noite. Não persistir timezone, status temporal inferido nem
+`ScheduleOccurrence` a partir dessa projeção. Em transições de horário de
+verão, escolher a primeira ocorrência de um horário ambíguo e avançar um
+horário inexistente; intervalos não representáveis bloqueiam a projeção.
+Agora usa uma ocorrência elegível cujo intervalo contém o instante; Próximo
+contém no máximo uma ocorrência futura do dia; Depois contém as demais futuras
+em ordem determinística. Atenção usa somente decisões já fundamentadas no
+domínio: um item legado cujo intervalo terminou sem registro de conclusão é
+mostrado como `Aguardando decisão`, sem inferir atraso, falha ou estado terminal.
+Resumo apresenta fatos, sem pontuação ou julgamento.
+
+Aceite: cobrir dia vazio, itens futuros e ativos, Atenção fundamentada, bordas
+semiabertas, virada de dia, ordenação, determinismo e leitura sem escrita.
+Preservar autoridade v2, payload v1 somente leitura, marker fail-safe, bloqueio
+de persistência em falha e integridade de backup/restauração.
+
+Fora de escopo: conclusão, execução, timer, adiamento, reagendamento, edição de
+templates, histórico novo, notificações, IA, scoring, sincronização, cloud e
+mudanças de schema ou geração de persistência sem necessidade demonstrada.
+Execução e reagendamento pertencem a uma subdivisão futura ainda não iniciada.
 
 ## 5. Ordem de dependências
 
@@ -2552,14 +2593,14 @@ Manter a fundação visual e a baseline concluída na Etapa 0.2/B4 sem alterar a
 ## 2. Hoje
 
 ### Atual
-- cabeçalho `Seu dia, em uma visão`;
-- cards Progresso, Tempo concluído, Foco AI/LLM e Energia do dia;
-- linha do tempo vertical extensa;
-- fechamento/nota do dia;
-- atividades antigas em sequência.
+- contexto somente de leitura com Agora, Próximo, Depois, Atenção e Resumo,
+  projetado em memória do planner v2 com referência temporal controlável;
+- linha do tempo, controles de execução legados, energia e nota do dia
+  acessíveis na visão secundária `Ver dia completo`;
+- nenhuma ocorrência temporal canônica é persistida pela visão contextual.
 
 ### Alvo
-Substituir experiência principal por:
+Manter a experiência principal contextual:
 
 ```text
 Agora
@@ -2569,7 +2610,8 @@ Atenção
 Resumo
 ```
 
-Timeline completa continua acessível sob demanda.
+Timeline completa permanece acessível sob demanda. Execução e reagendamento
+canônicos pertencem a uma subdivisão futura, ainda não iniciada.
 
 `Energia do dia` sai da experiência principal. `Foco AI/LLM` deixa de ser métrica fixa. Progresso deixa de ser um número genérico sem contexto.
 
@@ -2706,8 +2748,10 @@ A definição visual exata permanece pendente de UX.
 
 ### Próxima evolução autorizável
 
-A Etapa 1.2D encerra a migração da persistência do planner legado. A Etapa 2
-continua sujeita a autorização própria; não foi iniciada por este cutover.
+A Etapa 1.2D encerrou a migração da persistência do planner legado. A 2A
+introduziu somente o contexto de leitura de Hoje, sem persistir entidades
+temporais canônicas. Execução, reagendamento e novos produtores temporais
+continuam sujeitos a autorização própria.
 
 ---
 
