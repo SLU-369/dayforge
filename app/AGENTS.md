@@ -9,7 +9,7 @@
 - `layout.tsx` owns global providers and the shell boundary.
 - The layout mounts the photographic `AppearanceBackdrop` once across route changes. Old `?scene=3d` URLs must also show this approved background; the castle model is no longer activated.
 - `planner-context.tsx` owns shared client state and persistence lifecycle.
-- `planner-repository.ts` owns browser storage and JSON backup I/O.
+- `planner-repository.ts` retains the v1 parsing and guard compatibility helpers plus JSON download; `persistence/` owns active IndexedDB storage and backup.
 - `planner-data.ts` owns only the versioned legacy v1 planner payload types, defaults, and its existing date/duration helpers. New product-domain contracts live in root `domain/`.
 - `appearance.ts` owns appearance preferences, the offline capital catalog, solar calculations, and the standalone theme bootstrap; `theme-provider.tsx` owns their browser lifecycle.
 - Route folders own only their page composition; shared navigation belongs in `components/shell/navigation-config.tsx`.
@@ -19,7 +19,7 @@
 - Preserve the exact `rotina-369:data:v1` storage contract unless an explicit migration is approved.
 - Do not adapt the v1 planner payload to the root temporal domain before the separately approved Stage 1.2 migration.
 - A failed v1 read preserves the original stored value, blocks automatic writes, and keeps changes in memory with a persistent warning until explicit recovery through backup import or reset.
-- The planner continues to use the v1 repository through Stage 1.2C. Stage 1.2D alone may integrate v2 backup/restore into the existing UI and cut the planner over to IndexedDB.
+- The planner uses the active v2 repository. The v1 repository helpers remain for compatibility tests and may not write the preserved v1 payload in the active UI.
 - After cutover, valid active IndexedDB metadata is authoritative and `dayforge:persistence:v2` is a fail-safe sentinel. Never fall back silently to the preserved but stale v1 payload when the marker is active or invalid.
 - Keep historical daily records independent from later routine edits.
 - New mocked domains must not be written into the v1 planner payload.
@@ -40,6 +40,7 @@
 - Automatic mode alone tracks the sun's position and orange twilight. Solar calculations must not dim the disc based on the castle's position; the appearance layer clips sun/moon against a skyline matte in both manual and automatic modes. Manual changes use a 3.6-second visual transition; apply global theme tokens at its start, never via a midpoint timer that invalidates styles during celestial motion.
 - Appearance headings stay aligned with the cards and readable over the photograph in both themes. User preference: diffuse, borderless background shading and clear typography; no separate white heading card or rectangular panel.
 - Use the shared planner context and repository instead of reading or writing local storage from individual pages.
+- Keep the session warning persistent when bootstrap or writes fail; queue planner writes in order and block later automatic writes after a failure. The backup page exports v2, imports v2 or compatible v1, and resets active v2 data only after confirmation.
 - Every interactive overlay must support keyboard focus, Escape, and reduced motion.
 - Do not present demonstrative data as persisted user data.
 
@@ -57,6 +58,7 @@
 - Verify direct loads for touched routes and compact navigation at 390 px.
 - Confirm backup round-trips preserve v1 fields when persistence behavior changes.
 - Run the planner persistence regression test whenever the v1 read/write guard changes.
+- Run the cutover integration suite when bootstrap, marker, active backup, or planner autosave changes.
 
 ## Child DOX Index
 

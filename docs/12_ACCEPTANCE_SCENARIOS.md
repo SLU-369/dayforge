@@ -104,4 +104,4 @@ Com metadata v2 ativa e marker ausente, o Dayforge usa v2 e repara o marker. Com
 
 ## Cenário 26 — Backup antes do cutover
 
-O mecanismo v2 passa por round-trip e rollback enquanto a tela continua usando backup v1. Somente a subetapa de cutover conecta a UI ao backup v2, mantendo importação compatível de arquivos v1.
+O mecanismo v2 passa por round-trip e rollback. Após o cutover, a tela exporta backup v2 e aceita restauração v2 ou importação compatível de arquivos v1, sem escrever no payload legado preservado.

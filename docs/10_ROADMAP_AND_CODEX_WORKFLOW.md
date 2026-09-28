@@ -6,7 +6,7 @@
 - Etapa 0.1 documental concluída.
 - Etapa 0.2/B4 de taxonomia, baseline técnica e proteção do v1 concluída.
 - Etapa 1.1 de modelo temporal e contratos do domínio concluída.
-- Etapas 1.2A, 1.2B e 1.2C concluídas internamente; v1 e a UI v1 permanecem principais até uma autorização separada da 1.2D.
+- Etapas 1.2A–1.2D implementadas; v2 é o store principal e v1 permanece somente leitura.
 - Plano da Etapa 1.2 aprovado; cada subetapa exige branch, validação, revisão e autorização próprias.
 - Nenhuma etapa funcional pode começar por consequência automática desta documentação.
 
@@ -170,7 +170,7 @@ inativa, a UI não importa o módulo e não existe marker ou cutover.
 
 #### 1.2D — Bootstrap e cutover para v2
 
-Branch futura: `feature/persistence-v2-cutover`, somente após aprovação e merge da 1.2C.
+Branch de implementação: `feature/persistence-v2-cutover`, após o merge da 1.2C.
 
 - integrar backup/restauração v2 à UI existente;
 - preservar o first-run atual com `createDefaultState()`;
@@ -187,6 +187,13 @@ Não existem tabelas temporais no schema inicial: os tipos de domínio não são
 persistidos até haver fluxos reais que os produzam e consumam. Depois do
 cutover, recuperação usa backup/restauração v2; não existe promessa de rollback
 sem perda para v1 após dados exclusivos surgirem no v2.
+
+Implementada com migração e validação antes da ativação, marker fail-safe,
+metadata ativa como autoridade, gravação serializada do planner no v2 e UI de
+backup v2 com importação v1 compatível. Falha de bootstrap ou escrita mantém
+sessão em memória com aviso persistente; recuperação explícita pode importar
+backup ou restaurar o padrão quando o banco compatível estiver acessível.
+O payload v1 permanece intacto, sem dual-write. A Etapa 2 não começou.
 
 ## 5. Ordem de dependências
 

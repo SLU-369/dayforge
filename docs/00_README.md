@@ -1,7 +1,7 @@
 # Dayforge 2.0 — Documentação oficial de produto
 
-**Status:** Etapas 0.1, 0.2 e 1.1 concluídas; fundação 1.2A e migração validada 1.2B isoladas do planner ativo
-**Data:** 22/09/2026
+**Status:** Etapas 0.1, 0.2, 1.1 e 1.2A–1.2D implementadas; persistência v2 ativa no planner
+**Data:** 28/09/2026
 **Objetivo:** transformar as decisões de produto, UX, domínio e arquitetura discutidas até aqui em uma fonte oficial de verdade para o repositório e para o Codex.
 
 ## Como usar esta documentação
@@ -72,8 +72,9 @@ A Etapa B/B3 concluiu a fundação visual inicial do App Shell:
   depender de React, browser ou persistência;
 - o conteúdo funcional antigo da página Hoje ainda é legado e será reformulado posteriormente.
 
-A Etapa 1.1 não integrou o novo domínio ao planner legado. A Etapa 1.2 foi
-planejada em quatro subetapas com gates próprios. A fundação 1.2A introduziu o
-schema interno Dexie v1 e repositórios tipados. A 1.2B acrescentou a migração
-validada, idempotente e transacional, mantendo o payload v1 intacto e principal.
-Backup v2 e cutover permanecem respectivamente nas subetapas 1.2C e 1.2D.
+A Etapa 1.1 não integrou o novo domínio temporal ao planner legado. A Etapa 1.2
+foi implementada em quatro subetapas: fundação Dexie, migração validada,
+backup/restauração lógica v2 e bootstrap/cutover. O planner atual usa
+`planner/current` no IndexedDB com metadata ativa; `rotina-369:data:v1`
+permanece intacto e somente leitura. A tela de Dados e backup exporta v2 e
+aceita arquivos v2 e v1. Nenhuma funcionalidade da Etapa 2 foi iniciada.

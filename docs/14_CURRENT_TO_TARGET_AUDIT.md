@@ -134,10 +134,9 @@ A definição visual exata permanece pendente de UX.
 
 ### Atual
 
-- `rotina-369:data:v1` em `localStorage`;
-- validação estrutural superficial;
-- falha de leitura preserva o payload original, bloqueia autosave e mantém uma sessão temporária em memória com aviso persistente;
-- backup JSON cobre apenas o planner v1.
+- `rotina-369:data:v1` permanece em `localStorage`, intacto e somente leitura;
+- falha de leitura ou validação bloqueia o cutover, preserva os dados existentes
+  e mantém uma sessão temporária em memória com aviso persistente;
 - fundação 1.2A isolada em `persistence/`, com Dexie schema interno 1,
   `metadata`, `plannerDocuments`, codecs e repositórios transacionais;
 - migração 1.2B isolada em `persistence/legacy` e `persistence/migration`, com
@@ -145,19 +144,17 @@ A definição visual exata permanece pendente de UX.
 - backup/restauração 1.2C isolado em `persistence/backup`, com contrato lógico,
   export consistente, validação de provenance/fingerprints, importação v1 pela
   migração existente e restauração atômica com rollback integral;
-- a persistência v2 ainda não é importada pelo planner; v1 permanece principal
-  e não é escrito, substituído ou removido pela migração ou pelo backup interno;
-- a UI continua exportando e importando backup v1; database metadata permanece
-  inativa e não existe marker de cutover.
+- bootstrap 1.2D valida o estado preparado, escreve o marker fail-safe e ativa
+  `planner/current`; metadata ativa no IndexedDB é a autoridade do planner;
+- gravações contínuas usam apenas v2, e o marker ausente ou inválido é reparado
+  quando a metadata ativa for válida e o navegador permitir;
+- a UI exporta backup v2, restaura v2 e aceita importação de backup v1;
+  restaurar o padrão substitui somente dados ativos v2.
 
 ### Alvo
 
-- Etapa 1 adota IndexedDB com Dexie;
-- migração v1 validada, semanticamente conservadora, idempotente e não destrutiva;
-- backup v2 e restauração completos antes de arquivos locais.
-- backup/restauração v2 completos antes do cutover;
-- metadata ativa no IndexedDB como autoridade e marker externo como sentinel
-  contra fallback para v1 desatualizado.
+- Domínios temporais ganham persistência apenas quando fluxos reais os produzirem
+  e consumirem; arquivos locais, PWA e sincronização permanecem em etapas futuras.
 
 ## 13. Núcleo temporal
 
@@ -176,6 +173,5 @@ A definição visual exata permanece pendente de UX.
 
 ### Próxima evolução autorizável
 
-Após revisão e merge da 1.2C, somente uma autorização separada poderá iniciar a
-1.2D para bootstrap, marker, integração da UI e cutover. Até lá, a UI atual de
-backup v1 e o planner ativo continuam sem conexão com o v2 preparado.
+A Etapa 1.2D encerra a migração da persistência do planner legado. A Etapa 2
+continua sujeita a autorização própria; não foi iniciada por este cutover.
