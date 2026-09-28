@@ -1,6 +1,6 @@
 # Dayforge 2.0 — Documentação oficial de produto
 
-**Status:** Etapas 0.1, 0.2, 1.1 e 1.2A–1.2D implementadas; persistência v2 ativa no planner
+**Status:** Etapas 0.1, 0.2, 1.1, 1.2A–1.2D e 2A implementadas; persistência v2 ativa no planner
 **Data:** 28/09/2026
 **Objetivo:** transformar as decisões de produto, UX, domínio e arquitetura discutidas até aqui em uma fonte oficial de verdade para o repositório e para o Codex.
 
@@ -70,11 +70,12 @@ A Etapa B/B3 concluiu a fundação visual inicial do App Shell:
 - o núcleo TypeScript puro em `domain/temporal/` define templates, ocorrências,
   execução, reagendamento, estados terminais e disponibilidade mínima sem
   depender de React, browser ou persistência;
-- o conteúdo funcional antigo da página Hoje ainda é legado e será reformulado posteriormente.
+- a página Hoje apresenta contexto derivado somente para leitura; seus controles funcionais legados permanecem na visão secundária do dia completo.
 
 A Etapa 1.1 não integrou o novo domínio temporal ao planner legado. A Etapa 1.2
 foi implementada em quatro subetapas: fundação Dexie, migração validada,
 backup/restauração lógica v2 e bootstrap/cutover. O planner atual usa
 `planner/current` no IndexedDB com metadata ativa; `rotina-369:data:v1`
 permanece intacto e somente leitura. A tela de Dados e backup exporta v2 e
-aceita arquivos v2 e v1. Nenhuma funcionalidade da Etapa 2 foi iniciada.
+aceita arquivos v2 e v1. A Etapa 2A adiciona somente o read model contextual;
+execução e reagendamento canônicos não foram iniciados.

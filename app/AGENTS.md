@@ -11,22 +11,27 @@
 - `planner-context.tsx` owns shared client state and persistence lifecycle.
 - `planner-repository.ts` retains the v1 parsing and guard compatibility helpers plus JSON download; `persistence/` owns active IndexedDB storage and backup.
 - `planner-data.ts` owns only the versioned legacy v1 planner payload types, defaults, and its existing date/duration helpers. New product-domain contracts live in root `domain/`.
+- `today-context.ts` owns the pure, read-only projection of the active planner document into daily context; `today-context-view.tsx` owns the contextual Hoje presentation. Neither writes derived context.
 - `appearance.ts` owns appearance preferences, the offline capital catalog, solar calculations, and the standalone theme bootstrap; `theme-provider.tsx` owns their browser lifecycle.
 - Route folders own only their page composition; shared navigation belongs in `components/shell/navigation-config.tsx`.
 
 ## Local Contracts
 
 - Preserve the exact `rotina-369:data:v1` storage contract unless an explicit migration is approved.
-- Do not adapt the v1 planner payload to the root temporal domain before the separately approved Stage 1.2 migration.
+- Do not turn legacy v1 planner fields into canonical temporal facts without an explicitly approved migration; Stage 2A's legacy wall-clock projection is read-only.
 - A failed v1 read preserves the original stored value, blocks automatic writes, and keeps changes in memory with a persistent warning until explicit recovery through backup import or reset.
 - The planner uses the active v2 repository. The v1 repository helpers remain for compatibility tests and may not write the preserved v1 payload in the active UI.
 - After cutover, valid active IndexedDB metadata is authoritative and `dayforge:persistence:v2` is a fail-safe sentinel. Never fall back silently to the preserved but stale v1 payload when the marker is active or invalid.
 - Keep historical daily records independent from later routine edits.
+- The Stage 2A Hoje projection interprets legacy wall-clock times in the device IANA timezone at the UI boundary; the timezone is an explicit read-model argument and is never written as a legacy fact. End time at or before start rolls to the next civil day. A following entry with an exactly matching start/end boundary in the original list continues on that next day; unrelated entries retain their source date. Timed intervals remain half-open.
+- An unselected Hoje date follows the current device date across midnight; a user-selected date remains fixed until the user returns to today.
+- Hoje shows contextual sections first and retains the existing full-day legacy controls behind `Ver dia completo`; Stage 2A adds no new execution or rescheduling mutations.
+- Atenção flags a legacy item only when its projected interval ended and it has no completion record; this is a neutral request for user review, not an inferred failure or terminal temporal status.
 - New mocked domains must not be written into the v1 planner payload.
 - `/hoje` is the primary Hoje route; `/` remains a compatible entry point. Product areas use real, directly loadable App Router routes.
 - Backup, import, and reset controls belong under `/configuracoes/dados-e-backup`, never in primary navigation.
 - Keep backend, D1, Worker, and API changes outside frontend-only stages.
-- The delivered shell and visual stage are approved and closed. Reserved product routes remain staged areas, not authorization to implement the earlier roadmap. Further navigation changes and product work await the user's reformulated plan.
+- The delivered shell and visual stage are approved and closed. Stage 2A authorizes only the read-only contextual Hoje view; execution and rescheduling remain gated, and reserved product routes do not authorize unrelated work.
 
 ## Work Guidance
 

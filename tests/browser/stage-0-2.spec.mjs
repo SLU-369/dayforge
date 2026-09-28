@@ -29,6 +29,9 @@ test("payload v1 inválido permanece intacto durante a sessão temporária", asy
 
   await expect(page.locator(".storage-warning")).toContainText("dados locais foram preservados");
   await expect(page.locator(".storage-warning")).toContainText("não serão salvas");
+  await expect(page.getByRole("heading", { name: "Dados locais protegidos" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Agora" })).toHaveCount(0);
+  await page.getByText("Ver dia completo").click();
   await page.getByRole("button", { name: "Energia 4" }).click();
   await page.waitForTimeout(200);
 
@@ -41,6 +44,7 @@ test("payload estruturalmente inválido permanece protegido após reload", async
   await page.goto("/hoje");
 
   await expect(page.locator(".storage-warning")).toContainText("dados locais foram preservados");
+  await page.getByText("Ver dia completo").click();
   await page.getByRole("button", { name: "Energia 4" }).click();
   expect(await page.evaluate(() => localStorage.getItem("rotina-369:data:v1"))).toBe(raw);
 
@@ -79,6 +83,7 @@ test("backup v1 válido recupera armazenamento e ativa autosave v2", async ({ pa
   await expect(page.getByRole("status")).toContainText("Backup importado com sucesso");
 
   await page.goto("/hoje");
+  await page.getByText("Ver dia completo").click();
   await page.getByRole("button", { name: "Energia 4" }).click();
   await expect.poll(async () => Object.values((await readActivePlanner(page)).records)[0]?.energy).toBe(4);
   expect(await page.evaluate(() => localStorage.getItem("rotina-369:data:v1"))).toBe(raw);
@@ -89,6 +94,7 @@ test("primeiro uso exporta backup v2 e preserva v1 após edição", async ({ pag
   const raw = JSON.stringify(validPayload());
   await page.addInitScript((value) => localStorage.setItem("rotina-369:data:v1", value), raw);
   await page.goto("/hoje");
+  await page.getByText("Ver dia completo").click();
   await expect(page.getByRole("button", { name: "Energia 4" })).toBeVisible();
   await expect.poll(async () => (await readActivePlanner(page))?.version).toBe(1);
   await page.getByRole("button", { name: "Energia 4" }).click();

@@ -22,6 +22,8 @@ import {
   RoutineItem,
 } from "./planner-data";
 import { usePlanner } from "./planner-context";
+import { deriveTodayContext } from "./today-context";
+import { TodayContextView } from "./today-context-view";
 
 export type PlannerView = "hoje" | "mes" | "rotina";
 type EditorTarget = { type: "day" | "routine"; item?: RoutineItem; index?: number } | null;
@@ -61,15 +63,36 @@ function itemMinutes(item: RoutineItem) {
 }
 
 export default function PlannerApp({ view = "hoje", initialDate }: { view?: PlannerView; initialDate?: string }) {
-  const { state, setState, ready, notify } = usePlanner();
+  const { state, setState, ready, storageBlocked, notify } = usePlanner();
   const router = useRouter();
   const searchParams = useSearchParams();
   const requestedDate = searchParams.get("date");
   const validRequestedDate = requestedDate && /^\d{4}-\d{2}-\d{2}$/.test(requestedDate) ? requestedDate : undefined;
-  const [selectedDate, setSelectedDate] = useState(() => initialDate ?? validRequestedDate ?? localISO(new Date()));
+  const [selectedDateOverride, setSelectedDateOverride] = useState<string | null>(() => initialDate ?? validRequestedDate ?? null);
   const [monthDate, setMonthDate] = useState(() => { const today = new Date(); return new Date(today.getFullYear(), today.getMonth(), 1); });
   const [routineDay, setRoutineDay] = useState<DayKey>(() => dayKeyFor(new Date()));
   const [editor, setEditor] = useState<EditorTarget>(() => searchParams.get("new") === "activity" ? { type: "day" } : null);
+  const [referenceTime, setReferenceTime] = useState(() => new Date());
+  const deviceTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const selectedDate = selectedDateOverride ?? localISO(referenceTime);
+
+  function selectDate(date: Date) {
+    const dateISO = localISO(date);
+    setSelectedDateOverride(dateISO === localISO(new Date()) ? null : dateISO);
+  }
+
+  useEffect(() => {
+    if (view !== "hoje") return;
+    const refresh = () => setReferenceTime(new Date());
+    const interval = window.setInterval(refresh, 30_000);
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, [view]);
 
   useEffect(() => {
     if (searchParams.get("new") === "activity") {
@@ -79,7 +102,16 @@ export default function PlannerApp({ view = "hoje", initialDate }: { view?: Plan
 
   const record = selectedDate ? state.records[selectedDate] || cloneDay(state, selectedDate) : undefined;
   const selectedDateObject = selectedDate ? parseISO(selectedDate) : new Date();
-  const todayISO = ready ? localISO(new Date()) : "";
+  const todayISO = ready ? localISO(referenceTime) : "";
+
+  const todayContext = useMemo(() => {
+    if (view !== "hoje" || !selectedDate || storageBlocked) return { context: null, error: false };
+    try {
+      return { context: deriveTodayContext(state, referenceTime, deviceTimeZone, selectedDate), error: false };
+    } catch {
+      return { context: null, error: true };
+    }
+  }, [view, selectedDate, storageBlocked, state, referenceTime, deviceTimeZone]);
 
   const metrics = useMemo(() => {
     if (!record) return { planned: 0, completed: 0, focus: 0, count: 0, done: 0 };
@@ -156,18 +188,25 @@ export default function PlannerApp({ view = "hoje", initialDate }: { view?: Plan
     <>
       <div className="view-stage" key={view}>
           {view === "hoje" && (
-            <TodayView
-              record={record!}
+            <TodayContextView
+              context={todayContext.context}
               selectedDate={selectedDateObject}
-              todayISO={todayISO}
-              metrics={metrics}
-              onDate={(date) => setSelectedDate(localISO(date))}
-              onToggle={toggleItem}
-              onEdit={(item, index) => setEditor({ type: "day", item, index })}
-              onDelete={(index) => deleteItem(index, "day")}
-              onAdd={() => setEditor({ type: "day" })}
-              onNote={(note) => updateRecord((current) => ({ ...current, note }))}
-              onEnergy={(energy) => updateRecord((current) => ({ ...current, energy }))}
+              onDate={selectDate}
+              blocked={storageBlocked}
+              error={todayContext.error}
+              details={todayContext.error ? null : <TodayView
+                record={record!}
+                selectedDate={selectedDateObject}
+                todayISO={todayISO}
+                metrics={metrics}
+                onDate={selectDate}
+                onToggle={toggleItem}
+                onEdit={(item, index) => setEditor({ type: "day", item, index })}
+                onDelete={(index) => deleteItem(index, "day")}
+                onAdd={() => setEditor({ type: "day" })}
+                onNote={(note) => updateRecord((current) => ({ ...current, note }))}
+                onEnergy={(energy) => updateRecord((current) => ({ ...current, energy }))}
+              />}
             />
           )}
           {view === "mes" && (

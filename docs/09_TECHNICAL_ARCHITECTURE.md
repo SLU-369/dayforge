@@ -10,16 +10,16 @@ Este documento separa arquitetura atual, direção aprovada e tecnologia futura.
 - APIs App Router compiladas por Vinext/Vite;
 - Tailwind CSS 4, CSS próprio e CSS Modules;
 - estado React por Context e hooks;
-- persistência principal em `localStorage`, payload `rotina-369:data:v1`;
+- IndexedDB/Dexie v2 como autoridade operacional do planner; `rotina-369:data:v1` preservado em `localStorage` somente para leitura legada, sem fallback automático;
 - preferências de aparência em chaves locais separadas;
-- leitura inválida do payload v1 bloqueia autosave e mantém alterações temporárias em memória até recuperação explícita;
+- falha de bootstrap, banco ou metadata v2 bloqueia autosave e mantém alterações temporárias em memória até recuperação explícita;
 - Worker apenas para runtime Vinext e otimização de imagens;
 - Drizzle/D1 preparado, mas schema e bindings de produção vazios;
 - CI executa verificação do master, lint, typecheck, build e testes;
 - núcleo temporal puro em `domain/temporal/`, com valores validados, templates
   semanais, ocorrências independentes, execução, reagendamento append-only,
   transições terminais e contratos mínimos de disponibilidade;
-- nenhum backend de domínio, API, autenticação, sincronização ou banco ativo.
+- nenhum backend de domínio, API, autenticação, sincronização ou banco servidor ativo.
 
 ## 3. Frontend local v2
 
@@ -39,6 +39,16 @@ Repositórios
 - persistência e backup
 - adaptação do payload legado
 ```
+
+A Etapa 2A deriva o contexto de Hoje em memória a partir do `planner/current`,
+que ainda carrega o snapshot legado v1. O adaptador de leitura recebe instante e
+fuso IANA explícitos, interpreta horários locais sem persistir inferências e
+não cria registros temporais canônicos nem novas tabelas. Uma entrada contígua
+após intervalo que cruza meia-noite continua no dia civil seguinte quando a
+fronteira de horários coincide na ordem original da lista; entradas sem essa
+evidência permanecem no dia de origem. A UI acompanha a virada de dia enquanto
+Hoje não possui seleção explícita e mantém os controles legados na visão
+secundária do dia completo.
 
 ## 4. Persistência local v2
 
