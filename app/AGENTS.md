@@ -23,7 +23,8 @@
 - The planner uses the active v2 repository. The v1 repository helpers remain for compatibility tests and may not write the preserved v1 payload in the active UI.
 - After cutover, valid active IndexedDB metadata is authoritative and `dayforge:persistence:v2` is a fail-safe sentinel. Never fall back silently to the preserved but stale v1 payload when the marker is active or invalid.
 - Keep historical daily records independent from later routine edits.
-- The Stage 2A Hoje projection interprets legacy wall-clock times in the device IANA timezone at the UI boundary; the timezone is an explicit read-model argument and is never written as a legacy fact. End time at or before start rolls to the next civil day, and timed intervals remain half-open.
+- The Stage 2A Hoje projection interprets legacy wall-clock times in the device IANA timezone at the UI boundary; the timezone is an explicit read-model argument and is never written as a legacy fact. End time at or before start rolls to the next civil day. A following entry with an exactly matching start/end boundary in the original list continues on that next day; unrelated entries retain their source date. Timed intervals remain half-open.
+- An unselected Hoje date follows the current device date across midnight; a user-selected date remains fixed until the user returns to today.
 - Hoje shows contextual sections first and retains the existing full-day legacy controls behind `Ver dia completo`; Stage 2A adds no new execution or rescheduling mutations.
 - Atenção flags a legacy item only when its projected interval ended and it has no completion record; this is a neutral request for user review, not an inferred failure or terminal temporal status.
 - New mocked domains must not be written into the v1 planner payload.

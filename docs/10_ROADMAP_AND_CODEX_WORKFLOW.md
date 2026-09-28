@@ -208,7 +208,11 @@ visão à página Hoje com estados de carregamento, vazio, erro e dados válidos
 O `planner/current` v2 ainda possui formato legado v1; a 2A pode projetar seus
 horários locais apenas para leitura no fuso IANA do dispositivo, passado
 explicitamente ao read model. Horário final igual ou anterior ao inicial
-atravessa a meia-noite. Não persistir timezone, status temporal inferido nem
+atravessa a meia-noite. Uma entrada seguinte cujo início coincide exatamente
+com o fim desse intervalo segue para o próximo dia civil na ordem original da
+lista; sem essa evidência, permanece no dia de origem. A data Hoje acompanha
+a virada de dia quando não há seleção explícita e preserva uma data escolhida
+pelo usuário. Não persistir timezone, status temporal inferido nem
 `ScheduleOccurrence` a partir dessa projeção. Em transições de horário de
 verão, escolher a primeira ocorrência de um horário ambíguo e avançar um
 horário inexistente; intervalos não representáveis bloqueiam a projeção.

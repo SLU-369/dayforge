@@ -68,3 +68,16 @@ test("horário legado não interpretável mostra erro sem perder o planner", asy
   await expect(page.getByText("Ver dia completo")).toHaveCount(0);
   expect(await page.evaluate(() => localStorage.getItem("rotina-369:data:v1"))).toBe(payload);
 });
+
+test("Hoje acompanha a virada do dia sem sobrescrever a data escolhida", async ({ page }) => {
+  await page.clock.install({ time: new Date("2026-09-29T02:59:30.000Z") });
+  await page.goto("/hoje");
+  await expect(page.getByRole("region", { name: "Resumo" })).toBeVisible();
+  await expect(page.locator(".date-control .date-main").first()).toContainText("28 de setembro");
+  await page.clock.fastForward(60_000);
+  await expect(page.locator(".date-control .date-main").first()).toContainText("29 de setembro");
+  await page.getByRole("button", { name: "Dia anterior" }).first().click();
+  await expect(page.locator(".date-control .date-main").first()).toContainText("28 de setembro");
+  await page.clock.fastForward(24 * 60 * 60_000);
+  await expect(page.locator(".date-control .date-main").first()).toContainText("28 de setembro");
+});

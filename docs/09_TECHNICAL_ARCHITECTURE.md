@@ -43,8 +43,12 @@ Repositórios
 A Etapa 2A deriva o contexto de Hoje em memória a partir do `planner/current`,
 que ainda carrega o snapshot legado v1. O adaptador de leitura recebe instante e
 fuso IANA explícitos, interpreta horários locais sem persistir inferências e
-não cria registros temporais canônicos nem novas tabelas. A UI mantém os
-controles legados na visão secundária do dia completo.
+não cria registros temporais canônicos nem novas tabelas. Uma entrada contígua
+após intervalo que cruza meia-noite continua no dia civil seguinte quando a
+fronteira de horários coincide na ordem original da lista; entradas sem essa
+evidência permanecem no dia de origem. A UI acompanha a virada de dia enquanto
+Hoje não possui seleção explícita e mantém os controles legados na visão
+secundária do dia completo.
 
 ## 4. Persistência local v2
 

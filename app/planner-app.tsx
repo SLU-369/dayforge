@@ -68,12 +68,18 @@ export default function PlannerApp({ view = "hoje", initialDate }: { view?: Plan
   const searchParams = useSearchParams();
   const requestedDate = searchParams.get("date");
   const validRequestedDate = requestedDate && /^\d{4}-\d{2}-\d{2}$/.test(requestedDate) ? requestedDate : undefined;
-  const [selectedDate, setSelectedDate] = useState(() => initialDate ?? validRequestedDate ?? localISO(new Date()));
+  const [selectedDateOverride, setSelectedDateOverride] = useState<string | null>(() => initialDate ?? validRequestedDate ?? null);
   const [monthDate, setMonthDate] = useState(() => { const today = new Date(); return new Date(today.getFullYear(), today.getMonth(), 1); });
   const [routineDay, setRoutineDay] = useState<DayKey>(() => dayKeyFor(new Date()));
   const [editor, setEditor] = useState<EditorTarget>(() => searchParams.get("new") === "activity" ? { type: "day" } : null);
   const [referenceTime, setReferenceTime] = useState(() => new Date());
   const deviceTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const selectedDate = selectedDateOverride ?? localISO(referenceTime);
+
+  function selectDate(date: Date) {
+    const dateISO = localISO(date);
+    setSelectedDateOverride(dateISO === localISO(new Date()) ? null : dateISO);
+  }
 
   useEffect(() => {
     if (view !== "hoje") return;
@@ -185,7 +191,7 @@ export default function PlannerApp({ view = "hoje", initialDate }: { view?: Plan
             <TodayContextView
               context={todayContext.context}
               selectedDate={selectedDateObject}
-              onDate={(date) => setSelectedDate(localISO(date))}
+              onDate={selectDate}
               blocked={storageBlocked}
               error={todayContext.error}
               details={todayContext.error ? null : <TodayView
@@ -193,7 +199,7 @@ export default function PlannerApp({ view = "hoje", initialDate }: { view?: Plan
                 selectedDate={selectedDateObject}
                 todayISO={todayISO}
                 metrics={metrics}
-                onDate={(date) => setSelectedDate(localISO(date))}
+                onDate={selectDate}
                 onToggle={toggleItem}
                 onEdit={(item, index) => setEditor({ type: "day", item, index })}
                 onDelete={(index) => deleteItem(index, "day")}

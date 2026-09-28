@@ -83,6 +83,41 @@ test("outro dia não contamina o contexto; item que cruza meia-noite aparece no 
   assert.equal(deriveTodayContext(state, at(29, 1), timeZone, "2026-09-29").agora, null);
 });
 
+test("sequência legada contígua após meia-noite permanece no dia civil seguinte", () => {
+  const state = stateWith([
+    item("night", "22:00", "00:00"),
+    item("course", "00:00", "01:30"),
+    item("sleep", "01:30", "02:00"),
+  ]);
+  const mondayContext = deriveTodayContext(state, at(28, 23), timeZone);
+  assert.equal(mondayContext.resumo.total, 1);
+  assert.equal(mondayContext.agora?.title, "night");
+  const tuesdayContext = deriveTodayContext(state, at(29, 0, 30), timeZone, "2026-09-29");
+  assert.equal(tuesdayContext.agora?.title, "course");
+  assert.equal(tuesdayContext.proximo?.title, "sleep");
+  assert.deepEqual(tuesdayContext.resumo, { total: 2, completed: 0, active: 1, future: 1, attention: 0 });
+  assert.equal(tuesdayContext.agora?.sourceDate, monday);
+  assert.equal(deriveTodayContext(state, at(29, 1, 30), timeZone, "2026-09-29").agora?.title, "sleep");
+});
+
+test("rotina padrão de sexta projeta Git e sono no sábado de madrugada", () => {
+  const context = deriveTodayContext(
+    createDefaultState(), new Date("2026-10-03T03:45:00.000Z"), "America/Sao_Paulo", "2026-10-03",
+  );
+  assert.equal(context.agora?.title, "Estudo · Git e GitHub");
+  assert.equal(context.agora?.sourceDate, "2026-10-02");
+  assert.equal(context.proximo?.title, "Desligar e dormir");
+});
+
+test("sequência sem fronteira contígua não inventa a data de um item legado", () => {
+  const state = stateWith([
+    item("night", "22:00", "00:00"), item("course", "00:00", "01:30"),
+    item("independent", "03:00", "04:00"),
+  ]);
+  assert.equal(deriveTodayContext(state, at(28, 3, 30), timeZone).agora?.title, "independent");
+  assert.equal(deriveTodayContext(state, at(29, 0, 45), timeZone, "2026-09-29").resumo.total, 1);
+});
+
 test("conclusão legada permanece factual e não entra nas filas futuras", () => {
   const context = deriveTodayContext(stateWith([item("done", "09:00", "10:00", true)]), at(28, 8), timeZone);
   assert.equal(context.proximo, null);

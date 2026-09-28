@@ -113,13 +113,13 @@ function entriesForDay(state: PlannerState, date: string): readonly (RoutineItem
   return state.routine[dayKey(date)];
 }
 
-function projectItem(entry: RoutineItem | DailyItem, sourceDate: string, formatter: Intl.DateTimeFormat): TodayContextItem {
-  const source = civilParts(sourceDate);
+function projectItem(entry: RoutineItem | DailyItem, sourceDate: string, formatter: Intl.DateTimeFormat, dayOffset = 0): TodayContextItem {
+  const source = civilParts(dayOffset ? shiftDate(sourceDate, dayOffset) : sourceDate);
   const [startHour, startMinute] = timeParts(entry.start);
   const [endHour, endMinute] = timeParts(entry.end);
   const starts = zonedEpoch({ ...source, hour: startHour, minute: startMinute }, formatter);
   const crossesMidnight = endHour * 60 + endMinute <= startHour * 60 + startMinute;
-  const endSource = crossesMidnight ? civilParts(shiftDate(sourceDate, 1)) : source;
+  const endSource = crossesMidnight ? civilParts(shiftDate(sourceDate, dayOffset + 1)) : source;
   const ends = zonedEpoch({ ...endSource, hour: endHour, minute: endMinute }, formatter);
   if (ends <= starts) throw new Error("Intervalo legado inválido para a visão Hoje.");
   return {
@@ -134,6 +134,23 @@ function projectItem(entry: RoutineItem | DailyItem, sourceDate: string, formatt
     endsAt: new Date(ends).toISOString(),
     completed: "completed" in entry && entry.completed,
   };
+}
+
+function projectDay(state: PlannerState, sourceDate: string, formatter: Intl.DateTimeFormat): TodayContextItem[] {
+  const entries = entriesForDay(state, sourceDate);
+  let dayOffset = 0;
+  return entries.map((entry, index) => {
+    const previous = entries[index - 1];
+    if (previous) {
+      const [previousStartHour, previousStartMinute] = timeParts(previous.start);
+      const [previousEndHour, previousEndMinute] = timeParts(previous.end);
+      const crossesMidnight = previousEndHour * 60 + previousEndMinute <= previousStartHour * 60 + previousStartMinute;
+      // A contiguous entry after a midnight crossing belongs to the next civil day.
+      // This uses only the legacy list's explicit order and matching boundary.
+      dayOffset = entry.start === previous.end && (dayOffset === 1 || crossesMidnight) ? 1 : 0;
+    }
+    return projectItem(entry, sourceDate, formatter, dayOffset);
+  });
 }
 
 function bySchedule(left: TodayContextItem, right: TodayContextItem) {
@@ -157,8 +174,8 @@ export function deriveTodayContext(state: PlannerState, referenceTime: Date, tim
   const dayEnd = zonedEpoch(civilParts(shiftDate(date, 1)), formatter);
   const previousDate = shiftDate(date, -1);
   const items = [
-    ...entriesForDay(state, previousDate).map((entry) => projectItem(entry, previousDate, formatter)),
-    ...entriesForDay(state, date).map((entry) => projectItem(entry, date, formatter)),
+    ...projectDay(state, previousDate, formatter),
+    ...projectDay(state, date, formatter),
   ].filter((entry) => Date.parse(entry.startsAt) < dayEnd && Date.parse(entry.endsAt) > dayStart)
     .sort(bySchedule);
   const pending = items.filter((entry) => !entry.completed);
