@@ -125,6 +125,7 @@ async function assertPersistedMigration(
   rawFingerprint: string,
   contentFingerprint: string,
   origin: LegacyImportOrigin,
+  active: boolean,
 ) {
   const [databaseMetadata, persistedSource, persistedCurrent, persistedMetadata] =
     await Promise.all([
@@ -133,7 +134,7 @@ async function assertPersistedMigration(
       transaction.getPlannerDocument(CURRENT_PLANNER_DOCUMENT_ID),
       transaction.getMetadata(metadataKey),
     ]);
-  if (databaseMetadata.activeDocumentId !== null
+  if (databaseMetadata.activeDocumentId !== (active ? CURRENT_PLANNER_DOCUMENT_ID : null)
     || persistedSource === null
     || persistedCurrent === null
     || persistedMetadata === null
@@ -158,6 +159,8 @@ export async function migrateLegacyPlannerV1(options: Readonly<{
   repository: LocalPersistenceRepository;
   hasher?: Sha256Hasher;
   origin?: LegacyImportOrigin;
+  active?: boolean;
+  afterWriteForTest?: () => void;
 }>): Promise<LegacyV1MigrationResult> {
   assertCanonicalUtcInstant(options.migratedAt);
   const snapshot = parseLegacyPlannerSnapshotV1(options.raw);
@@ -179,9 +182,10 @@ export async function migrateLegacyPlannerV1(options: Readonly<{
     `${LEGACY_V1_MIGRATION_KEY_PREFIX}${contentFingerprint}`;
 
   return options.repository.write(async (transaction) => {
-    if ((await transaction.getDatabaseMetadata()).activeDocumentId !== null) {
+    if ((await transaction.getDatabaseMetadata()).activeDocumentId
+      !== (options.active ? CURRENT_PLANNER_DOCUMENT_ID : null)) {
       throw new LegacyV1MigrationIntegrityError(
-        "A migração v1 exige que a persistência v2 permaneça inativa.",
+        "A autoridade do banco v2 não corresponde ao modo de importação v1.",
       );
     }
     const existingSource = await transaction.getPlannerDocument(source.id);
@@ -223,6 +227,7 @@ export async function migrateLegacyPlannerV1(options: Readonly<{
           importOrigins: [...latestMetadata.importOrigins, origin].sort(),
         });
       }
+      options.afterWriteForTest?.();
       await assertPersistedMigration(
         transaction,
         source,
@@ -231,6 +236,7 @@ export async function migrateLegacyPlannerV1(options: Readonly<{
         rawFingerprint,
         contentFingerprint,
         origin,
+        options.active === true,
       );
 
       return {
@@ -257,6 +263,7 @@ export async function migrateLegacyPlannerV1(options: Readonly<{
     };
     await transaction.putPlannerDocument(current);
     await transaction.putMetadata(metadata);
+    options.afterWriteForTest?.();
     await assertPersistedMigration(
       transaction,
       source,
@@ -265,6 +272,7 @@ export async function migrateLegacyPlannerV1(options: Readonly<{
       rawFingerprint,
       contentFingerprint,
       origin,
+      options.active === true,
     );
 
     return {

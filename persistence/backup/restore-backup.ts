@@ -22,6 +22,7 @@ import {
 } from "./codecs.ts";
 import {
   assertInactiveDatabaseMetadata,
+  assertActiveDatabaseMetadata,
   assertPersistedMaterializedBackup,
   validateAndMaterializeBackupV2,
 } from "./integrity.ts";
@@ -35,6 +36,7 @@ export async function restoreDayforgeBackupV2(options: Readonly<{
   repository: LocalPersistenceRepository;
   hasher?: Sha256Hasher;
   afterWriteForTest?: () => void;
+  active?: boolean;
 }>): Promise<RestoreBackupResult> {
   const decoded = decodeDayforgeBackupV2(options.backup);
   const hasher = options.hasher ?? new WebCryptoSha256Hasher();
@@ -42,7 +44,8 @@ export async function restoreDayforgeBackupV2(options: Readonly<{
 
   await options.repository.write(async (transaction) => {
     const databaseMetadata = await transaction.getDatabaseMetadata();
-    assertInactiveDatabaseMetadata(databaseMetadata);
+    if (options.active) assertActiveDatabaseMetadata(databaseMetadata);
+    else assertInactiveDatabaseMetadata(databaseMetadata);
     const [documents, metadata] = await Promise.all([
       transaction.listPlannerDocuments(),
       transaction.listMetadata(),
@@ -68,7 +71,7 @@ export async function restoreDayforgeBackupV2(options: Readonly<{
     }
 
     options.afterWriteForTest?.();
-    await assertPersistedMaterializedBackup(transaction, materialized);
+    await assertPersistedMaterializedBackup(transaction, materialized, options.active);
   });
 
   return {

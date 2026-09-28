@@ -73,6 +73,11 @@ function normalizePlannerState(payload: PlannerStateV1Payload): PlannerState {
   return { ...payload, monthlyGoals: payload.monthlyGoals ?? {} };
 }
 
+export function decodePlannerState(value: unknown): PlannerState {
+  if (!isPlannerStateV1(value)) throw new Error("Formato de dados inválido");
+  return normalizePlannerState(value);
+}
+
 export function readPlannerState(): PlannerReadResult {
   try {
     const saved = localStorage.getItem(PLANNER_STORAGE_KEY);
@@ -101,7 +106,11 @@ export function replacePlannerState(state: PlannerState) {
 }
 
 export function downloadPlannerBackup(state: PlannerState) {
-  const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
+  downloadJsonBackup(state);
+}
+
+export function downloadJsonBackup(value: unknown) {
+  const blob = new Blob([JSON.stringify(value, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   const today = new Date();
