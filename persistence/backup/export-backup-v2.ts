@@ -10,9 +10,10 @@ export async function exportDayforgeBackupV2(options: Readonly<{
   repository: LocalPersistenceRepository;
   exportedAt: string;
   hasher?: Sha256Hasher;
+  active?: boolean;
 }>): Promise<DayforgeBackupV2> {
   const hasher = options.hasher ?? new WebCryptoSha256Hasher();
-  const snapshot = await options.repository.read((transaction) => readBackupSnapshot(transaction));
+  const snapshot = await options.repository.read((transaction) => readBackupSnapshot(transaction, options.active));
   const backup = decodeDayforgeBackupV2({
     format: "dayforge-backup",
     formatVersion: 2,

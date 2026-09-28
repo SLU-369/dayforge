@@ -64,6 +64,21 @@ export function assertInactiveDatabaseMetadata(metadata: Readonly<{
   }
 }
 
+export function assertActiveDatabaseMetadata(metadata: Readonly<{
+  persistenceGeneration: number;
+  schemaVersion: number;
+  activeDocumentId: string | null;
+}>) {
+  if (metadata.persistenceGeneration !== PERSISTENCE_GENERATION
+    || metadata.schemaVersion !== DEXIE_SCHEMA_VERSION
+    || metadata.activeDocumentId !== CURRENT_PLANNER_DOCUMENT_ID) {
+    throw new BackupValidationError(
+      "invalid_backup_database_state",
+      "O banco v2 precisa estar ativo e compatível.",
+    );
+  }
+}
+
 function sameJson(left: Parameters<typeof canonicalStringify>[0], right: Parameters<typeof canonicalStringify>[0]) {
   return canonicalStringify(left) === canonicalStringify(right);
 }
@@ -211,9 +226,11 @@ function decodePersistedSource(document: PlannerDocumentRecord): LegacyMigration
 
 export async function readBackupSnapshot(
   transaction: PersistenceReadTransaction,
+  active = false,
 ) {
   const databaseMetadata = await transaction.getDatabaseMetadata();
-  assertInactiveDatabaseMetadata(databaseMetadata);
+  if (active) assertActiveDatabaseMetadata(databaseMetadata);
+  else assertInactiveDatabaseMetadata(databaseMetadata);
   const [current, documents, metadata] = await Promise.all([
     transaction.getPlannerDocument(CURRENT_PLANNER_DOCUMENT_ID),
     transaction.listPlannerDocuments(),
@@ -289,9 +306,11 @@ export async function readBackupSnapshot(
 export async function assertPersistedMaterializedBackup(
   transaction: PersistenceReadTransaction,
   materialized: MaterializedBackupState,
+  active = false,
 ) {
   const databaseMetadata = await transaction.getDatabaseMetadata();
-  assertInactiveDatabaseMetadata(databaseMetadata);
+  if (active) assertActiveDatabaseMetadata(databaseMetadata);
+  else assertInactiveDatabaseMetadata(databaseMetadata);
   const [documents, metadata] = await Promise.all([
     transaction.listPlannerDocuments(),
     transaction.listMetadata(),

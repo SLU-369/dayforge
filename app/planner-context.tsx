@@ -6,79 +6,156 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type Dispatch,
   type ReactNode,
   type SetStateAction,
 } from "react";
 import { createDefaultState, type PlannerState } from "./planner-data";
+import { decodePlannerState, downloadJsonBackup } from "./planner-repository";
 import {
-  readPlannerState,
-  replacePlannerState,
-  writePlannerState,
-  type PlannerStorageStatus,
-} from "./planner-repository";
+  IndexedDbPersistenceRepository,
+  bootstrapPlannerV2,
+  exportDayforgeBackupV2,
+  recoverPlannerV2,
+  resetPlannerV2,
+  saveActivePlannerV2,
+  type NormalizedLegacyPlannerV1,
+} from "@/persistence";
 
 type PlannerContextValue = {
   state: PlannerState;
   setState: Dispatch<SetStateAction<PlannerState>>;
-  recoverState: (state: PlannerState) => boolean;
+  exportBackup: () => Promise<boolean>;
+  importBackup: (raw: string) => Promise<boolean>;
+  resetData: () => Promise<boolean>;
   ready: boolean;
   storageBlocked: boolean;
+  storageWarning: string;
   toast: string;
   notify: (message: string) => void;
 };
 
 const PlannerContext = createContext<PlannerContextValue | null>(null);
+const BLOCKED_MESSAGE = "Os dados locais foram preservados. Alterações desta sessão não serão salvas. Importe um backup válido ou restaure o padrão em Dados e backup.";
+const MARKER_WARNING = "O marcador local não pôde ser reparado. Exporte um backup antes de limpar os dados do navegador.";
+const browserStorage = {
+  getItem(key: string) { return window.localStorage.getItem(key); },
+  setItem(key: string, value: string) { window.localStorage.setItem(key, value); },
+};
+
+function toPlannerState(snapshot: NormalizedLegacyPlannerV1): PlannerState {
+  const parsed: unknown = JSON.parse(JSON.stringify(snapshot));
+  return decodePlannerState(parsed);
+}
 
 export function PlannerProvider({ children }: Readonly<{ children: ReactNode }>) {
+  const [repository] = useState(() => new IndexedDbPersistenceRepository());
   const [state, setState] = useState<PlannerState>(() => createDefaultState());
   const [ready, setReady] = useState(false);
-  const [storageStatus, setStorageStatus] = useState<PlannerStorageStatus>("ready");
+  const [storageBlocked, setStorageBlocked] = useState(false);
+  const [storageWarning, setStorageWarning] = useState("");
   const [toast, setToast] = useState("");
+  const saveQueue = useRef<Promise<void>>(Promise.resolve());
+  const writesBlocked = useRef(false);
+  const bootPromise = useRef<ReturnType<typeof bootstrapPlannerV2> | null>(null);
 
   const notify = useCallback((message: string) => setToast(message), []);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      try {
-        const result = readPlannerState();
-        setState(result.state);
-        setStorageStatus(result.storageStatus);
-        if (result.storageStatus === "blocked") {
-          notify("Os dados originais foram preservados. Alterações desta sessão não serão salvas.");
-        }
-      } catch {
-        setStorageStatus("blocked");
-        notify("O navegador bloqueou o acesso aos dados. Alterações desta sessão não serão salvas.");
-      }
+    let cancelled = false;
+    bootPromise.current ??= bootstrapPlannerV2({
+      repository,
+      legacyStorage: browserStorage,
+      markerStorage: browserStorage,
+      defaultState: createDefaultState(),
+      instant: new Date().toISOString(),
+    });
+    bootPromise.current.then((result) => {
+      if (cancelled) return;
+      setState(toPlannerState(result.state));
+      if (!result.markerRepaired) setStorageWarning(MARKER_WARNING);
       setReady(true);
-    }, 0);
-
-    return () => window.clearTimeout(timer);
-  }, [notify]);
+    }).catch(() => {
+      if (cancelled) return;
+      writesBlocked.current = true;
+      setStorageBlocked(true);
+      setStorageWarning(BLOCKED_MESSAGE);
+      setReady(true);
+    });
+    return () => { cancelled = true; };
+  }, [repository]);
 
   useEffect(() => {
-    if (!ready || storageStatus === "blocked") return;
-    try {
-      writePlannerState(state, storageStatus);
-    } catch {
-      const timer = window.setTimeout(() => notify("O navegador não conseguiu salvar esta alteração."), 0);
-      return () => window.clearTimeout(timer);
-    }
-  }, [state, ready, storageStatus, notify]);
+    if (!ready || storageBlocked) return;
+    const next = saveQueue.current.then(() => {
+      if (writesBlocked.current) return;
+      return saveActivePlannerV2({ repository, state });
+    });
+    saveQueue.current = next.catch(() => {
+      writesBlocked.current = true;
+      setStorageBlocked(true);
+      setStorageWarning(BLOCKED_MESSAGE);
+    });
+  }, [repository, state, ready, storageBlocked]);
 
-  const recoverState = useCallback((nextState: PlannerState) => {
+  const exportBackup = useCallback(async () => {
     try {
-      replacePlannerState(nextState);
-      setState(nextState);
-      setStorageStatus("ready");
+      await saveQueue.current;
+      if (writesBlocked.current) throw new Error("Planner persistence is blocked");
+      const backup = await exportDayforgeBackupV2({
+        repository,
+        exportedAt: new Date().toISOString(),
+        active: true,
+      });
+      downloadJsonBackup(backup);
       return true;
     } catch {
-      notify("O navegador não conseguiu substituir os dados locais.");
+      notify("Não foi possível exportar o backup. Os dados locais foram preservados.");
       return false;
     }
-  }, [notify]);
+  }, [repository, notify]);
+
+  const importBackup = useCallback(async (raw: string) => {
+    try {
+      await saveQueue.current;
+      const restored = await recoverPlannerV2({
+        repository,
+        markerStorage: browserStorage,
+        input: raw,
+        instant: new Date().toISOString(),
+      });
+      setState(toPlannerState(restored.state));
+      writesBlocked.current = false;
+      setStorageBlocked(false);
+      setStorageWarning(restored.markerRepaired ? "" : MARKER_WARNING);
+      return true;
+    } catch {
+      notify("Esse arquivo não é um backup válido ou o armazenamento local não está disponível.");
+      return false;
+    }
+  }, [repository, notify]);
+
+  const resetData = useCallback(async () => {
+    try {
+      await saveQueue.current;
+      const restored = await resetPlannerV2({
+        repository,
+        markerStorage: browserStorage,
+        defaultState: createDefaultState(),
+        instant: new Date().toISOString(),
+      });
+      setState(toPlannerState(restored.state));
+      writesBlocked.current = false;
+      setStorageBlocked(false);
+      setStorageWarning(restored.markerRepaired ? "" : MARKER_WARNING);
+      return true;
+    } catch {
+      notify("Não foi possível restaurar os dados locais. O conteúdo anterior foi preservado.");
+      return false;
+    }
+  }, [repository, notify]);
 
   useEffect(() => {
     if (!toast) return;
@@ -87,11 +164,16 @@ export function PlannerProvider({ children }: Readonly<{ children: ReactNode }>)
   }, [toast]);
 
   const value = useMemo(
-    () => ({ state, setState, recoverState, ready, storageBlocked: storageStatus === "blocked", toast, notify }),
-    [state, recoverState, ready, storageStatus, toast, notify],
+    () => ({ state, setState, exportBackup, importBackup, resetData, ready, storageBlocked, storageWarning, toast, notify }),
+    [state, exportBackup, importBackup, resetData, ready, storageBlocked, storageWarning, toast, notify],
   );
 
-  return <PlannerContext.Provider value={value}>{children}</PlannerContext.Provider>;
+  return (
+    <PlannerContext.Provider value={value}>
+      {storageWarning && <div role="alert" className="storage-warning">{storageWarning}</div>}
+      {children}
+    </PlannerContext.Provider>
+  );
 }
 
 export function usePlanner() {
