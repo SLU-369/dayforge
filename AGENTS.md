@@ -209,3 +209,117 @@ If a future OpenAI API integration is added, use the environment name `OPENAI_AP
 - **Execução por Etapa**: Implemente somente a etapa explicitamente autorizada, apresente os commits e pare antes de iniciar a próxima.
 - **Nomes de Branch e Commit**: Nunca use a palavra `codex` em nomes de branches ou mensagens de commit.
 
+## Segurança (SEC-CHECK)
+
+Todo código escrito ou editado neste repo deve seguir as 12 regras de
+
+`docs/checklist-seguranca.md` (secrets, injection, IV/OE, authn/authz,
+
+fail secure, deps, headers, rate limit, IDOR/SSRF, logging).
+
+Se violar alguma, avise antes de entregar.
+
+## Segurança e Design de Código (SEC-CHECK)
+
+Você deve aplicar estas regras automaticamente sempre que criar, editar ou
+revisar qualquer código neste repositório — não espere o usuário pedir.
+
+## Fluxo de git (obrigatório)
+
+**NUNCA commite direto na `main`.** Antes da primeira alteração de código:
+
+1. `git checkout -b <tipo>/<descricao-curta>` — tipo é `feat`, `fix`, `chore`,
+   `docs` ou `refactor`.
+2. Commite na branch. Mensagem em Conventional Commits, corpo em português
+   explicando o **porquê**, não o quê.
+3. `git push -u origin <branch>`
+4. `gh pr create --fill --base main`
+5. Merge **só** depois do "ok" explícito do usuário:
+   `gh pr merge --squash --delete-branch`
+
+Se perceber que já está na `main` com alterações não commitadas, crie a branch e
+leve as alterações para ela **antes** de commitar. Se o `gh` não estiver
+autenticado, avise — não commite na `main` como alternativa.
+
+Vale para mudança de código, teste, config e doc. A exceção é o que nem entra no
+git (`.env`, `*.db`, scratchpad).
+
+## Git, segredos e dados pessoais (regras obrigatórias)
+
+Estas regras valem para todo código, script, teste, doc e commit deste projeto.
+Elas existem porque já houve vazamento de senha e de CPF de aluno no histórico
+do git de outro projeto — e limpar histórico depois custa caro e nunca é total.
+
+### 1. O que NUNCA entra no git
+- **Segredos:** senha, token, chave de API, client secret, connection string,
+  ID de planilha/documento aberto por link. Só no `.env` (fora do git).
+- **Dados pessoais (LGPD):** CPF, RG, nome completo, e-mail pessoal, telefone,
+  endereço, data de nascimento, RA/matrícula de pessoa real — de aluno,
+  professor, funcionário ou qualquer outra pessoa.
+- **Planilhas e exports:** `*.xlsx`, `*.xls`, `*.xlsm`, `*.ods`, `*.csv`, dumps
+  de banco, `*.db`, PDFs gerados com dados de pessoas.
+- **Detalhes de infraestrutura:** IP público, porta SSH, usuário root,
+  fingerprint de chave. Vão num documento de operação fora do repositório.
+
+### 2. Segredos: só no ambiente, sem valor padrão no código
+- Leia segredo SEMPRE de variável de ambiente. **Nunca** coloque o valor real
+  como fallback/default no código (`os.getenv("SENHA", "valor-real")` vaza o
+  valor no git do mesmo jeito).
+- Variável obrigatória ausente ⇒ o sistema **falha ao iniciar** com mensagem
+  clara (nome da variável, nunca o valor). Não "segue com vazio".
+- Toda variável nova vai para o `.env.example` com **placeholder** óbvio
+  (`SENHA_AQUI`, `id-do-app-aqui`), nunca com valor real.
+- Nunca imprima, logue ou devolva em mensagem de erro o valor de um segredo.
+
+### 3. Dados de pessoas: fora do repositório
+- Planilhas, cadastros e listas com dados pessoais ficam numa **pasta de dados
+  fora do git** (ex.: `data/`, inteira no `.gitignore`), com o caminho vindo de
+  variável de ambiente. Se o sistema precisa receber a planilha, prefira
+  **upload pela interface** a commitar o arquivo.
+- No repositório fica só um **modelo com dados fictícios** (`*.example.json`,
+  planilha-modelo só com cabeçalho) mostrando o formato.
+- Logs: registre IDs internos, não nome/CPF/e-mail.
+
+### 4. Testes, docs, comentários e handoffs usam SÓ dados fictícios
+- **Nunca** copie um caso real (nome, CPF, e-mail, telefone, endereço) para um
+  teste, comentário, docstring, README ou handoff — nem "só para reproduzir o
+  bug". Recrie o caso com dados inventados que tenham a mesma forma (mesmo
+  número de palavras, acento, CPF começando com zero etc.).
+- CPF de teste: gere com dígito verificador válido a partir de uma **semente
+  fixa** (helper em `tests/`), e confirme que não coincide com CPFs reais.
+- Nomes: "Aluna Exemplo", "Professor Teste". E-mails: `@example.com`.
+- Teste nunca depende de arquivo real da máquina (`.env`, pasta de dados): use
+  dados injetados (monkeypatch/fixture) ou o modelo fictício versionado.
+
+### 5. Commits, branches e PRs
+- **Mensagem de commit e descrição de PR nunca citam** nome, CPF, e-mail ou
+  qualquer dado de pessoa. Use descrição genérica: "atualiza planilha de TCC
+  (2 alterações)", "corrige troca de orientador de 1 aluno". Mensagem de commit
+  só sai do histórico reescrevendo tudo.
+- Antes de `git add`, rode `git status` e confira cada arquivo. Prefira
+  `git add <arquivo>` a `git add -A`/`git add .`.
+- Nunca commite direto na `main`: branch → PR → merge com aprovação.
+
+### 6. `.gitignore` restritivo por padrão
+- Bloqueie por padrão: `.env`, `data/`, `*.db`, `*.sqlite`, `*.xlsx`, `*.xls`,
+  `*.xlsm`, `*.ods`, `*.csv`, `logs/`.
+- Exceção só **arquivo a arquivo** (`!/caminho/modelo.xlsx`), e só para modelo
+  comprovadamente sem dado pessoal. Nunca libere uma pasta inteira de dados.
+
+### 7. Guardas automáticas (configure no início do projeto)
+- Um **teste na suíte** que varre os arquivos versionados e falha se achar CPF
+  com dígito verificador válido fora da lista de fictícios, planilha fora das
+  exceções ou arquivo da pasta de dados.
+- **gitleaks** (segredos) no CI a cada PR, com valores redigidos no log, e no
+  hook de pre-commit (`git config core.hooksPath tools/hooks`).
+- O CI roda a suíte num ambiente limpo, sem o `.env` local — isso revela teste
+  que só passa por depender de segredo/dado da máquina do desenvolvedor.
+
+### 8. Se algo vazar
+- Pare e avise o responsável antes de qualquer outra ação.
+- Corrija primeiro o código atual (tirar o dado, mover segredo para o `.env`);
+  depois **troque o segredo** (vazou = comprometido, mesmo após apagar).
+- Reescrever o histórico (`git filter-repo`) só com confirmação explícita, com
+  backup `--mirror` antes, e sabendo que cópias já clonadas e refs de PR no
+  GitHub continuam existindo.
+
