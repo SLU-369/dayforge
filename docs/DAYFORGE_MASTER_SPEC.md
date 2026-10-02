@@ -2090,12 +2090,16 @@ Planejar
 → lint, typecheck, build e testes aplicáveis
 → revisão funcional/visual
 → correções
-→ commit(s) coerentes
+→ commit(s) coerentes e push automático da branch validada
 → apresentar resultados
-→ parar
+→ aguardar autorização para abrir PR e iniciar a próxima etapa
 ```
 
-Não fazer push, merge ou avançar de etapa sem autorização explícita. Silêncio não é aprovação.
+Commit e push da branch de trabalho são automáticos após conclusão e validação
+do escopo, conforme autorização permanente em AGENTS.md. Não fazer push direto
+para main nem force-push. Abertura de cada PR, merge, deploy e avanço de etapa
+exigem autorização explícita própria e respeitam o momento solicitado pelo
+usuário. Silêncio não é aprovação.
 
 ## 7. Closeout obrigatório
 
