@@ -1,80 +1,16 @@
-# AGENTS.md
+# AGENTS.md — Dayforge
 
-# DOX framework
+## Contrato e leitura contextual
 
-- DOX is highly performant AGENTS.md hierarchy installed here
-- Agent must follow DOX instructions across any edits
-
-## Core Contract
-
-- AGENTS.md files are binding work contracts for their subtrees
-- Work products, source materials, instructions, records, assets, and durable docs must stay understandable from the nearest applicable AGENTS.md plus every parent AGENTS.md above it
-
-## Read Before Editing
-
-1. Read the root AGENTS.md
-2. Identify every file or folder you expect to touch
-3. Walk from the repository root to each target path
-4. Read every AGENTS.md found along each route
-5. If a parent AGENTS.md lists a child AGENTS.md whose scope contains the path, read that child and continue from there
-6. Use the nearest AGENTS.md as the local contract and parent docs for repo-wide rules
-7. If docs conflict, the closer doc controls local work details, but no child doc may weaken DOX
-
-Do not rely on memory. Re-read the applicable DOX chain in the current session before editing.
-
-## Update After Editing
-
-Every meaningful change requires a DOX pass before the task is done.
-
-Update the closest owning AGENTS.md when a change affects:
-
-- purpose, scope, ownership, or responsibilities
-- durable structure, contracts, workflows, or operating rules
-- required inputs, outputs, permissions, constraints, side effects, or artifacts
-- user preferences about behavior, communication, process, organization, or quality
-- AGENTS.md creation, deletion, move, rename, or index contents
-
-Update parent docs when parent-level structure, ownership, workflow, or child index changes. Update child docs when parent changes alter local rules. Remove stale or contradictory text immediately. Small edits that do not change behavior or contracts may leave docs unchanged, but the DOX pass still must happen.
-
-## Hierarchy
-
-- Root AGENTS.md is the DOX rail: project-wide instructions, global preferences, durable workflow rules, and the top-level Child DOX Index
-- Child AGENTS.md files own domain-specific instructions and their own Child DOX Index
-- Each parent explains what its direct children cover and what stays owned by the parent
-- The closer a doc is to the work, the more specific and practical it must be
-
-## Child Doc Shape
-
-- Create a child AGENTS.md when a folder becomes a durable boundary with its own purpose, rules, responsibilities, workflow, materials, or quality standards
-- Work Guidance must reflect the current standards of the project or user instructions; if there are no specific standards or instructions yet, leave it empty
-- Verification must reflect an existing check; if no verification framework exists yet, leave it empty and update it when one exists
-
-Default section order:
-- Purpose
-- Ownership
-- Local Contracts
-- Work Guidance
-- Verification
-- Child DOX Index
-
-## Style
-
-- Keep docs concise, current, and operational
-- Document stable contracts, not diary entries
-- Put broad rules in parent docs and concrete details in child docs
-- Prefer direct bullets with explicit names
-- Do not duplicate rules across many files unless each scope needs a local version
-- Delete stale notes instead of explaining history
-- Trim obvious statements, repeated rules, misplaced detail, and warnings for risks that no longer exist
-
-## Closeout
-
-1. Re-check changed paths against the DOX chain
-2. Update nearest owning docs and any affected parents or children
-3. Refresh every affected Child DOX Index
-4. Remove stale or contradictory text
-5. Run existing verification when relevant
-6. Report any docs intentionally left unchanged and why
+- A solicitação explícita do usuário prevalece sobre diretrizes de skills e deste arquivo, respeitando as restrições do ambiente.
+- Leia este arquivo e os AGENTS.md aplicáveis ao caminho da tarefa. Reutilize o conteúdo já lido na sessão; releia quando mudar ou houver dúvida.
+- Os arquivos filhos refinam regras locais; contratos de produto, segurança e autorização continuam válidos.
+- Consulte documentação adicional conforme a mudança, sem exigir a leitura do repositório inteiro para ajustes pequenos.
+- Conclua a etapa autorizada, incluindo implementação e verificação proporcional. Resolva decisões rotineiras sem novas confirmações; pergunte apenas quando a resposta alterar materialmente o resultado.
+- Autonomia não autoriza iniciar outra etapa, alterar o escopo, abrir PR, fazer merge ou deploy. Commit e push seguem a autorização permanente na seção Git.
+- Atualize o AGENTS.md mais próximo quando contratos, comandos, responsabilidades ou preferências duráveis mudarem. Atualize pais e índices somente quando afetados; não registre um diário aqui.
+- Crie um arquivo filho apenas para uma fronteira durável. Estrutura: Purpose, Ownership, Local Contracts, Work Guidance, Verification e Child DOX Index; não invente verificações inexistentes.
+- Quando o usuário autorizar agentes paralelos, delegue frentes independentes com responsabilidade clara. O agente principal integra e verifica o resultado.
 
 ## User Preferences
 
@@ -82,7 +18,7 @@ When the user requests a durable behavior change, record it here or in the relev
 
 - The visual stage through B.3 is concluded and approved in its delivered photographic form: horizontal navigation, layout, day/night themes, solar tracking, orange sunset, skyline occlusion, water/waterfall/cloud motion, existing visitors and diffuse heading contrast. Preserve this baseline; there is no outstanding visual refinement required to close this stage.
 - Earlier ideas for articulated 3D visitors, richer animation or other visual refinements are future planning inputs, not active tasks or acceptance blockers. Await the user's reformulated plan and explicit implementation scope before developing them or extending navigation. Do not automatically resume the old B.3 substage sequence or begin Stage C.
-- Keep the rejected full 3D landscape inactive, including old preview URLs, and retain its existing code/assets for recoverability. The approved scene does not claim to include articulated 3D creatures. If a future plan authorizes them, use properly animated models, free assets first and explicit approval for purchases. Stage authorization never permits automatic push, merge or advancement.
+- Keep the rejected full 3D landscape inactive, including old preview URLs, and retain its existing code/assets for recoverability. The approved scene does not claim to include articulated 3D creatures. If a future plan authorizes them, use properly animated models, free assets first and explicit approval for purchases. Automatic commit and branch push follow the Git workflow below. Merge and stage advancement require explicit authorization.
 - The numbered files in `docs/` are the canonical product and architecture source. `docs/DAYFORGE_MASTER_SPEC.md` is generated from them and must not be edited independently.
 - Official appearance modes for the current roadmap are Light, Dark, and Solar. Do not add an explicit System mode without a later approved decision.
 - The first local planning engine will use deterministic TypeScript isolated from React UI. Python remains a candidate for justified prototyping, simulation, optimization, or future server-side execution; do not add it to the local production runtime by preference alone.
@@ -145,19 +81,22 @@ The product UI and user-facing copy are in Brazilian Portuguese.
 
 ## Local workflow
 
-Use Node.js 22.13 or newer. On Windows, call `npm.cmd` to avoid PowerShell execution-policy issues.
+Node.js 22.13 ou superior. No PowerShell, use `npm.cmd`; não é necessário relaxar a execution policy para executar npm.
 
-```powershell
-npm.cmd ci
-npm.cmd run dev
-npm.cmd run lint
-npm.cmd run typecheck
-npm.cmd run build
-npm.cmd test
-npm.cmd start
-```
+- Instalação a partir do lockfile: `npm.cmd ci` (primeiro uso ou dependências alteradas).
+- Desenvolvimento: `npm.cmd run dev -- --port 3000` ou `INICIAR.bat`.
+- Lint: `npm.cmd run lint`; tipos: `npm.cmd run typecheck`.
+- Build: `npm.cmd run build`; servir build: `npm.cmd start`.
+- Suíte: `npm.cmd test` já executa o build. Evite construir novamente antes dela sem necessidade.
+- Documentação canônica: `npm.cmd run docs:master:check`.
+- `npm.cmd run db:generate` somente após alteração intencional em `db/schema.ts`; revise o SQL e os metadados gerados.
 
-Run `npm.cmd run db:generate` only after an intentional change to `db/schema.ts`, then inspect generated SQL and metadata before committing.
+## Verificação proporcional
+
+- Texto e instruções: revise o diff, links/comandos e `git diff --check`. Rode `docs:master:check` quando os documentos numerados ou seu gerador forem afetados.
+- Código: rode lint, typecheck e testes que cobrem a mudança. Antes de concluir uma alteração de comportamento, rode a suíte existente (`npm.cmd test`, incluindo build).
+- Não crie testes que apenas repitam a implementação de ajustes reversíveis. Não repita verificações aprovadas sem nova alteração, falha ou preocupação concreta.
+- Registre erros e limitações reais; não declare verificações que não executou.
 
 ## Environment and bindings
 
@@ -190,136 +129,30 @@ If a future OpenAI API integration is added, use the environment name `OPENAI_AP
 - Maintain keyboard focus states, labels, responsive layouts, and reduced-motion support.
 - Do not add a backend, D1 persistence, authentication gates, or OpenAI calls speculatively. Add them only for a concrete product requirement.
 - Never commit secrets. Before staging, review `git status`, ignored files, and a secret-pattern scan. Keep local data, backups, generated output, and credentials out of Git.
-- Run lint, build, and tests before committing behavior changes.
+- Validate behavior changes according to the proportional verification section before committing.
 - Keep the horizontal shell and route map in `components/shell/navigation-config.tsx`; never reintroduce a desktop sidebar.
 - Mega-menu/compact-drawer icons draw their SVG strokes progressively on hover and keyboard focus, without flipping or moving the glyph. Desktop navigation draws a bottom accent underline only on hover/focus, using the current theme. Keep labels, link semantics, and layout stable; respect reduced motion.
 - Appearance is isolated from planner persistence. Clouds may move continuously, but creatures, birds, and broom riders appear occasionally, with quiet intervals; all ambient motion must be pausable.
 
-## Versionamento e Boas Práticas (Git)
+## Git e integração
 
-- **Commits Significativos**: Crie commits apenas quando houver uma alteração relevante e concluída.
-- **Mensagens Claras**: Use mensagens claras, padronizadas e objetivas para evitar poluir o histórico.
-- **Branches Temporárias**: Para cada nova funcionalidade ou correção, crie uma branch temporária a partir da `main` atualizada.
-- **Nomenclatura de Branch**: Use nomes curtos, explícitos e seguindo boas práticas (ex: `feature/nova-funcionalidade`, `fix/correcao-bug`).
-- **Foco da Branch**: Mantenha na branch apenas o trabalho relacionado ao seu objetivo.
-- **Validação Antes da Integração**: Execute e valide os testes antes de iniciar a integração.
-- **Aprovação de Commits**: Informe sempre qual commit foi criado para aprovação do usuário.
-- **Autorização Explícita**: Nunca faça push ou merge sem a autorização explícita do usuário.
-- **Limpeza de Branches**: Após o merge aprovado e validado na `main`, exclua a branch utilizada local e remotamente.
-- **Execução por Etapa**: Implemente somente a etapa explicitamente autorizada, apresente os commits e pare antes de iniciar a próxima.
-- **Nomes de Branch e Commit**: Nunca use a palavra `codex` em nomes de branches ou mensagens de commit.
+- Antes de editar, confira branch, `git status --short --branch` e o diff relevante. Preserve alterações existentes; não use reset, stash ou checkout automático para limpar a árvore.
+- Nunca implemente ou faça commit na `main`. Para novo trabalho, use branch temporária descritiva da `main` atualizada; para continuidade, preserve a base da tarefa autorizada.
+- Se houver alterações na `main`, criar a branch com `git switch -c <tipo>/<objetivo>` preserva o conteúdo. Não atribua alterações anteriores à tarefa atual.
+- Use `feat/`, `fix/`, `docs/`, `chore/` ou `refactor/`; nunca use `codex` em branches ou mensagens de commit.
+- Faça commits locais coerentes de trabalho concluído e validado, no formato Conventional Commits. Se houver alterações alheias no mesmo arquivo, deixe o diff para revisão em vez de incluí-las.
+- Adicione apenas os arquivos/hunks do escopo, nunca `git add -A`. Informe o hash dos commits criados.
+- Após concluir e validar o escopo, faça commit e push automaticamente da branch de trabalho, sem nova confirmação. Se autenticação, validação ou divergência impedir publicação, preserve o trabalho e informe o bloqueio; não use force-push nem push direto para main.
+- Abra PR somente após autorização explícita do usuário para aquela PR e no momento solicitado. Merge e deploy exigem autorização própria.
+- Integração por PR para `main`, com checks aprovados e revisão. Exclua a branch apenas após merge aprovado e confirmado, sem trabalho pendente.
+- Termine a etapa solicitada antes de entregar; aguarde autorização para a próxima etapa do produto.
 
-## Segurança (SEC-CHECK)
+## Segurança e dados
 
-Todo código escrito ou editado neste repo deve seguir as 12 regras de
-
-`docs/checklist-seguranca.md` (secrets, injection, IV/OE, authn/authz,
-
-fail secure, deps, headers, rate limit, IDOR/SSRF, logging).
-
-Se violar alguma, avise antes de entregar.
-
-## Segurança e Design de Código (SEC-CHECK)
-
-Você deve aplicar estas regras automaticamente sempre que criar, editar ou
-revisar qualquer código neste repositório — não espere o usuário pedir.
-
-## Fluxo de git (obrigatório)
-
-**NUNCA commite direto na `main`.** Antes da primeira alteração de código:
-
-1. `git checkout -b <tipo>/<descricao-curta>` — tipo é `feat`, `fix`, `chore`,
-   `docs` ou `refactor`.
-2. Commite na branch. Mensagem em Conventional Commits, corpo em português
-   explicando o **porquê**, não o quê.
-3. `git push -u origin <branch>`
-4. `gh pr create --fill --base main`
-5. Merge **só** depois do "ok" explícito do usuário:
-   `gh pr merge --squash --delete-branch`
-
-Se perceber que já está na `main` com alterações não commitadas, crie a branch e
-leve as alterações para ela **antes** de commitar. Se o `gh` não estiver
-autenticado, avise — não commite na `main` como alternativa.
-
-Vale para mudança de código, teste, config e doc. A exceção é o que nem entra no
-git (`.env`, `*.db`, scratchpad).
-
-## Git, segredos e dados pessoais (regras obrigatórias)
-
-Estas regras valem para todo código, script, teste, doc e commit deste projeto.
-Elas existem porque já houve vazamento de senha e de CPF de aluno no histórico
-do git de outro projeto — e limpar histórico depois custa caro e nunca é total.
-
-### 1. O que NUNCA entra no git
-- **Segredos:** senha, token, chave de API, client secret, connection string,
-  ID de planilha/documento aberto por link. Só no `.env` (fora do git).
-- **Dados pessoais (LGPD):** CPF, RG, nome completo, e-mail pessoal, telefone,
-  endereço, data de nascimento, RA/matrícula de pessoa real — de aluno,
-  professor, funcionário ou qualquer outra pessoa.
-- **Planilhas e exports:** `*.xlsx`, `*.xls`, `*.xlsm`, `*.ods`, `*.csv`, dumps
-  de banco, `*.db`, PDFs gerados com dados de pessoas.
-- **Detalhes de infraestrutura:** IP público, porta SSH, usuário root,
-  fingerprint de chave. Vão num documento de operação fora do repositório.
-
-### 2. Segredos: só no ambiente, sem valor padrão no código
-- Leia segredo SEMPRE de variável de ambiente. **Nunca** coloque o valor real
-  como fallback/default no código (`os.getenv("SENHA", "valor-real")` vaza o
-  valor no git do mesmo jeito).
-- Variável obrigatória ausente ⇒ o sistema **falha ao iniciar** com mensagem
-  clara (nome da variável, nunca o valor). Não "segue com vazio".
-- Toda variável nova vai para o `.env.example` com **placeholder** óbvio
-  (`SENHA_AQUI`, `id-do-app-aqui`), nunca com valor real.
-- Nunca imprima, logue ou devolva em mensagem de erro o valor de um segredo.
-
-### 3. Dados de pessoas: fora do repositório
-- Planilhas, cadastros e listas com dados pessoais ficam numa **pasta de dados
-  fora do git** (ex.: `data/`, inteira no `.gitignore`), com o caminho vindo de
-  variável de ambiente. Se o sistema precisa receber a planilha, prefira
-  **upload pela interface** a commitar o arquivo.
-- No repositório fica só um **modelo com dados fictícios** (`*.example.json`,
-  planilha-modelo só com cabeçalho) mostrando o formato.
-- Logs: registre IDs internos, não nome/CPF/e-mail.
-
-### 4. Testes, docs, comentários e handoffs usam SÓ dados fictícios
-- **Nunca** copie um caso real (nome, CPF, e-mail, telefone, endereço) para um
-  teste, comentário, docstring, README ou handoff — nem "só para reproduzir o
-  bug". Recrie o caso com dados inventados que tenham a mesma forma (mesmo
-  número de palavras, acento, CPF começando com zero etc.).
-- CPF de teste: gere com dígito verificador válido a partir de uma **semente
-  fixa** (helper em `tests/`), e confirme que não coincide com CPFs reais.
-- Nomes: "Aluna Exemplo", "Professor Teste". E-mails: `@example.com`.
-- Teste nunca depende de arquivo real da máquina (`.env`, pasta de dados): use
-  dados injetados (monkeypatch/fixture) ou o modelo fictício versionado.
-
-### 5. Commits, branches e PRs
-- **Mensagem de commit e descrição de PR nunca citam** nome, CPF, e-mail ou
-  qualquer dado de pessoa. Use descrição genérica: "atualiza planilha de TCC
-  (2 alterações)", "corrige troca de orientador de 1 aluno". Mensagem de commit
-  só sai do histórico reescrevendo tudo.
-- Antes de `git add`, rode `git status` e confira cada arquivo. Prefira
-  `git add <arquivo>` a `git add -A`/`git add .`.
-- Nunca commite direto na `main`: branch → PR → merge com aprovação.
-
-### 6. `.gitignore` restritivo por padrão
-- Bloqueie por padrão: `.env`, `data/`, `*.db`, `*.sqlite`, `*.xlsx`, `*.xls`,
-  `*.xlsm`, `*.ods`, `*.csv`, `logs/`.
-- Exceção só **arquivo a arquivo** (`!/caminho/modelo.xlsx`), e só para modelo
-  comprovadamente sem dado pessoal. Nunca libere uma pasta inteira de dados.
-
-### 7. Guardas automáticas (configure no início do projeto)
-- Um **teste na suíte** que varre os arquivos versionados e falha se achar CPF
-  com dígito verificador válido fora da lista de fictícios, planilha fora das
-  exceções ou arquivo da pasta de dados.
-- **gitleaks** (segredos) no CI a cada PR, com valores redigidos no log, e no
-  hook de pre-commit (`git config core.hooksPath tools/hooks`).
-- O CI roda a suíte num ambiente limpo, sem o `.env` local — isso revela teste
-  que só passa por depender de segredo/dado da máquina do desenvolvedor.
-
-### 8. Se algo vazar
-- Pare e avise o responsável antes de qualquer outra ação.
-- Corrija primeiro o código atual (tirar o dado, mover segredo para o `.env`);
-  depois **troque o segredo** (vazou = comprometido, mesmo após apagar).
-- Reescrever o histórico (`git filter-repo`) só com confirmação explícita, com
-  backup `--mirror` antes, e sabendo que cópias já clonadas e refs de PR no
-  GitHub continuam existindo.
-
+- Aplique os controles pertinentes à superfície alterada. `docs/checklist-seguranca.md`, seção 0, é referência contextual de segurança/design; não exige criar CLAUDE.md, novos scanners, hooks ou pipelines em toda tarefa.
+- Preserve autenticação/autorização, validação, parsing seguro, proteção contra injection, encoding e logging apropriados quando aplicáveis. Não force headers HTTP em documentação ou módulos sem HTTP.
+- Segredos vêm do ambiente, sem fallback real ou valores em logs. Não crie `.env` real por iniciativa própria; documente nomes com placeholders quando uma funcionalidade precisar deles.
+- Dados pessoais, backups, bancos e exports reais ficam fora do Git. Testes, documentação e exemplos usam dados fictícios; logs usam IDs internos.
+- Preserve os padrões do `.gitignore`; não bloqueie novos formatos ou reconfigure CI/hooks sem uma necessidade da tarefa. Mantenha arquivos de exemplo sem dados reais explicitamente identificados.
+- Antes de commitar, confira o diff e arquivos adicionados para evitar segredos e dados pessoais. Relate achados concretos e corrija os que pertencem ao escopo.
+- Não reescreva histórico, rotacione credenciais ou altere infraestrutura sem autorização específica.

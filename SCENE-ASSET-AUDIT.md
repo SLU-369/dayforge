@@ -45,7 +45,7 @@ Licenças e acesso:
 
 Os efeitos da paisagem fotográfica foram revisados e aprovados pelo usuário. Preservar o resultado entregue e aguardar o planejamento reformulado para qualquer evolução. Modelos articulados não fazem parte do aceite atual. Não retomar o cenário 3D ou a sequência anterior de subetapas automaticamente.
 
-As autorizações anteriores para o cenário inteiramente 3D não anulam a preferência mais recente. Nenhum push, merge ou avanço de etapa é automático.
+As autorizações anteriores para o cenário inteiramente 3D não anulam a preferência mais recente. A autorização de 2026-10-02 permite commit e push automáticos da branch de trabalho validada, conforme AGENTS.md. Abertura de PR, merge e avanço de etapa continuam dependendo de autorização explícita.
 
 ## Procedimento histórico de aceite do arquivo
 
