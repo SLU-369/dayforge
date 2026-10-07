@@ -7,7 +7,7 @@ import { readFileSync } from "node:fs";
 import {
   DayforgeDatabase, IndexedDbPersistenceRepository, bootstrapPlannerV2, ensureExecutionBridge,
   exportDayforgeBackupV2, restoreDayforgeBackupV2, restoreActivePlannerV2, recoverPlannerV2,
-  saveActivePlannerV2, recordOccurrenceExecution, decodeExecutionBridge,
+  saveActivePlannerV2, savePlannerWithBridge, recordOccurrenceExecution, decodeExecutionBridge,
   EXECUTION_BRIDGE_DOCUMENT_ID, reconcileExecutionBridge, migrateLegacyPlannerV1,
   resetPlannerV2, canonicalStringify, WebCryptoSha256Hasher,
 } from "../persistence/index.ts";
@@ -421,4 +421,80 @@ test("inactive old backup remains recoverable through explicit cutover", async (
   const result = await recoverPlannerV2({ repository, markerStorage: storage(), input: JSON.stringify(data), instant });
   assert.equal(result.executionBridge.entries.length, 2);
   assert.equal(result.executionBridge.entries.filter((entry) => entry.execution).length, 0);
+});
+
+test("adopted autosave rejects a new unaudited completion before any write", async (t) => {
+  const { repository, database, result, legacy, raw } = await setup(t);
+  const before = await physical(database);
+  const edited = structuredClone(result.state);
+  edited.records[date].items[1].completed = true;
+  edited.records[date].note = "Não deve ser parcialmente salvo";
+  let writes = 0;
+  const originalWrite = repository.write.bind(repository);
+  repository.write = (...args) => { writes++; return originalWrite(...args); };
+  await assert.rejects(saveActivePlannerV2({ repository, state: edited }));
+  assert.equal(writes, 0);
+  assert.deepEqual(await physical(database), before);
+  assert.equal(legacy.getItem("rotina-369:data:v1"), raw);
+  assert.deepEqual(legacy.writes, []);
+});
+
+test("new completed items cannot bypass the guard by allocating a fresh binding", async (t) => {
+  const { repository, database, result } = await setup(t, state([]));
+  const before = await physical(database);
+  const edited = structuredClone(result.state);
+  edited.records[date].items.push({ ...item("new"), completed: true });
+  await assert.rejects(saveActivePlannerV2({ repository, state: edited }));
+  assert.deepEqual(await physical(database), before);
+});
+
+test("historical completion remains valid through autosave, reload and Today without execution", async (t) => {
+  const { repository, result, boot } = await setup(t, state([{ ...item("history"), completed: true }]));
+  const edited = structuredClone(result.state);
+  edited.records[date].note = "Histórico preservado";
+  await saveActivePlannerV2({ repository, state: edited });
+  const loaded = await boot();
+  assert.equal(loaded.executionBridge.entries[0].execution, null);
+  assert.equal(loaded.state.records[date].items[0].completed, true);
+  const context = deriveTodayContext(loaded.state, new Date("2026-10-06T08:30:00.000Z"), "UTC", date, loaded.executionBridge);
+  assert.equal(context.agora, null);
+  assert.deepEqual(context.atencao, []);
+  assert.equal(context.resumo.completed, 1);
+});
+
+test("normal planner and actual-minute edits do not imply completion or execution", async (t) => {
+  const { repository, result } = await setup(t, state([item("minutes")]));
+  const edited = structuredClone(result.state);
+  edited.records[date].items[0].title = "Edição normal";
+  edited.records[date].items[0].actualMinutes = 45;
+  edited.records[date].energy = 4;
+  const bridge = await saveActivePlannerV2({ repository, state: edited });
+  const data = await backup(repository);
+  assert.equal(data.payload.planner.records[date].items[0].actualMinutes, 45);
+  assert.equal(data.payload.planner.records[date].energy, 4);
+  assert.equal(bridge.entries[0].item.completed, false);
+  assert.equal(bridge.entries[0].execution, null);
+  const context = deriveTodayContext(data.payload.planner, new Date("2026-10-06T08:30:00.000Z"), "UTC", date, bridge);
+  assert.equal(context.agora.title, "Edição normal");
+  assert.equal(context.resumo.completed, 0);
+});
+
+test("the completion guard compares the persisted state instead of the original historical flag", async (t) => {
+  const { repository, database, result } = await setup(t, state([{ ...item("history"), completed: true }]));
+  const reopened = structuredClone(result.state);
+  reopened.records[date].items[0].completed = false;
+  await saveActivePlannerV2({ repository, state: reopened });
+  const before = await physical(database);
+  await assert.rejects(saveActivePlannerV2({ repository, state: result.state }));
+  assert.deepEqual(await physical(database), before);
+});
+
+test("one supplied execution does not authorize another unaudited completion in the same save", async (t) => {
+  const { repository, database, result } = await setup(t);
+  const before = await physical(database);
+  const edited = structuredClone(result.state);
+  edited.records[date].items.forEach((entry) => { entry.completed = true; });
+  const id = result.executionBridge.entries[0].occurrenceId;
+  await assert.rejects(savePlannerWithBridge({ repository, state: edited, execution: { occurrenceId: id, record: execution(id) } }));
+  assert.deepEqual(await physical(database), before);
 });

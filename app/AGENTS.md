@@ -29,6 +29,7 @@
 - Atenção flags a legacy item only when its projected interval ended and it has no completion record; this is a neutral request for user review, not an inferred failure or terminal temporal status.
 - The 2B foundation supplies a validated persistent identity bridge for daily records; Today consumes it in memory while preserving 2A ordering and interval rules. Virtual routine items remain noncanonical projections. No new completion UI or rescheduling is authorized in this foundation. Existing legacy controls cannot reopen or remove a binding carrying a canonical execution.
 - New mocked domains must not be written into the v1 planner payload.
+- With the execution bridge active, disable legacy completion toggles. Minute edits do not imply completion or create an ExecutionRecord; no canonical completion UI is enabled by this guard.
 - `/hoje` is the primary Hoje route; `/` remains a compatible entry point. Product areas use real, directly loadable App Router routes.
 - Backup, import, and reset controls belong under `/configuracoes/dados-e-backup`, never in primary navigation.
 - Keep backend, D1, Worker, and API changes outside frontend-only stages.

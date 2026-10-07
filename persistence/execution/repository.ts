@@ -44,6 +44,14 @@ export async function savePlannerWithBridge(options: Readonly<{
     }
     bridge = { ...bridge, entries: bridge.entries.map((entry) => entry.occurrenceId === occurrenceId ? { ...entry, execution } : entry) };
   }
+  const prior = before.payload.executionBridge?.bridge;
+  if (prior) {
+    const previous = new Map(prior.entries.map((entry) => [entry.occurrenceId, entry]));
+    if (bridge.entries.some((entry) => entry.item.completed && !entry.execution
+      && !previous.get(entry.occurrenceId)?.item.completed)) {
+      throw new ExecutionBridgeError();
+    }
+  }
   const document = await createBridgeDocument(bridge, hasher);
   const payload = encodeNormalizedLegacyPlannerV1(state);
   const fingerprint = await hasher.digestUtf8(canonicalStringify(payload));
