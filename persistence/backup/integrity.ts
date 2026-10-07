@@ -263,8 +263,8 @@ export async function readBackupSnapshot(
   }
   const planner = normalizeLegacyPlannerSnapshotV1(plannerSnapshot);
   const executionDocument = await readBridgeDocument(transaction);
-  if (databaseMetadata.executionBridgeVersion === 1 && !executionDocument) {
-    throw new BackupValidationError("invalid_backup_integrity", "A ponte de execução obrigatória está ausente.");
+  if ((databaseMetadata.executionBridgeVersion === 1) !== Boolean(executionDocument)) {
+    throw new BackupValidationError("invalid_backup_integrity", "A adoção da ponte de execução não corresponde aos documentos persistidos.");
   }
   const executionBridge = executionDocument ? {
     bridge: decodeBridgeDocument(executionDocument, planner),

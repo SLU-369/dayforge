@@ -398,6 +398,17 @@ test("unknown execution documents are not silently omitted from recovery", async
   assert.deepEqual(await physical(database), before);
 });
 
+test("an execution bridge without its adoption metadata fails closed without repair", async (t) => {
+  const { repository, database, boot } = await setup(t);
+  const metadata = await database.metadata.get("database");
+  delete metadata.executionBridgeVersion;
+  await database.metadata.put(metadata);
+  const before = await physical(database);
+  await assert.rejects(backup(repository));
+  await assert.rejects(boot());
+  assert.deepEqual(await physical(database), before);
+});
+
 test("inactive old backup remains recoverable through explicit cutover", async (t) => {
   const first = await setup(t);
   const data = await backup(first.repository);
