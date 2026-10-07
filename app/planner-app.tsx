@@ -130,6 +130,7 @@ export default function PlannerApp({ view = "hoje", initialDate }: { view?: Plan
   }
 
   function toggleItem(index: number) {
+    if (executionBridge) return;
     updateRecord((current) => ({
       ...current,
       items: current.items.map((entry, itemIndex) =>
@@ -201,6 +202,7 @@ export default function PlannerApp({ view = "hoje", initialDate }: { view?: Plan
                 metrics={metrics}
                 onDate={selectDate}
                 onToggle={toggleItem}
+                completionLocked={executionBridge !== null}
                 onEdit={(item, index) => setEditor({ type: "day", item, index })}
                 onDelete={(index) => deleteItem(index, "day")}
                 onAdd={() => setEditor({ type: "day" })}
@@ -235,13 +237,14 @@ export default function PlannerApp({ view = "hoje", initialDate }: { view?: Plan
   );
 }
 
-function TodayView({ record, selectedDate, todayISO, metrics, onDate, onToggle, onEdit, onDelete, onAdd, onNote, onEnergy }: {
+function TodayView({ record, selectedDate, todayISO, metrics, onDate, onToggle, completionLocked, onEdit, onDelete, onAdd, onNote, onEnergy }: {
   record: DailyRecord;
   selectedDate: Date;
   todayISO: string;
   metrics: { planned: number; completed: number; focus: number; count: number; done: number };
   onDate: (date: Date) => void;
   onToggle: (index: number) => void;
+  completionLocked: boolean;
   onEdit: (item: DailyItem, index: number) => void;
   onDelete: (index: number) => void;
   onAdd: () => void;
@@ -270,14 +273,14 @@ function TodayView({ record, selectedDate, todayISO, metrics, onDate, onToggle, 
 
       <div className="content-grid">
         <section className="panel timeline-panel">
-          <div className="panel-heading"><div><span className="eyebrow">LINHA DO TEMPO</span><h2>Planejado x realizado</h2></div><span className="progress-chip">{percentage}% concluído</span></div>
+          <div className="panel-heading"><div><span className="eyebrow">LINHA DO TEMPO</span><h2>Planejado x realizado</h2>{completionLocked && <small>Alteração de conclusão indisponível nesta etapa.</small>}</div><span className="progress-chip">{percentage}% concluído</span></div>
           <div className="timeline-list">
             {record.items.map((entry, index) => {
               const category = CATEGORIES[entry.category];
               const isNow = isToday && timeContains(entry, now);
               return (
                 <article className={`timeline-item ${entry.completed ? "completed" : ""} ${isNow ? "current" : ""}`} key={entry.id} style={{ "--item-color": category.color, "--item-soft": category.soft } as React.CSSProperties}>
-                  <button className="check-button" aria-label={entry.completed ? "Marcar como pendente" : "Marcar como concluída"} onClick={() => onToggle(index)}>{entry.completed ? "✓" : ""}</button>
+                  <button className="check-button" disabled={completionLocked} aria-label={completionLocked ? (entry.completed ? "Atividade concluída" : "Atividade pendente") : (entry.completed ? "Marcar como pendente" : "Marcar como concluída")} onClick={() => onToggle(index)}>{entry.completed ? "✓" : ""}</button>
                   <div className="time-column"><strong>{entry.start}</strong><span>{entry.end}</span></div>
                   <div className="item-body"><div className="item-tags"><span className="category-tag">{category.label}</span>{isNow && <span className="now-tag">agora</span>}</div><h3>{entry.title}</h3>{entry.notes && <p>{entry.notes}</p>}<small>{entry.completed ? `${entry.actualMinutes || itemMinutes(entry)} min realizados` : `${itemMinutes(entry)} min planejados`}</small></div>
                   <div className="item-actions"><button aria-label="Editar atividade" onClick={() => onEdit(entry, index)}>Editar</button><button aria-label="Excluir atividade" onClick={() => onDelete(index)}>×</button></div>
@@ -461,7 +464,7 @@ function ItemEditor({ target, onClose, onSave }: { target: NonNullable<EditorTar
         <label className="full-field"><span>Atividade</span><input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Ex.: Estudo de Go" required /></label>
         <div className="form-row"><label><span>Início</span><input type="time" value={start} onChange={(event) => setStart(event.target.value)} required /></label><label><span>Fim</span><input type="time" value={end} onChange={(event) => setEnd(event.target.value)} required /></label></div>
         <label className="full-field"><span>Categoria</span><select value={category} onChange={(event) => setCategory(event.target.value as CategoryKey)}>{(Object.keys(CATEGORIES) as CategoryKey[]).map((key) => <option key={key} value={key}>{CATEGORIES[key].label}</option>)}</select></label>
-        {target.type === "day" && <label className="full-field"><span>Minutos realizados (opcional)</span><input type="number" min="0" max="1440" value={actual} onChange={(event) => setActual(event.target.value)} placeholder="Preenchido automaticamente ao concluir" /></label>}
+        {target.type === "day" && <label className="full-field"><span>Minutos realizados (opcional)</span><input type="number" min="0" max="1440" value={actual} onChange={(event) => setActual(event.target.value)} placeholder="Ex.: 45" /><small>Editar minutos não conclui a atividade.</small></label>}
         <label className="full-field"><span>Observação</span><textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Detalhe opcional" /></label>
         <div className="modal-actions"><Button variant="secondary" onClick={onClose}>Cancelar</Button><Button type="submit">Salvar atividade</Button></div>
       </form>

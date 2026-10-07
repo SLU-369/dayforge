@@ -15,6 +15,7 @@
 - Allocate opaque occurrence IDs once with a persisted monotonic counter; positions only locate validated bindings. Preserve original snapshots and never reuse removed IDs in the same lineage.
 - Use the domain ExecutionRecord and execution ID derived from occurrence ID. Equivalent retries return the same audit fact; conflicting execution is rejected. No start or rescheduling operation.
 - Legacy completion does not invent canonical execution. No new UI action in this foundation.
+- After adoption, saves compare persisted bindings and reject new completed flags without an ExecutionRecord before any write. Historical completed flags remain valid; the internal execution command supplies the audit fact atomically.
 - Reject ambiguous duplicate-ID edits and terminal legacy reopening/deletion. Compare snapshots inside writes and hash outside transactions.
 - Backup includes the complete bridge and its canonical SHA-256. Restore/import/reset replaces it atomically with the planner; metadata adoption distinguishes an old installation from a missing adopted bridge.
 

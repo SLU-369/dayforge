@@ -1842,6 +1842,13 @@ idêntico retorna o fato existente; conflito é rejeitado. O template não muda.
 Snapshot original e `ExecutionRecord.recordedAt` preservam auditoria sem
 duplicar histórico. Hoje usa a ponte validada somente em memória.
 
+Após a adoção, autosave compara os vínculos persistidos com o novo estado antes
+de escrever: nova conclusão sem `ExecutionRecord` é rejeitada, inclusive em item
+recém-adicionado. Conclusão histórica já presente permanece válida sem fato
+retroativo. O comando interno anexa a execução antes desse guard e mantém a
+transição atômica. A UI desabilita o toggle legado com a ponte ativa; editar
+`actualMinutes` não conclui uma atividade nem inventa execução.
+
 ## 5. Motor de planejamento
 
 A primeira versão local usa TypeScript puro, determinístico e independente da UI. Os contratos e vetores de teste devem permitir reprodução fora do navegador.

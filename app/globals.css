@@ -140,6 +140,7 @@ h1 { margin: 8px 0 7px; font-size: clamp(2rem, 3.5vw, 3rem); letter-spacing: -.0
 .timeline-item.completed { opacity: .68; }
 .timeline-item.completed h3 { text-decoration: line-through; text-decoration-color: var(--faint); }
 .check-button { width: 26px; height: 26px; border-radius: 8px; border: 1px solid var(--line-strong); background: var(--control); cursor: pointer; color: var(--text-on-accent); font-weight: 900; }
+.check-button:disabled { cursor: default; }
 .completed .check-button { background: var(--item-color); border-color: var(--item-color); }
 .time-column { display: grid; gap: 3px; padding-top: 2px; color: var(--muted); font: 600 .75rem var(--font-geist-mono), monospace; }
 .time-column span { color: var(--faint); font-size: .7rem; }
