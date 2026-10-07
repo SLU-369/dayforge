@@ -63,7 +63,7 @@ function itemMinutes(item: RoutineItem) {
 }
 
 export default function PlannerApp({ view = "hoje", initialDate }: { view?: PlannerView; initialDate?: string }) {
-  const { state, setState, ready, storageBlocked, notify } = usePlanner();
+  const { state, executionBridge, setState, ready, storageBlocked, notify } = usePlanner();
   const router = useRouter();
   const searchParams = useSearchParams();
   const requestedDate = searchParams.get("date");
@@ -107,11 +107,11 @@ export default function PlannerApp({ view = "hoje", initialDate }: { view?: Plan
   const todayContext = useMemo(() => {
     if (view !== "hoje" || !selectedDate || storageBlocked) return { context: null, error: false };
     try {
-      return { context: deriveTodayContext(state, referenceTime, deviceTimeZone, selectedDate), error: false };
+      return { context: deriveTodayContext(state, referenceTime, deviceTimeZone, selectedDate, executionBridge ?? undefined), error: false };
     } catch {
       return { context: null, error: true };
     }
-  }, [view, selectedDate, storageBlocked, state, referenceTime, deviceTimeZone]);
+  }, [view, selectedDate, storageBlocked, state, executionBridge, referenceTime, deviceTimeZone]);
 
   const metrics = useMemo(() => {
     if (!record) return { planned: 0, completed: 0, focus: 0, count: 0, done: 0 };

@@ -22,10 +22,12 @@ import {
   resetPlannerV2,
   saveActivePlannerV2,
   type NormalizedLegacyPlannerV1,
+  type ExecutionBridge,
 } from "@/persistence";
 
 type PlannerContextValue = {
   state: PlannerState;
+  executionBridge: ExecutionBridge | null;
   setState: Dispatch<SetStateAction<PlannerState>>;
   exportBackup: () => Promise<boolean>;
   importBackup: (raw: string) => Promise<boolean>;
@@ -53,6 +55,7 @@ function toPlannerState(snapshot: NormalizedLegacyPlannerV1): PlannerState {
 export function PlannerProvider({ children }: Readonly<{ children: ReactNode }>) {
   const [repository] = useState(() => new IndexedDbPersistenceRepository());
   const [state, setState] = useState<PlannerState>(() => createDefaultState());
+  const [executionBridge, setExecutionBridge] = useState<ExecutionBridge | null>(null);
   const [ready, setReady] = useState(false);
   const [storageBlocked, setStorageBlocked] = useState(false);
   const [storageWarning, setStorageWarning] = useState("");
@@ -75,6 +78,7 @@ export function PlannerProvider({ children }: Readonly<{ children: ReactNode }>)
     bootPromise.current.then((result) => {
       if (cancelled) return;
       setState(toPlannerState(result.state));
+      setExecutionBridge(result.executionBridge);
       if (!result.markerRepaired) setStorageWarning(MARKER_WARNING);
       setReady(true);
     }).catch(() => {
@@ -91,7 +95,7 @@ export function PlannerProvider({ children }: Readonly<{ children: ReactNode }>)
     if (!ready || storageBlocked) return;
     const next = saveQueue.current.then(() => {
       if (writesBlocked.current) return;
-      return saveActivePlannerV2({ repository, state });
+      return saveActivePlannerV2({ repository, state }).then((bridge) => { setExecutionBridge(bridge); });
     });
     saveQueue.current = next.catch(() => {
       writesBlocked.current = true;
@@ -127,6 +131,7 @@ export function PlannerProvider({ children }: Readonly<{ children: ReactNode }>)
         instant: new Date().toISOString(),
       });
       setState(toPlannerState(restored.state));
+      setExecutionBridge(restored.executionBridge);
       writesBlocked.current = false;
       setStorageBlocked(false);
       setStorageWarning(restored.markerRepaired ? "" : MARKER_WARNING);
@@ -147,6 +152,7 @@ export function PlannerProvider({ children }: Readonly<{ children: ReactNode }>)
         instant: new Date().toISOString(),
       });
       setState(toPlannerState(restored.state));
+      setExecutionBridge(restored.executionBridge);
       writesBlocked.current = false;
       setStorageBlocked(false);
       setStorageWarning(restored.markerRepaired ? "" : MARKER_WARNING);
@@ -164,8 +170,8 @@ export function PlannerProvider({ children }: Readonly<{ children: ReactNode }>)
   }, [toast]);
 
   const value = useMemo(
-    () => ({ state, setState, exportBackup, importBackup, resetData, ready, storageBlocked, storageWarning, toast, notify }),
-    [state, exportBackup, importBackup, resetData, ready, storageBlocked, storageWarning, toast, notify],
+    () => ({ state, executionBridge, setState, exportBackup, importBackup, resetData, ready, storageBlocked, storageWarning, toast, notify }),
+    [state, executionBridge, exportBackup, importBackup, resetData, ready, storageBlocked, storageWarning, toast, notify],
   );
 
   return (

@@ -1,4 +1,5 @@
 import type { LegacyImportOrigin } from "../contracts/index.ts";
+import type { ExecutionBridgeExport } from "../execution/bridge.ts";
 import type {
   LegacyPlannerSnapshotV1,
   NormalizedLegacyPlannerV1,
@@ -41,5 +42,6 @@ export type DayforgeBackupV2 = Readonly<{
     planner: NormalizedLegacyPlannerV1;
     provenance: PlannerProvenance;
     legacySources: readonly LegacyMigrationSourceExport[];
+    executionBridge?: ExecutionBridgeExport;
   }>;
 }>;

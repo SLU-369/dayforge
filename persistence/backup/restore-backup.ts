@@ -15,6 +15,7 @@ import {
   type Sha256Hasher,
 } from "../migration/index.ts";
 import type { DayforgeBackupV2 } from "./contracts.ts";
+import { EXECUTION_BRIDGE_DOCUMENT_ID, createBridgeDocument, reconcileExecutionBridge } from "../execution/bridge.ts";
 import {
   BackupValidationError,
   decodeDayforgeBackupV2,
@@ -41,6 +42,10 @@ export async function restoreDayforgeBackupV2(options: Readonly<{
   const decoded = decodeDayforgeBackupV2(options.backup);
   const hasher = options.hasher ?? new WebCryptoSha256Hasher();
   const materialized = await validateAndMaterializeBackupV2(decoded, hasher);
+  // Active old backups have no audit facts: prepare fresh bindings before any mutation.
+  const executionDocument = materialized.executionDocument ?? (options.active
+    ? await createBridgeDocument(reconcileExecutionBridge(decoded.payload.planner), hasher) : null);
+  const prepared = { ...materialized, executionDocument };
 
   await options.repository.write(async (transaction) => {
     const databaseMetadata = await transaction.getDatabaseMetadata();
@@ -53,7 +58,12 @@ export async function restoreDayforgeBackupV2(options: Readonly<{
 
     for (const document of documents) {
       if (document.id === CURRENT_PLANNER_DOCUMENT_ID
-        || document.id.indexOf(LEGACY_V1_SOURCE_ID_PREFIX) === 0) {
+        || document.id.startsWith("execution/")) {
+        if (document.id.startsWith("execution/") && document.id !== EXECUTION_BRIDGE_DOCUMENT_ID) {
+          throw new BackupValidationError("invalid_backup_integrity", "Documento de execução desconhecido.");
+        }
+        await transaction.deletePlannerDocument(document.id);
+      } else if (document.id.indexOf(LEGACY_V1_SOURCE_ID_PREFIX) === 0) {
         await transaction.deletePlannerDocument(document.id);
       }
     }
@@ -66,12 +76,16 @@ export async function restoreDayforgeBackupV2(options: Readonly<{
       await transaction.putPlannerDocument(source);
     }
     await transaction.putPlannerDocument(materialized.current);
+    if (executionDocument) await transaction.putPlannerDocument(executionDocument);
+    const baseMetadata = { ...databaseMetadata };
+    delete baseMetadata.executionBridgeVersion;
+    await transaction.putDatabaseMetadata(executionDocument ? { ...baseMetadata, executionBridgeVersion: 1 } : baseMetadata);
     for (const migration of materialized.migrations) {
       await transaction.putMetadata(migration);
     }
 
     options.afterWriteForTest?.();
-    await assertPersistedMaterializedBackup(transaction, materialized, options.active);
+    await assertPersistedMaterializedBackup(transaction, prepared, options.active);
   });
 
   return {

@@ -7,6 +7,7 @@ import {
   decodeLegacyPlannerSnapshotV1,
   normalizeLegacyPlannerSnapshotV1,
 } from "../legacy/index.ts";
+import { decodeExecutionBridge } from "../execution/bridge.ts";
 import {
   DAYFORGE_BACKUP_FORMAT,
   DAYFORGE_BACKUP_FORMAT_VERSION,
@@ -188,7 +189,8 @@ export function decodeDayforgeBackupV2(value: unknown): DayforgeBackupV2 {
     || !Number.isSafeInteger(value.exportedFrom.schemaVersion)
     || value.exportedFrom.schemaVersion < 1
     || !isPlainObject(value.payload)
-    || !hasExactFields(value.payload, PAYLOAD_FIELDS)
+    || !(hasExactFields(value.payload, PAYLOAD_FIELDS)
+      || hasExactFields(value.payload, [...PAYLOAD_FIELDS, "executionBridge"]))
     || !isPlainObject(value.payload.planner)
     || !Array.isArray(value.payload.legacySources)) {
     throw new BackupValidationError(
@@ -212,6 +214,13 @@ export function decodeDayforgeBackupV2(value: unknown): DayforgeBackupV2 {
     return invalidPayload("O planner do backup v2 precisa estar normalizado.");
   }
   const legacySources = payload.legacySources.map(decodeSource);
+  let executionBridge;
+  if (Object.hasOwn(payload, "executionBridge")) {
+    const data = payload.executionBridge;
+    if (!isPlainObject(data) || !hasExactFields(data, ["bridge", "contentFingerprint"])
+      || !isSha256Fingerprint(data.contentFingerprint)) return invalidPayload();
+    executionBridge = { bridge: decodeExecutionBridge(data.bridge, planner), contentFingerprint: data.contentFingerprint };
+  }
   if (!legacySources.every((source, index) => (
     index === 0 || legacySources[index - 1].rawFingerprint < source.rawFingerprint
   ))) {
@@ -230,6 +239,7 @@ export function decodeDayforgeBackupV2(value: unknown): DayforgeBackupV2 {
       planner,
       provenance: decodeProvenance(payload.provenance),
       legacySources,
+      ...(executionBridge ? { executionBridge } : {}),
     },
   };
 }
