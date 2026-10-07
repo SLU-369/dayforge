@@ -181,5 +181,8 @@ A Etapa 1.2D encerrou a migração da persistência do planner legado. A 2A
 introduziu somente o contexto de leitura de Hoje, sem persistir entidades
 temporais canônicas. A fundação da 2B adota uma ponte de identidade e execução
 sem converter o planner legado; backup/restore cobre todo o conjunto e rejeita
-vínculos ambíguos. Ação explícita de execução na UI, reagendamento e novos
-produtores temporais continuam sujeitos a autorização própria.
+vínculos ambíguos. A 2B-A implementa Concluir na UI para ocorrências canônicas
+pendentes, com timing real e fuso confirmados, recordedAt explícito e operação
+serializada com autosave. Histórico legado e itens virtuais não recebem fatos
+inventados; planner/current mantém seu formato. Reagendamento, correção
+terminal e novos produtores temporais continuam sujeitos a autorização própria.

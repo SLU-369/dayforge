@@ -63,7 +63,7 @@ function itemMinutes(item: RoutineItem) {
 }
 
 export default function PlannerApp({ view = "hoje", initialDate }: { view?: PlannerView; initialDate?: string }) {
-  const { state, executionBridge, setState, ready, storageBlocked, notify } = usePlanner();
+  const { state, executionBridge, setState, ready, storageBlocked, notify, completeOccurrence, completingIds } = usePlanner();
   const router = useRouter();
   const searchParams = useSearchParams();
   const requestedDate = searchParams.get("date");
@@ -190,6 +190,8 @@ export default function PlannerApp({ view = "hoje", initialDate }: { view?: Plan
       <div className="view-stage" key={view}>
           {view === "hoje" && (
             <TodayContextView
+              onComplete={completeOccurrence}
+              completingIds={completingIds}
               context={todayContext.context}
               selectedDate={selectedDateObject}
               onDate={selectDate}
@@ -203,6 +205,7 @@ export default function PlannerApp({ view = "hoje", initialDate }: { view?: Plan
                 onDate={selectDate}
                 onToggle={toggleItem}
                 completionLocked={executionBridge !== null}
+                terminalIndexes={executionBridge?.entries.filter((entry) => entry.sourceDate === selectedDate && entry.execution).map((entry) => entry.itemIndex) ?? []}
                 onEdit={(item, index) => setEditor({ type: "day", item, index })}
                 onDelete={(index) => deleteItem(index, "day")}
                 onAdd={() => setEditor({ type: "day" })}
@@ -237,7 +240,7 @@ export default function PlannerApp({ view = "hoje", initialDate }: { view?: Plan
   );
 }
 
-function TodayView({ record, selectedDate, todayISO, metrics, onDate, onToggle, completionLocked, onEdit, onDelete, onAdd, onNote, onEnergy }: {
+function TodayView({ record, selectedDate, todayISO, metrics, onDate, onToggle, completionLocked, terminalIndexes, onEdit, onDelete, onAdd, onNote, onEnergy }: {
   record: DailyRecord;
   selectedDate: Date;
   todayISO: string;
@@ -245,6 +248,7 @@ function TodayView({ record, selectedDate, todayISO, metrics, onDate, onToggle, 
   onDate: (date: Date) => void;
   onToggle: (index: number) => void;
   completionLocked: boolean;
+  terminalIndexes: readonly number[];
   onEdit: (item: DailyItem, index: number) => void;
   onDelete: (index: number) => void;
   onAdd: () => void;
@@ -273,7 +277,7 @@ function TodayView({ record, selectedDate, todayISO, metrics, onDate, onToggle, 
 
       <div className="content-grid">
         <section className="panel timeline-panel">
-          <div className="panel-heading"><div><span className="eyebrow">LINHA DO TEMPO</span><h2>Planejado x realizado</h2>{completionLocked && <small>Alteração de conclusão indisponível nesta etapa.</small>}</div><span className="progress-chip">{percentage}% concluído</span></div>
+          <div className="panel-heading"><div><span className="eyebrow">LINHA DO TEMPO</span><h2>Planejado x realizado</h2>{completionLocked && <small>Conclua ocorrências na visão contextual acima. Registros concluídos não podem ser reabertos nesta etapa.</small>}</div><span className="progress-chip">{percentage}% concluído</span></div>
           <div className="timeline-list">
             {record.items.map((entry, index) => {
               const category = CATEGORIES[entry.category];
@@ -283,7 +287,7 @@ function TodayView({ record, selectedDate, todayISO, metrics, onDate, onToggle, 
                   <button className="check-button" disabled={completionLocked} aria-label={completionLocked ? (entry.completed ? "Atividade concluída" : "Atividade pendente") : (entry.completed ? "Marcar como pendente" : "Marcar como concluída")} onClick={() => onToggle(index)}>{entry.completed ? "✓" : ""}</button>
                   <div className="time-column"><strong>{entry.start}</strong><span>{entry.end}</span></div>
                   <div className="item-body"><div className="item-tags"><span className="category-tag">{category.label}</span>{isNow && <span className="now-tag">agora</span>}</div><h3>{entry.title}</h3>{entry.notes && <p>{entry.notes}</p>}<small>{entry.completed ? `${entry.actualMinutes || itemMinutes(entry)} min realizados` : `${itemMinutes(entry)} min planejados`}</small></div>
-                  <div className="item-actions"><button aria-label="Editar atividade" onClick={() => onEdit(entry, index)}>Editar</button><button aria-label="Excluir atividade" onClick={() => onDelete(index)}>×</button></div>
+                  <div className="item-actions"><button disabled={terminalIndexes.includes(index)} aria-label="Editar atividade" onClick={() => onEdit(entry, index)}>Editar</button><button disabled={terminalIndexes.includes(index)} aria-label="Excluir atividade" onClick={() => onDelete(index)}>×</button></div>
                 </article>
               );
             })}

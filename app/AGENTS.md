@@ -12,6 +12,7 @@
 - `planner-repository.ts` retains the v1 parsing and guard compatibility helpers plus JSON download; `persistence/` owns active IndexedDB storage and backup.
 - `planner-data.ts` owns only the versioned legacy v1 planner payload types, defaults, and its existing date/duration helpers. New product-domain contracts live in root `domain/`.
 - `today-context.ts` owns the pure, read-only projection of the active planner document into daily context; `today-context-view.tsx` owns the contextual Hoje presentation. Neither writes derived context.
+- `completion-dialog.tsx` and `completion-input.ts` own explicit actual timing/zone confirmation and domain factory inputs; `completion-command.ts` refreshes validated persisted snapshots. `planner-write-queue.ts` serializes application writes and invalidates obsolete autosaves.
 - `appearance.ts` owns appearance preferences, the offline capital catalog, solar calculations, and the standalone theme bootstrap; `theme-provider.tsx` owns their browser lifecycle.
 - Route folders own only their page composition; shared navigation belongs in `components/shell/navigation-config.tsx`.
 
@@ -27,13 +28,15 @@
 - An unselected Hoje date follows the current device date across midnight; a user-selected date remains fixed until the user returns to today.
 - Hoje shows contextual sections first and retains the existing full-day legacy controls behind `Ver dia completo`; Stage 2A adds no new execution or rescheduling mutations.
 - Atenção flags a legacy item only when its projected interval ended and it has no completion record; this is a neutral request for user review, not an inferred failure or terminal temporal status.
-- The 2B foundation supplies a validated persistent identity bridge for daily records; Today consumes it in memory while preserving 2A ordering and interval rules. Virtual routine items remain noncanonical projections. No new completion UI or rescheduling is authorized in this foundation. Existing legacy controls cannot reopen or remove a binding carrying a canonical execution.
+- The 2B foundation supplies a validated persistent identity bridge for daily records; Today consumes it in memory while preserving 2A ordering and interval rules. Stage 2B-A authorizes Concluir only for canonical pending items. Virtual routine items remain projections without an action or automatic materialization; historical completed items never receive backfill. Legacy controls cannot reopen, edit or remove a binding carrying a canonical execution.
+- Completion requires explicit actual start/end dates and times, visible/editable IANA timezone and optional note. Never prefill actual timing from planning. The device zone is a visible suggestion confirmed by the user. Reject ambiguous/nonexistent wall times; use domain factories and capture recordedAt only at explicit UI confirmation. Unchanged retry reuses the same ExecutionRecord and timestamp.
+- PlannerContext serializes completion, autosave and recovery/backup in one queue. Publish state and bridge together from a validated persisted snapshot; invalidate autosaves captured before publication. Coalesce equivalent concurrent completions, block local edits during a command and preserve the dialog/inputs on action errors. Block storage only when the persisted snapshot cannot be validated; ordinary command failure permits retry.
 - New mocked domains must not be written into the v1 planner payload.
-- With the execution bridge active, disable legacy completion toggles. Minute edits do not imply completion or create an ExecutionRecord; no canonical completion UI is enabled by this guard.
+- With the execution bridge active, disable legacy completion toggles. Minute edits do not imply completion or create an ExecutionRecord. Canonical completion uses recordOccurrenceExecution through PlannerContext; new timed completions derive compatibility actualMinutes from the actual UTC interval atomically.
 - `/hoje` is the primary Hoje route; `/` remains a compatible entry point. Product areas use real, directly loadable App Router routes.
 - Backup, import, and reset controls belong under `/configuracoes/dados-e-backup`, never in primary navigation.
 - Keep backend, D1, Worker, and API changes outside frontend-only stages.
-- The delivered shell and visual stage are approved and closed. Stage 2A authorizes only the read-only contextual Hoje view; execution and rescheduling remain gated, and reserved product routes do not authorize unrelated work.
+- The delivered shell and visual stage are approved and closed. Stage 2A owns the read-only Hoje projection; 2B-A adds only explicit canonical completion. Rescheduling and terminal corrections remain gated, and reserved product routes do not authorize unrelated work.
 
 ## Work Guidance
 
@@ -66,6 +69,7 @@
 - Confirm backup round-trips preserve v1 fields when persistence behavior changes.
 - Run the planner persistence regression test whenever the v1 read/write guard changes.
 - Run the cutover integration suite when bootstrap, marker, active backup, or planner autosave changes.
+- Run completion-action Node and Edge suites for completion/timing/queue changes, including failure/retry, obsolete autosave, reload, backup/restore, v1, keyboard and overnight boundaries.
 
 ## Child DOX Index
 

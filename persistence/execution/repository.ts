@@ -89,7 +89,7 @@ export async function ensureExecutionBridge(repository: LocalPersistenceReposito
   return savePlannerWithBridge({ repository, state: backup.payload.planner, hasher, expectedSnapshot: backup });
 }
 
-/** Internal foundation command only; no UI caller. Receives actual timing explicitly. */
+/** Canonical command. Receives actual timing explicitly; never interprets planned timing as execution. */
 export async function recordOccurrenceExecution(options: Readonly<{
   repository: LocalPersistenceRepository;
   occurrenceId: string;
@@ -100,13 +100,18 @@ export async function recordOccurrenceExecution(options: Readonly<{
   const before = await exportDayforgeBackupV2({ repository: options.repository, exportedAt: "1970-01-01T00:00:00.000Z", active: true, hasher: options.hasher });
   const bridge = before.payload.executionBridge?.bridge;
   const binding = bridge?.entries.find((entry) => entry.occurrenceId === options.occurrenceId);
-  if (!binding || !binding.item.title.trim() || !parseLocalTime(binding.item.start).ok
+  if (!binding || (binding.item.completed && !binding.execution) || !binding.item.title.trim() || !parseLocalTime(binding.item.start).ok
     || !parseLocalTime(binding.item.end).ok) throw new ExecutionBridgeError();
+  const execution = decodeBridgeExecution(options.execution, options.occurrenceId);
+  const actualMinutes = !binding.execution && execution.timing.kind === "timed"
+    ? (Date.parse(execution.timing.interval.end) - Date.parse(execution.timing.interval.start)) / 60_000
+    : binding.item.actualMinutes;
   const state = structuredClone(before.payload.planner);
   // The codec represents a readonly snapshot. Build a replacement instead of mutating it.
   const record = state.records[binding.sourceDate];
   const updated: NormalizedLegacyPlannerV1 = { ...state, records: { ...state.records, [binding.sourceDate]: {
-    ...record, items: record.items.map((item, index) => index === binding.itemIndex ? { ...item, completed: true } : item),
+    ...record, items: record.items.map((item, index) => index === binding.itemIndex
+      ? { ...item, completed: true, ...(actualMinutes === undefined ? {} : { actualMinutes }) } : item),
   } } };
   try {
     return await savePlannerWithBridge({ ...options, expectedSnapshot: before, state: updated, execution: { occurrenceId: options.occurrenceId, record: options.execution } });

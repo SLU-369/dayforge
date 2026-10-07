@@ -12,7 +12,7 @@
 - `migration/` owns canonicalization, SHA-256 identities, and the transactional v1-to-v2 migration.
 - `backup/` owns the logical v2 backup contract, strict codecs, consistent export, atomic restore, and compatible v1 import.
 - `bootstrap/` owns the v2 authority decision, marker, cutover, active planner writes, and explicit recovery.
-- `execution/` owns persistent occurrence identity bindings, domain ExecutionRecord codecs and internal atomic execution writes.
+- `execution/` owns persistent occurrence identity bindings, domain ExecutionRecord codecs and canonical atomic execution writes. Stage 2B-A uses that command through PlannerContext, without new tables or backup format changes.
 
 ## Local Contracts
 
