@@ -33,7 +33,7 @@ for (const completed of [false, true]) {
     const control = page.getByRole("button", { name: completed ? "Atividade concluída" : "Atividade pendente", exact: true });
     await expect(control).toBeDisabled();
     await expect(page.getByRole("button", { name: /Marcar como (concluída|pendente)/ })).toHaveCount(0);
-    await expect(page.getByText("Alteração de conclusão indisponível nesta etapa.")).toBeVisible();
+    await expect(page.getByText("Conclua ocorrências na visão contextual acima. Registros concluídos não podem ser reabertos nesta etapa.")).toBeVisible();
     const before = await readAuditState(page);
     await control.evaluate((button) => button.click());
     expect(await readAuditState(page)).toEqual(before);
