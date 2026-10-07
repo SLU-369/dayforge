@@ -115,6 +115,42 @@ retroativo. O comando interno anexa a execução antes desse guard e mantém a
 transição atômica. A UI desabilita o toggle legado com a ponte ativa; editar
 `actualMinutes` não conclui uma atividade nem inventa execução.
 
+### Etapa 2B-A — Conclusão canônica pela UI
+
+Hoje oferece Concluir somente para itens diários pendentes com `occurrenceId`
+validado. O diálogo pede início e fim reais completos (data e hora), fuso IANA
+visível/editável e observação opcional. Horários reais começam vazios. O fuso
+do dispositivo é uma sugestão explícita confirmada pelo usuário, nunca um fato
+inferido do planejamento. O adapter converte horários locais inequívocos para
+UTC; horários inexistentes ou ambíguos são rejeitados. Isso não muda a política
+de projeção somente para leitura da 2A.
+
+Factories do domínio constroem `ExecutionRecord` timed com ID
+`execution:<occurrenceId>`; `recordedAt` é capturado na confirmação na fronteira
+de UI. Retry com os mesmos campos reutiliza exatamente esse fato e instante.
+Na primeira conclusão timed, `actualMinutes` é a diferença UTC do intervalo
+real em minutos, gravada pelo comando na mesma transação como compatibilidade.
+O ExecutionRecord permanece a autoridade; retry não reescreve fatos antigos.
+Conclusão histórica sem execução não pode receber backfill pelo comando.
+
+`PlannerContext.completeOccurrence` serializa autosave, conclusão, exportação,
+importação e reset em uma única fila. Requisições equivalentes em andamento
+compartilham a mesma Promise; conflito é rejeitado sem bloquear a fila.
+Após o comando, export validado fornece um snapshot consistente de planner e
+ponte, publicados juntos no estado React. Uma revisão em memória invalida
+autosaves capturados antes dessa publicação; nenhuma seção Hoje é persistida.
+Edições locais ficam bloqueadas durante a conclusão em andamento.
+
+Erro normal de domínio/comando com armazenamento ainda validável mantém o
+diálogo aberto e o snapshot anterior coerente, permitindo retry. Falha de
+integridade ou indisponibilidade que impede validar o snapshot ativa o bloqueio
+persistente; não há fallback para v1. O diálogo nativo, botões semânticos,
+loading, Cancelar/Escape e restauração de foco preservam acesso por teclado.
+Controles legados de edição/exclusão ficam indisponíveis para execuções
+terminais. Templates e snapshots originais permanecem intactos. Projeções
+virtuais não são materializadas e históricos concluídos não ganham execução.
+Não há início, undo, reagendamento, nova entidade temporal ou schema de storage.
+
 ## 5. Motor de planejamento
 
 A primeira versão local usa TypeScript puro, determinístico e independente da UI. Os contratos e vetores de teste devem permitir reprodução fora do navegador.

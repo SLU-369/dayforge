@@ -5,8 +5,8 @@
 
 # Dayforge 2.0 — Documentação oficial de produto
 
-**Status:** Etapas 0.1, 0.2, 1.1, 1.2A–1.2D, 2A e fundação da 2B implementadas; ação de execução na UI pendente
-**Data:** 06/10/2026
+**Status:** Etapas 0.1, 0.2, 1.1, 1.2A–1.2D, 2A, fundação da 2B e 2B-A implementadas; reagendamento não iniciado
+**Data:** 07/10/2026
 **Objetivo:** transformar as decisões de produto, UX, domínio e arquitetura discutidas até aqui em uma fonte oficial de verdade para o repositório e para o Codex.
 
 ## Como usar esta documentação
@@ -75,7 +75,7 @@ A Etapa B/B3 concluiu a fundação visual inicial do App Shell:
 - o núcleo TypeScript puro em `domain/temporal/` define templates, ocorrências,
   execução, reagendamento, estados terminais e disponibilidade mínima sem
   depender de React, browser ou persistência;
-- a página Hoje apresenta contexto derivado somente para leitura; seus controles funcionais legados permanecem na visão secundária do dia completo.
+- a página Hoje apresenta contexto derivado em memória e permite conclusão canônica explícita na 2B-A; seus controles legados permanecem na visão secundária do dia completo, com toggle de conclusão bloqueado.
 
 A Etapa 1.1 não integrou o novo domínio temporal ao planner legado. A Etapa 1.2
 foi implementada em quatro subetapas: fundação Dexie, migração validada,
@@ -83,8 +83,10 @@ backup/restauração lógica v2 e bootstrap/cutover. O planner atual usa
 `planner/current` no IndexedDB com metadata ativa; `rotina-369:data:v1`
 permanece intacto e somente leitura. A tela de Dados e backup exporta v2 e
 aceita arquivos v2 e v1. A Etapa 2A adiciona somente o read model contextual;
-a fundação da 2B inclui identidade, execução interna auditável e recuperação.
-A ação explícita na UI permanece pendente; reagendamento não foi iniciado.
+a fundação da 2B inclui identidade, execução auditável e recuperação.
+A 2B-A adiciona Concluir para ocorrências canônicas, com intervalo real e fuso
+informados explicitamente pelo usuário. Itens virtuais e conclusões históricas
+não recebem fatos retroativos; reagendamento não foi iniciado.
 
 ---
 
@@ -1849,6 +1851,42 @@ retroativo. O comando interno anexa a execução antes desse guard e mantém a
 transição atômica. A UI desabilita o toggle legado com a ponte ativa; editar
 `actualMinutes` não conclui uma atividade nem inventa execução.
 
+### Etapa 2B-A — Conclusão canônica pela UI
+
+Hoje oferece Concluir somente para itens diários pendentes com `occurrenceId`
+validado. O diálogo pede início e fim reais completos (data e hora), fuso IANA
+visível/editável e observação opcional. Horários reais começam vazios. O fuso
+do dispositivo é uma sugestão explícita confirmada pelo usuário, nunca um fato
+inferido do planejamento. O adapter converte horários locais inequívocos para
+UTC; horários inexistentes ou ambíguos são rejeitados. Isso não muda a política
+de projeção somente para leitura da 2A.
+
+Factories do domínio constroem `ExecutionRecord` timed com ID
+`execution:<occurrenceId>`; `recordedAt` é capturado na confirmação na fronteira
+de UI. Retry com os mesmos campos reutiliza exatamente esse fato e instante.
+Na primeira conclusão timed, `actualMinutes` é a diferença UTC do intervalo
+real em minutos, gravada pelo comando na mesma transação como compatibilidade.
+O ExecutionRecord permanece a autoridade; retry não reescreve fatos antigos.
+Conclusão histórica sem execução não pode receber backfill pelo comando.
+
+`PlannerContext.completeOccurrence` serializa autosave, conclusão, exportação,
+importação e reset em uma única fila. Requisições equivalentes em andamento
+compartilham a mesma Promise; conflito é rejeitado sem bloquear a fila.
+Após o comando, export validado fornece um snapshot consistente de planner e
+ponte, publicados juntos no estado React. Uma revisão em memória invalida
+autosaves capturados antes dessa publicação; nenhuma seção Hoje é persistida.
+Edições locais ficam bloqueadas durante a conclusão em andamento.
+
+Erro normal de domínio/comando com armazenamento ainda validável mantém o
+diálogo aberto e o snapshot anterior coerente, permitindo retry. Falha de
+integridade ou indisponibilidade que impede validar o snapshot ativa o bloqueio
+persistente; não há fallback para v1. O diálogo nativo, botões semânticos,
+loading, Cancelar/Escape e restauração de foco preservam acesso por teclado.
+Controles legados de edição/exclusão ficam indisponíveis para execuções
+terminais. Templates e snapshots originais permanecem intactos. Projeções
+virtuais não são materializadas e históricos concluídos não ganham execução.
+Não há início, undo, reagendamento, nova entidade temporal ou schema de storage.
+
 ## 5. Motor de planejamento
 
 A primeira versão local usa TypeScript puro, determinístico e independente da UI. Os contratos e vetores de teste devem permitir reprodução fora do navegador.
@@ -1893,7 +1931,7 @@ Camadas futuras devem possuir testes unitários de domínio e planner, testes de
 - Etapa 0.2/B4 de taxonomia, baseline técnica e proteção do v1 concluída.
 - Etapa 1.1 de modelo temporal e contratos do domínio concluída.
 - Etapas 1.2A–1.2D implementadas; v2 é o store principal e v1 permanece somente leitura.
-- Etapa 2A concluída; fundação da 2B implementada, ação de conclusão na UI pendente; reagendamento não iniciado.
+- Etapa 2A concluída; fundação da 2B e ação canônica de conclusão 2B-A implementadas; reagendamento não iniciado.
 - Plano da Etapa 1.2 aprovado; cada subetapa exige branch, validação, revisão e autorização próprias.
 - Nenhuma etapa funcional pode começar por consequência automática desta documentação.
 
@@ -2122,8 +2160,8 @@ Execução e reagendamento pertencem a uma subdivisão futura ainda não iniciad
 ### Etapa 2B — Execução explícita de ocorrências
 
 Fundação: identidade canônica e persistência auditável, em
-`feature/today-execution`. Esta entrega não encerra toda a 2B: a ação explícita
-na UI depende de autorização posterior, após validação desta fundação.
+`feature/today-execution`. A fundação foi entregue separadamente da ação na UI,
+implementada depois na unidade autorizada 2B-A.
 
 - Ponte externa `execution/bridge` em `plannerDocuments`, sem alterar o formato
   de `planner/current`, o schema Dexie 1 ou a geração de persistência 2.
@@ -2159,6 +2197,46 @@ legado, não uma conversão para `ScheduleOccurrence` completo. Essa conversão
 exigiria semânticas ausentes que esta fase não inventa. Não foram adicionados
 botão Concluir, início, reagendamento, timers, notificações, IA ou cloud.
 Não iniciar 2C por consequência desta fundação.
+
+#### Etapa 2B-A — Ação canônica de conclusão
+
+Status: implementada em 07/10/2026. Branch: `feature/today-completion`, a partir
+de `dbe3e732ae87a035019dc5b223e3cb80f5e90a25` (PRs #10 e #11 integradas).
+
+- Concluir está disponível apenas para ocorrência canônica pendente em Hoje.
+  A única transição exposta é `planned -> completed`; não há ação de início.
+- Início/fim reais completos são informados pelo usuário, sem prefill planejado.
+  Fuso IANA é visível, editável e confirmado; horários ambíguos/inexistentes são
+  rejeitados. Observação é opcional. Factories temporais produzem o único
+  ExecutionRecord; `recordedAt` vem do instante da confirmação explícita.
+- ID é `execution:<occurrenceId>`. Retry com campos inalterados reutiliza o fato,
+  incluindo recordedAt; submit duplicado é bloqueado e requests equivalentes
+  compartilham a operação. Fato conflitante é rejeitado.
+- PlannerContext usa a mesma fila para autosave, comando e backup/recovery;
+  publica state/bridge do snapshot v2 validado juntos. Revisão em memória impede
+  autosave obsoleto de reabrir conclusão ou causar bloqueio por estado antigo.
+- O comando existente grava conclusão, execução e procedência atomicamente.
+  Na primeira execução timed deriva `actualMinutes` exatamente do intervalo UTC
+  real, como compatibilidade. Não altera template nem snapshot original; eles,
+  vínculo e fato terminal continuam formando o histórico auditável da etapa.
+- Hoje recalcula Agora/Próximo/Depois/Atenção/Resumo sem reload; conclusão deixa
+  de ser pendência e sai de Atenção. Reload e backup/restore preservam o fato.
+- Erro isolado com snapshot validável mantém diálogo/inputs e permite retry.
+  Falha estrutural mantém fail-closed. Toggle legado permanece bloqueado;
+  edição/exclusão legada de execução terminal fica desabilitada.
+- Projeções virtuais continuam sem ação ou materialização automática.
+  Conclusões históricas sem execution continuam compatíveis e sem backfill.
+- Backup formato 2, geração 2, Dexie schema 1 e ponte lógica 1 permanecem iguais.
+
+Aceite comprovado: 27 testes direcionados, 199 Node, 106 persistência (incluindo
+44 de foundation), 13 Hoje e 31 Edge (oito novos), além de lint, TypeScript,
+build, master check e diff check. Cobertura inclui UTC/IANA/DST, instante
+controlado, concorrência/autosave obsoleto, requests equivalentes, rollback,
+reload, backup/restore, v1 intacto, históricos, virtuais, teclado e madrugada.
+
+Limites: sem ScheduleOccurrence completo, backfill histórico, início, undo,
+correção terminal, reagendamento ou avanço para 2C. Horários ambíguos exigem
+entradas inequívocas; não há escolha de offset nesta UX mínima.
 
 ## 5. Ordem de dependências
 
@@ -2434,6 +2512,23 @@ o fato terminal. Execução órfã, identidade duplicada, vínculo ambíguo e
 fingerprint inválido bloqueiam gravação/restauração sem mutação parcial.
 Backup antigo substitui o conjunto sem inventar execuções; rollback cobre
 ponte, planner, metadata e procedência. Nenhuma UI nova de conclusão é exigida.
+
+## Cenário 28 — Conclusão canônica explícita da 2B-A
+
+Uma ocorrência canônica pendente em Hoje oferece Concluir. Usuário informa
+início/fim reais, confirma fuso IANA e registra observação opcional. Horários
+planejados não viram execução. ExecutionRecord usa ID da ocorrência e instante
+explícito de confirmação; minutos legados derivam do intervalo real UTC.
+Concluir atualiza state/bridge juntos e recalcula todas as seções sem reload,
+inclusive retirando o item de Atenção. Reload e export/restore mantêm o fato.
+Clique duplicado e requests equivalentes não duplicam execução. Autosave
+obsoleto não reabre terminal; falha no meio reverte o conjunto inteiro, mantém
+o formulário aberto e permite retry sem storageBlocked quando a integridade
+permanece válida. Snapshot inválido continua fail-closed, sem fallback/escrita
+em v1. Template e histórico original permanecem intactos. Item virtual não
+recebe ação nem identidade; histórico concluído não recebe backfill. Toggle
+legado e edição/exclusão de terminal canônico permanecem bloqueados. Teclado,
+Escape/Cancelar, loading e foco funcionam, incluindo layout compacto.
 
 ---
 
@@ -2875,8 +2970,11 @@ A Etapa 1.2D encerrou a migração da persistência do planner legado. A 2A
 introduziu somente o contexto de leitura de Hoje, sem persistir entidades
 temporais canônicas. A fundação da 2B adota uma ponte de identidade e execução
 sem converter o planner legado; backup/restore cobre todo o conjunto e rejeita
-vínculos ambíguos. Ação explícita de execução na UI, reagendamento e novos
-produtores temporais continuam sujeitos a autorização própria.
+vínculos ambíguos. A 2B-A implementa Concluir na UI para ocorrências canônicas
+pendentes, com timing real e fuso confirmados, recordedAt explícito e operação
+serializada com autosave. Histórico legado e itens virtuais não recebem fatos
+inventados; planner/current mantém seu formato. Reagendamento, correção
+terminal e novos produtores temporais continuam sujeitos a autorização própria.
 
 ---
 

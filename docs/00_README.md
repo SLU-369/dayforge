@@ -1,7 +1,7 @@
 # Dayforge 2.0 — Documentação oficial de produto
 
-**Status:** Etapas 0.1, 0.2, 1.1, 1.2A–1.2D, 2A e fundação da 2B implementadas; ação de execução na UI pendente
-**Data:** 06/10/2026
+**Status:** Etapas 0.1, 0.2, 1.1, 1.2A–1.2D, 2A, fundação da 2B e 2B-A implementadas; reagendamento não iniciado
+**Data:** 07/10/2026
 **Objetivo:** transformar as decisões de produto, UX, domínio e arquitetura discutidas até aqui em uma fonte oficial de verdade para o repositório e para o Codex.
 
 ## Como usar esta documentação
@@ -70,7 +70,7 @@ A Etapa B/B3 concluiu a fundação visual inicial do App Shell:
 - o núcleo TypeScript puro em `domain/temporal/` define templates, ocorrências,
   execução, reagendamento, estados terminais e disponibilidade mínima sem
   depender de React, browser ou persistência;
-- a página Hoje apresenta contexto derivado somente para leitura; seus controles funcionais legados permanecem na visão secundária do dia completo.
+- a página Hoje apresenta contexto derivado em memória e permite conclusão canônica explícita na 2B-A; seus controles legados permanecem na visão secundária do dia completo, com toggle de conclusão bloqueado.
 
 A Etapa 1.1 não integrou o novo domínio temporal ao planner legado. A Etapa 1.2
 foi implementada em quatro subetapas: fundação Dexie, migração validada,
@@ -78,5 +78,7 @@ backup/restauração lógica v2 e bootstrap/cutover. O planner atual usa
 `planner/current` no IndexedDB com metadata ativa; `rotina-369:data:v1`
 permanece intacto e somente leitura. A tela de Dados e backup exporta v2 e
 aceita arquivos v2 e v1. A Etapa 2A adiciona somente o read model contextual;
-a fundação da 2B inclui identidade, execução interna auditável e recuperação.
-A ação explícita na UI permanece pendente; reagendamento não foi iniciado.
+a fundação da 2B inclui identidade, execução auditável e recuperação.
+A 2B-A adiciona Concluir para ocorrências canônicas, com intervalo real e fuso
+informados explicitamente pelo usuário. Itens virtuais e conclusões históricas
+não recebem fatos retroativos; reagendamento não foi iniciado.

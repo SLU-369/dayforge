@@ -116,3 +116,20 @@ o fato terminal. Execução órfã, identidade duplicada, vínculo ambíguo e
 fingerprint inválido bloqueiam gravação/restauração sem mutação parcial.
 Backup antigo substitui o conjunto sem inventar execuções; rollback cobre
 ponte, planner, metadata e procedência. Nenhuma UI nova de conclusão é exigida.
+
+## Cenário 28 — Conclusão canônica explícita da 2B-A
+
+Uma ocorrência canônica pendente em Hoje oferece Concluir. Usuário informa
+início/fim reais, confirma fuso IANA e registra observação opcional. Horários
+planejados não viram execução. ExecutionRecord usa ID da ocorrência e instante
+explícito de confirmação; minutos legados derivam do intervalo real UTC.
+Concluir atualiza state/bridge juntos e recalcula todas as seções sem reload,
+inclusive retirando o item de Atenção. Reload e export/restore mantêm o fato.
+Clique duplicado e requests equivalentes não duplicam execução. Autosave
+obsoleto não reabre terminal; falha no meio reverte o conjunto inteiro, mantém
+o formulário aberto e permite retry sem storageBlocked quando a integridade
+permanece válida. Snapshot inválido continua fail-closed, sem fallback/escrita
+em v1. Template e histórico original permanecem intactos. Item virtual não
+recebe ação nem identidade; histórico concluído não recebe backfill. Toggle
+legado e edição/exclusão de terminal canônico permanecem bloqueados. Teclado,
+Escape/Cancelar, loading e foco funcionam, incluindo layout compacto.

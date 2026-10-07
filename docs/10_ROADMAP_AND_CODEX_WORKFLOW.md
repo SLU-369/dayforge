@@ -7,7 +7,7 @@
 - Etapa 0.2/B4 de taxonomia, baseline técnica e proteção do v1 concluída.
 - Etapa 1.1 de modelo temporal e contratos do domínio concluída.
 - Etapas 1.2A–1.2D implementadas; v2 é o store principal e v1 permanece somente leitura.
-- Etapa 2A concluída; fundação da 2B implementada, ação de conclusão na UI pendente; reagendamento não iniciado.
+- Etapa 2A concluída; fundação da 2B e ação canônica de conclusão 2B-A implementadas; reagendamento não iniciado.
 - Plano da Etapa 1.2 aprovado; cada subetapa exige branch, validação, revisão e autorização próprias.
 - Nenhuma etapa funcional pode começar por consequência automática desta documentação.
 
@@ -236,8 +236,8 @@ Execução e reagendamento pertencem a uma subdivisão futura ainda não iniciad
 ### Etapa 2B — Execução explícita de ocorrências
 
 Fundação: identidade canônica e persistência auditável, em
-`feature/today-execution`. Esta entrega não encerra toda a 2B: a ação explícita
-na UI depende de autorização posterior, após validação desta fundação.
+`feature/today-execution`. A fundação foi entregue separadamente da ação na UI,
+implementada depois na unidade autorizada 2B-A.
 
 - Ponte externa `execution/bridge` em `plannerDocuments`, sem alterar o formato
   de `planner/current`, o schema Dexie 1 ou a geração de persistência 2.
@@ -273,6 +273,46 @@ legado, não uma conversão para `ScheduleOccurrence` completo. Essa conversão
 exigiria semânticas ausentes que esta fase não inventa. Não foram adicionados
 botão Concluir, início, reagendamento, timers, notificações, IA ou cloud.
 Não iniciar 2C por consequência desta fundação.
+
+#### Etapa 2B-A — Ação canônica de conclusão
+
+Status: implementada em 07/10/2026. Branch: `feature/today-completion`, a partir
+de `dbe3e732ae87a035019dc5b223e3cb80f5e90a25` (PRs #10 e #11 integradas).
+
+- Concluir está disponível apenas para ocorrência canônica pendente em Hoje.
+  A única transição exposta é `planned -> completed`; não há ação de início.
+- Início/fim reais completos são informados pelo usuário, sem prefill planejado.
+  Fuso IANA é visível, editável e confirmado; horários ambíguos/inexistentes são
+  rejeitados. Observação é opcional. Factories temporais produzem o único
+  ExecutionRecord; `recordedAt` vem do instante da confirmação explícita.
+- ID é `execution:<occurrenceId>`. Retry com campos inalterados reutiliza o fato,
+  incluindo recordedAt; submit duplicado é bloqueado e requests equivalentes
+  compartilham a operação. Fato conflitante é rejeitado.
+- PlannerContext usa a mesma fila para autosave, comando e backup/recovery;
+  publica state/bridge do snapshot v2 validado juntos. Revisão em memória impede
+  autosave obsoleto de reabrir conclusão ou causar bloqueio por estado antigo.
+- O comando existente grava conclusão, execução e procedência atomicamente.
+  Na primeira execução timed deriva `actualMinutes` exatamente do intervalo UTC
+  real, como compatibilidade. Não altera template nem snapshot original; eles,
+  vínculo e fato terminal continuam formando o histórico auditável da etapa.
+- Hoje recalcula Agora/Próximo/Depois/Atenção/Resumo sem reload; conclusão deixa
+  de ser pendência e sai de Atenção. Reload e backup/restore preservam o fato.
+- Erro isolado com snapshot validável mantém diálogo/inputs e permite retry.
+  Falha estrutural mantém fail-closed. Toggle legado permanece bloqueado;
+  edição/exclusão legada de execução terminal fica desabilitada.
+- Projeções virtuais continuam sem ação ou materialização automática.
+  Conclusões históricas sem execution continuam compatíveis e sem backfill.
+- Backup formato 2, geração 2, Dexie schema 1 e ponte lógica 1 permanecem iguais.
+
+Aceite comprovado: 27 testes direcionados, 199 Node, 106 persistência (incluindo
+44 de foundation), 13 Hoje e 31 Edge (oito novos), além de lint, TypeScript,
+build, master check e diff check. Cobertura inclui UTC/IANA/DST, instante
+controlado, concorrência/autosave obsoleto, requests equivalentes, rollback,
+reload, backup/restore, v1 intacto, históricos, virtuais, teclado e madrugada.
+
+Limites: sem ScheduleOccurrence completo, backfill histórico, início, undo,
+correção terminal, reagendamento ou avanço para 2C. Horários ambíguos exigem
+entradas inequívocas; não há escolha de offset nesta UX mínima.
 
 ## 5. Ordem de dependências
 
