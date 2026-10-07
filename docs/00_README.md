@@ -1,7 +1,7 @@
 # Dayforge 2.0 — Documentação oficial de produto
 
-**Status:** Etapas 0.1, 0.2, 1.1, 1.2A–1.2D e 2A implementadas; persistência v2 ativa no planner
-**Data:** 28/09/2026
+**Status:** Etapas 0.1, 0.2, 1.1, 1.2A–1.2D, 2A e fundação da 2B implementadas; ação de execução na UI pendente
+**Data:** 06/10/2026
 **Objetivo:** transformar as decisões de produto, UX, domínio e arquitetura discutidas até aqui em uma fonte oficial de verdade para o repositório e para o Codex.
 
 ## Como usar esta documentação
@@ -78,4 +78,5 @@ backup/restauração lógica v2 e bootstrap/cutover. O planner atual usa
 `planner/current` no IndexedDB com metadata ativa; `rotina-369:data:v1`
 permanece intacto e somente leitura. A tela de Dados e backup exporta v2 e
 aceita arquivos v2 e v1. A Etapa 2A adiciona somente o read model contextual;
-execução e reagendamento canônicos não foram iniciados.
+a fundação da 2B inclui identidade, execução interna auditável e recuperação.
+A ação explícita na UI permanece pendente; reagendamento não foi iniciado.

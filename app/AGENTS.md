@@ -27,6 +27,7 @@
 - An unselected Hoje date follows the current device date across midnight; a user-selected date remains fixed until the user returns to today.
 - Hoje shows contextual sections first and retains the existing full-day legacy controls behind `Ver dia completo`; Stage 2A adds no new execution or rescheduling mutations.
 - Atenção flags a legacy item only when its projected interval ended and it has no completion record; this is a neutral request for user review, not an inferred failure or terminal temporal status.
+- The 2B foundation supplies a validated persistent identity bridge for daily records; Today consumes it in memory while preserving 2A ordering and interval rules. Virtual routine items remain noncanonical projections. No new completion UI or rescheduling is authorized in this foundation. Existing legacy controls cannot reopen or remove a binding carrying a canonical execution.
 - New mocked domains must not be written into the v1 planner payload.
 - `/hoje` is the primary Hoje route; `/` remains a compatible entry point. Product areas use real, directly loadable App Router routes.
 - Backup, import, and reset controls belong under `/configuracoes/dados-e-backup`, never in primary navigation.

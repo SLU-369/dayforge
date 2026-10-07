@@ -66,6 +66,48 @@ A 1.2D lê metadata em transação, migra o v1 atual quando presente e valida o 
 
 A baseline da Etapa 0.2 implementa somente uma proteção: falha de leitura do v1 bloqueia o autosave de defaults, preserva o conteúdo original e mantém a sessão em memória até importação de backup ou restauração explícita. IndexedDB e a migração completa permanecem fora da 0.2.
 
+### Fundação da Etapa 2B
+
+`persistence/execution/` mantém `execution/bridge` em `plannerDocuments`.
+Seu payload lógico versionado em 1 contém contador de alocação e vínculos
+completos/ordenados dos itens de cada registro diário. Cada vínculo guarda ID
+opaco do domínio, data de origem, posição atual, snapshot original imutável,
+snapshot atual e `ExecutionRecord | null`. Não se convertem templates nem se
+inventam campos ausentes de um `ScheduleOccurrence` completo. Timing real e
+`recordedAt` são entradas explícitas validadas pelas factories do domínio.
+
+IDs legados, chave data/ID e hash apenas do conteúdo não distinguem duplicatas
+idênticas. Índice isolado não sobrevive a edição/reordenação. UUID não resolve
+a ligação ambígua e é desnecessário. Aloca-se `occ:<sequência>` uma vez em v2,
+com contador monotônico e snapshot/posição para validar a ligação. Duplicatas
+são aceitas na alocação inicial; edição ambígua posterior falha fechada.
+
+O bootstrap adota a ponte de forma idempotente. Metadata
+`executionBridgeVersion: 1` registra a adoção na mesma transação da ponte.
+Ausência da ponte depois da adoção é corrupção, não autorização para recriá-la.
+O marker externo e a autoridade ativa permanecem intactos.
+
+Backup `formatVersion: 2` ganha extensão opcional `payload.executionBridge`
+com ponte e fingerprint SHA-256 próprio. Ausência significa backup antigo sem
+fatos canônicos de execução. Schema Dexie permanece 1, pois tabelas/índices não
+mudam; `exportedFrom.schemaVersion` continua descrevendo o schema interno.
+A extensão possui versão lógica 1. Geração de persistência permanece 2.
+Aplicações antigas rejeitam a extensão desconhecida em vez de perder execução.
+
+Exportação captura planner, ponte e procedência numa transação readonly, depois
+recalcula hashes. Restore valida e prepara antes das mutações; substitui
+planner, ponte, fontes e migrations numa transação, incluindo metadata de
+adoção, releitura e rollback. Restore ativo antigo regenera vínculos sem
+execução; restore inativo antigo mantém o conjunto legado preparado, adotado
+no cutover. Importação v1 ativa e reset preparam a ponte antes de escrever.
+Nenhum caminho escreve no v1 ou mantém execução de um conjunto substituído.
+
+Comando interno e autosave comparam o snapshot dentro da transação read-write.
+SHA-256 ocorre fora da transação. Falha reverte o conjunto inteiro; retry
+idêntico retorna o fato existente; conflito é rejeitado. O template não muda.
+Snapshot original e `ExecutionRecord.recordedAt` preservam auditoria sem
+duplicar histórico. Hoje usa a ponte validada somente em memória.
+
 ## 5. Motor de planejamento
 
 A primeira versão local usa TypeScript puro, determinístico e independente da UI. Os contratos e vetores de teste devem permitir reprodução fora do navegador.

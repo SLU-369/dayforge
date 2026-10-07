@@ -7,7 +7,7 @@
 - Etapa 0.2/B4 de taxonomia, baseline técnica e proteção do v1 concluída.
 - Etapa 1.1 de modelo temporal e contratos do domínio concluída.
 - Etapas 1.2A–1.2D implementadas; v2 é o store principal e v1 permanece somente leitura.
-- Etapa 2A de contexto diário somente para leitura concluída; execução e reagendamento não iniciados.
+- Etapa 2A concluída; fundação da 2B implementada, ação de conclusão na UI pendente; reagendamento não iniciado.
 - Plano da Etapa 1.2 aprovado; cada subetapa exige branch, validação, revisão e autorização próprias.
 - Nenhuma etapa funcional pode começar por consequência automática desta documentação.
 
@@ -232,6 +232,47 @@ Fora de escopo: conclusão, execução, timer, adiamento, reagendamento, ediçã
 templates, histórico novo, notificações, IA, scoring, sincronização, cloud e
 mudanças de schema ou geração de persistência sem necessidade demonstrada.
 Execução e reagendamento pertencem a uma subdivisão futura ainda não iniciada.
+
+### Etapa 2B — Execução explícita de ocorrências
+
+Fundação: identidade canônica e persistência auditável, em
+`feature/today-execution`. Esta entrega não encerra toda a 2B: a ação explícita
+na UI depende de autorização posterior, após validação desta fundação.
+
+- Ponte externa `execution/bridge` em `plannerDocuments`, sem alterar o formato
+  de `planner/current`, o schema Dexie 1 ou a geração de persistência 2.
+- Identidades `occ:<sequência>` alocadas uma vez e preservadas; o contador
+  persistido não reutiliza identidades removidas. Datas, posições e snapshots
+  validam o vínculo ao item diário, mas não são sua identidade.
+- Registros diários existentes ganham vínculos no bootstrap ativo v2. Projeções
+  virtuais de rotina não ganham fatos canônicos. Não se infere timezone,
+  flexibilidade, origem temporal nem horário real do legado.
+- `ExecutionRecord` do domínio permanece o único fato de execução; seu ID é
+  `execution:<occurrenceId>`. A presença desse fato representa conclusão
+  canônica terminal; sem ele há apenas vínculo de planejamento legado. Um
+  booleano legado concluído permanece factual, sem criar execução retroativa.
+- O comando interno recebe timing real e `recordedAt` explícitos, preserva o
+  snapshot original e grava ponte/conclusão legada/procedência atomicamente.
+  Não há estado de início. Não existe segunda tabela de histórico: snapshot
+  original, vínculo e ExecutionRecord terminal compõem o histórico desta fase.
+- Repetição idêntica é idempotente; execução conflitante é rejeitada. Comparação
+  do snapshot dentro da transação impede perda por escrita concorrente antiga.
+- Backup v2 inclui ponte e SHA-256 canônico; restore substitui a ponte no mesmo
+  conjunto transacional, com validação prévia, releitura e rollback. Backup
+  antigo sem ponte não contém fatos de execução; restore ativo prepara vínculos
+  novos e substitui os anteriores. Importação v1 e reset são substituições
+  explícitas do conjunto, nunca fontes de execuções inferidas.
+- Hoje recebe a ponte validada e usa a identidade persistente dos registros
+  diários, conservando ordenação, intervalos e seções derivadas da 2A.
+- Edições de IDs únicos preservam o vínculo e o snapshot original. Mudanças
+  ambíguas em dias com IDs repetidos bloqueiam a gravação. Um registro com
+  execução não pode ser removido, reaberto ou alterado por controles legados.
+
+Limites: a ponte é referência canônica de identidade sobre planejamento
+legado, não uma conversão para `ScheduleOccurrence` completo. Essa conversão
+exigiria semânticas ausentes que esta fase não inventa. Não foram adicionados
+botão Concluir, início, reagendamento, timers, notificações, IA ou cloud.
+Não iniciar 2C por consequência desta fundação.
 
 ## 5. Ordem de dependências
 

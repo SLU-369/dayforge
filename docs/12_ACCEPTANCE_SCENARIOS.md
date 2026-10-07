@@ -105,3 +105,14 @@ Com metadata v2 ativa e marker ausente, o Dayforge usa v2 e repara o marker. Com
 ## Cenário 26 — Backup antes do cutover
 
 O mecanismo v2 passa por round-trip e rollback. Após o cutover, a tela exporta backup v2 e aceita restauração v2 ou importação compatível de arquivos v1, sem escrever no payload legado preservado.
+
+## Cenário 27 — Fundação de execução da 2B
+
+Dois itens diários com ID legado igual recebem identidades persistentes
+distintas, preservadas em reload e backup/restore. Execução interna recebe
+timing real explícito e preserva o snapshot original. Retry e requisições
+equivalentes concorrentes não duplicam execução; escrita antiga não perde
+o fato terminal. Execução órfã, identidade duplicada, vínculo ambíguo e
+fingerprint inválido bloqueiam gravação/restauração sem mutação parcial.
+Backup antigo substitui o conjunto sem inventar execuções; rollback cobre
+ponte, planner, metadata e procedência. Nenhuma UI nova de conclusão é exigida.

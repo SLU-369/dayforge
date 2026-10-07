@@ -12,6 +12,7 @@
 - `migration/` owns canonicalization, SHA-256 identities, and the transactional v1-to-v2 migration.
 - `backup/` owns the logical v2 backup contract, strict codecs, consistent export, atomic restore, and compatible v1 import.
 - `bootstrap/` owns the v2 authority decision, marker, cutover, active planner writes, and explicit recovery.
+- `execution/` owns persistent occurrence identity bindings, domain ExecutionRecord codecs and internal atomic execution writes.
 
 ## Local Contracts
 
@@ -28,7 +29,8 @@
 - Active v1 import opts into the existing idempotent migration; the default migration path still requires inactive metadata.
 - Backup format version, persistence generation, and Dexie schema version are independent. Backup v2 is a logical contract, never a raw IndexedDB dump.
 - Export reads one consistent transaction snapshot and recalculates every raw and canonical content fingerprint before returning.
-- The 1.2C restore defaults to requiring inactive metadata. The explicit active restore path requires active metadata. Neither creates or repairs that record; both atomically replace only `planner/current`, `legacy-v1/source/*`, and `migration/v1/*` and preserve all records outside that set.
+- Restore requires existing compatible metadata and its appropriate active/inactive guard. The 2B foundation adds `execution/bridge` to the replacement set with `planner/current`, `legacy-v1/source/*`, and `migration/v1/*`; adoption metadata follows that set atomically. Unknown execution namespace records fail closed. Preserve unrelated records.
+- Keep backup format 2, persistence generation 2 and Dexie schema 1. Execution bridge logical version 1 is an optional backup extension; old backups contain no canonical execution facts. Active old restore prepares fresh bindings before writes; inactive old restore adopts at cutover.
 
 ## Work Guidance
 
@@ -50,3 +52,4 @@
 ## Child DOX Index
 
 - `bootstrap/AGENTS.md`: cutover ordering, marker fail-safe, active planner writes, and explicit recovery.
+- `execution/AGENTS.md`: identity allocation, bindings, terminal execution, recovery and concurrency.
