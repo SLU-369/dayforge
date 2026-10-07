@@ -5,6 +5,7 @@ import {
   type PlannerState,
   type RoutineItem,
 } from "./planner-data";
+import type { ExecutionBridge } from "../persistence/execution/bridge.ts";
 
 export type TodayContextItem = Readonly<{
   id: string;
@@ -17,6 +18,9 @@ export type TodayContextItem = Readonly<{
   startsAt: string;
   endsAt: string;
   completed: boolean;
+  occurrenceId: string | null;
+  sourceItemId: string;
+  sourceIndex: number;
 }>;
 
 export type TodayContext = Readonly<{
@@ -133,10 +137,13 @@ function projectItem(entry: RoutineItem | DailyItem, sourceDate: string, formatt
     startsAt: new Date(starts).toISOString(),
     endsAt: new Date(ends).toISOString(),
     completed: "completed" in entry && entry.completed,
+    occurrenceId: null,
+    sourceItemId: entry.id,
+    sourceIndex: 0,
   };
 }
 
-function projectDay(state: PlannerState, sourceDate: string, formatter: Intl.DateTimeFormat): TodayContextItem[] {
+function projectDay(state: PlannerState, sourceDate: string, formatter: Intl.DateTimeFormat, bridge?: ExecutionBridge): TodayContextItem[] {
   const entries = entriesForDay(state, sourceDate);
   let dayOffset = 0;
   return entries.map((entry, index) => {
@@ -149,14 +156,30 @@ function projectDay(state: PlannerState, sourceDate: string, formatter: Intl.Dat
       // This uses only the legacy list's explicit order and matching boundary.
       dayOffset = entry.start === previous.end && (dayOffset === 1 || crossesMidnight) ? 1 : 0;
     }
-    return projectItem(entry, sourceDate, formatter, dayOffset);
+    const projected = projectItem(entry, sourceDate, formatter, dayOffset);
+    const binding = state.records[sourceDate]
+      ? bridge?.entries.find((candidate) => candidate.sourceDate === sourceDate && candidate.itemIndex === index)
+      : undefined;
+    if (bridge && state.records[sourceDate] && (!binding
+      || Object.keys(binding.item).length !== Object.keys(entry).length
+      || !Object.entries(binding.item).every(([key, value]) => entry[key as keyof typeof entry] === value))) {
+      throw new Error("Vínculo de ocorrência incompatível com o dia projetado.");
+    }
+    return { ...projected,
+      // Virtual routine items are projections, never persistent occurrence identities.
+      id: binding?.occurrenceId ?? `virtual:${JSON.stringify([sourceDate, index, entry.id])}`,
+      occurrenceId: binding?.occurrenceId ?? null,
+      sourceIndex: index,
+      completed: binding?.execution ? true : projected.completed,
+    };
   });
 }
 
 function bySchedule(left: TodayContextItem, right: TodayContextItem) {
   return left.startsAt.localeCompare(right.startsAt)
     || left.endsAt.localeCompare(right.endsAt)
-    || left.id.localeCompare(right.id);
+    || `${left.sourceDate}:${left.sourceItemId}`.localeCompare(`${right.sourceDate}:${right.sourceItemId}`)
+    || left.sourceIndex - right.sourceIndex;
 }
 
 /**
@@ -164,7 +187,7 @@ function bySchedule(left: TodayContextItem, right: TodayContextItem) {
  * Local wall-clock times use the caller's IANA timezone. This does not create
  * ScheduleOccurrence facts or write inferred timezone/status back to storage.
  */
-export function deriveTodayContext(state: PlannerState, referenceTime: Date, timeZone: string, selectedDate?: string): TodayContext {
+export function deriveTodayContext(state: PlannerState, referenceTime: Date, timeZone: string, selectedDate?: string, bridge?: ExecutionBridge): TodayContext {
   if (Number.isNaN(referenceTime.getTime())) throw new Error("Instante de referência inválido.");
   const formatter = new Intl.DateTimeFormat("en-US", {
     timeZone, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit",
@@ -174,8 +197,8 @@ export function deriveTodayContext(state: PlannerState, referenceTime: Date, tim
   const dayEnd = zonedEpoch(civilParts(shiftDate(date, 1)), formatter);
   const previousDate = shiftDate(date, -1);
   const items = [
-    ...projectDay(state, previousDate, formatter),
-    ...projectDay(state, date, formatter),
+    ...projectDay(state, previousDate, formatter, bridge),
+    ...projectDay(state, date, formatter, bridge),
   ].filter((entry) => Date.parse(entry.startsAt) < dayEnd && Date.parse(entry.endsAt) > dayStart)
     .sort(bySchedule);
   const pending = items.filter((entry) => !entry.completed);

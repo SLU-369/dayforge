@@ -16,6 +16,7 @@ export type DatabaseMetadataRecord = Readonly<{
   persistenceGeneration: typeof PERSISTENCE_GENERATION;
   schemaVersion: typeof DEXIE_SCHEMA_VERSION;
   activeDocumentId: string | null;
+  executionBridgeVersion?: 1;
 }>;
 
 export type LegacyV1MigrationMetadataRecord = Readonly<{

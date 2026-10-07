@@ -23,7 +23,10 @@ Manter a fundação visual e a baseline concluída na Etapa 0.2/B4 sem alterar a
   projetado em memória do planner v2 com referência temporal controlável;
 - linha do tempo, controles de execução legados, energia e nota do dia
   acessíveis na visão secundária `Ver dia completo`;
-- nenhuma ocorrência temporal canônica é persistida pela visão contextual.
+- nenhuma ocorrência temporal completa é persistida pela visão contextual;
+- a fundação da 2B fornece identidades persistentes aos registros diários por
+  uma ponte externa; rotina virtual continua sendo projeção. Execução interna
+  auditável e recuperação estão disponíveis, sem nova ação na UI.
 
 ### Alvo
 Manter a experiência principal contextual:
@@ -37,7 +40,7 @@ Resumo
 ```
 
 Timeline completa permanece acessível sob demanda. Execução e reagendamento
-canônicos pertencem a uma subdivisão futura, ainda não iniciada.
+na UI permanecem gated; a fundação persistente da 2B está implementada.
 
 `Energia do dia` sai da experiência principal. `Foco AI/LLM` deixa de ser métrica fixa. Progresso deixa de ser um número genérico sem contexto.
 
@@ -176,5 +179,7 @@ A definição visual exata permanece pendente de UX.
 
 A Etapa 1.2D encerrou a migração da persistência do planner legado. A 2A
 introduziu somente o contexto de leitura de Hoje, sem persistir entidades
-temporais canônicas. Execução, reagendamento e novos produtores temporais
-continuam sujeitos a autorização própria.
+temporais canônicas. A fundação da 2B adota uma ponte de identidade e execução
+sem converter o planner legado; backup/restore cobre todo o conjunto e rejeita
+vínculos ambíguos. Ação explícita de execução na UI, reagendamento e novos
+produtores temporais continuam sujeitos a autorização própria.

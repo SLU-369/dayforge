@@ -15,6 +15,7 @@ import {
 } from "../legacy/index.ts";
 import { canonicalStringify } from "./canonical-json.ts";
 import { WebCryptoSha256Hasher, type Sha256Hasher } from "./sha256.ts";
+import { EXECUTION_BRIDGE_DOCUMENT_ID, createBridgeDocument, reconcileExecutionBridge } from "../execution/bridge.ts";
 
 export const LEGACY_V1_SOURCE_ID_PREFIX = "legacy-v1/source/" as const;
 export const LEGACY_V1_SOURCE_FORMAT = "dayforge/legacy-v1-source" as const;
@@ -178,10 +179,28 @@ export async function migrateLegacyPlannerV1(options: Readonly<{
     snapshot,
   );
   const current = createLegacyPlannerDocument(contentFingerprint, normalized);
+  const executionDocument = options.active && origin === "backup-v1"
+    ? await createBridgeDocument(reconcileExecutionBridge(normalized), hasher) : null;
   const metadataKey: `${typeof LEGACY_V1_MIGRATION_KEY_PREFIX}${string}` =
     `${LEGACY_V1_MIGRATION_KEY_PREFIX}${contentFingerprint}`;
 
   return options.repository.write(async (transaction) => {
+    const existingDocuments = await transaction.listPlannerDocuments();
+    if (existingDocuments.some((document) => document.id.startsWith("execution/") && document.id !== EXECUTION_BRIDGE_DOCUMENT_ID)) {
+      throw new LegacyV1MigrationIntegrityError();
+    }
+    if (origin !== "backup-v1" && existingDocuments.some((document) => document.id === EXECUTION_BRIDGE_DOCUMENT_ID)
+      && !existingDocuments.some((document) => document.id === CURRENT_PLANNER_DOCUMENT_ID && plannerDocumentsMatch(document, current))) {
+      throw new LegacyV1MigrationIntegrityError();
+    }
+    // Explicit v1 import replaces the recoverable set; it never invents executions.
+    if (origin === "backup-v1") {
+      await transaction.deletePlannerDocument(EXECUTION_BRIDGE_DOCUMENT_ID);
+      const metadata = { ...await transaction.getDatabaseMetadata() };
+      delete metadata.executionBridgeVersion;
+      await transaction.putDatabaseMetadata(executionDocument ? { ...metadata, executionBridgeVersion: 1 } : metadata);
+      if (executionDocument) await transaction.putPlannerDocument(executionDocument);
+    }
     if ((await transaction.getDatabaseMetadata()).activeDocumentId
       !== (options.active ? CURRENT_PLANNER_DOCUMENT_ID : null)) {
       throw new LegacyV1MigrationIntegrityError(

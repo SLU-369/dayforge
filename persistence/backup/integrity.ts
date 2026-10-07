@@ -29,12 +29,14 @@ import type {
   LegacyMigrationSourceExport,
 } from "./contracts.ts";
 import { BackupValidationError, decodeDayforgeBackupV2 } from "./codecs.ts";
+import { createBridgeDocument, decodeBridgeDocument, readBridgeDocument, EXECUTION_BRIDGE_DOCUMENT_ID } from "../execution/bridge.ts";
 
 export type MaterializedBackupState = Readonly<{
   backup: DayforgeBackupV2;
   current: PlannerDocumentRecord;
   sources: readonly PlannerDocumentRecord[];
   migrations: readonly LegacyV1MigrationMetadataRecord[];
+  executionDocument: PlannerDocumentRecord | null;
 }>;
 
 function fingerprintError(message: string): never {
@@ -101,6 +103,11 @@ export async function validateAndMaterializeBackupV2(
     return fingerprintError("O fingerprint do planner não corresponde ao conteúdo exportado.");
   }
   const current = createLegacyPlannerDocument(plannerFingerprint, backup.payload.planner);
+  const executionDocument = backup.payload.executionBridge
+    ? await createBridgeDocument(backup.payload.executionBridge.bridge, hasher) : null;
+  if (executionDocument && executionDocument.sourceContentFingerprint !== backup.payload.executionBridge?.contentFingerprint) {
+    return fingerprintError("O fingerprint da ponte de execução é inválido.");
+  }
 
   const sourceByRawFingerprint = new Map<string, LegacyMigrationSourceExport>();
   const sources: PlannerDocumentRecord[] = [];
@@ -190,6 +197,7 @@ export async function validateAndMaterializeBackupV2(
   return {
     backup,
     current,
+    executionDocument,
     sources: sources.sort((left, right) => left.id.localeCompare(right.id)),
     migrations: migrations.sort((left, right) => left.key.localeCompare(right.key)),
   };
@@ -254,6 +262,14 @@ export async function readBackupSnapshot(
     );
   }
   const planner = normalizeLegacyPlannerSnapshotV1(plannerSnapshot);
+  const executionDocument = await readBridgeDocument(transaction);
+  if ((databaseMetadata.executionBridgeVersion === 1) !== Boolean(executionDocument)) {
+    throw new BackupValidationError("invalid_backup_integrity", "A adoção da ponte de execução não corresponde aos documentos persistidos.");
+  }
+  const executionBridge = executionDocument ? {
+    bridge: decodeBridgeDocument(executionDocument, planner),
+    contentFingerprint: executionDocument.sourceContentFingerprint,
+  } : null;
   if (!sameJson(current.payload, encodeNormalizedLegacyPlannerV1(planner))) {
     throw new BackupValidationError(
       "invalid_backup_integrity",
@@ -295,6 +311,7 @@ export async function readBackupSnapshot(
         origins,
       },
       legacySources,
+      ...(executionBridge ? { executionBridge } : {}),
     },
   });
   return {
@@ -311,15 +328,19 @@ export async function assertPersistedMaterializedBackup(
   const databaseMetadata = await transaction.getDatabaseMetadata();
   if (active) assertActiveDatabaseMetadata(databaseMetadata);
   else assertInactiveDatabaseMetadata(databaseMetadata);
+  if (databaseMetadata.executionBridgeVersion !== (materialized.executionDocument ? 1 : undefined)) {
+    throw new BackupValidationError("invalid_backup_integrity", "A adoção da ponte não corresponde ao estado restaurado.");
+  }
   const [documents, metadata] = await Promise.all([
     transaction.listPlannerDocuments(),
     transaction.listMetadata(),
   ]);
   const persistedDocuments = documents
     .filter((document) => document.id === CURRENT_PLANNER_DOCUMENT_ID
+      || document.id === EXECUTION_BRIDGE_DOCUMENT_ID
       || document.id.indexOf(LEGACY_V1_SOURCE_ID_PREFIX) === 0)
     .sort((left, right) => left.id.localeCompare(right.id));
-  const expectedDocuments = [...materialized.sources, materialized.current]
+  const expectedDocuments = [...materialized.sources, materialized.current, ...(materialized.executionDocument ? [materialized.executionDocument] : [])]
     .sort((left, right) => left.id.localeCompare(right.id));
   const persistedMigrations = metadata
     .filter((record): record is LegacyV1MigrationMetadataRecord => (

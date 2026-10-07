@@ -92,6 +92,12 @@ Metadata ativa e válida no IndexedDB é autoridade principal. O marker `dayforg
 ### D-030 — Schema mínimo
 O schema Dexie interno 1 contém somente `metadata` e `plannerDocuments`. Tipos temporais não geram tabelas sem produtor e consumidor reais.
 
+### D-031 — Fundação de execução da 2B
+Ponte externa versionada na persistência v2, com identidade alocada uma vez,
+vínculo validado ao item diário, ExecutionRecord existente e recuperação
+integral. Não converter planner/current nem inferir semânticas temporais
+ausentes. Não habilitar ação de conclusão na UI, reagendamento ou 2C nesta fase.
+
 ## Questões abertas antes das etapas correspondentes
 
 1. Quais limiares e pesos formam a primeira regra de risco de Entregas?

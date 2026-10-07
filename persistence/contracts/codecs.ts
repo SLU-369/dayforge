@@ -133,7 +133,8 @@ function isPlannerDocumentRole(value: unknown): value is PlannerDocumentRecord["
 
 export function decodeDatabaseMetadata(value: unknown): DatabaseMetadataRecord {
   if (!isPlainObjectRecord(value)
-    || !hasExactFields(value, DATABASE_METADATA_FIELDS)
+    || !(hasExactFields(value, DATABASE_METADATA_FIELDS)
+      || (hasExactFields(value, [...DATABASE_METADATA_FIELDS, "executionBridgeVersion"]) && value.executionBridgeVersion === 1))
     || value.key !== DATABASE_METADATA_KEY
     || value.kind !== "database"
     || value.persistenceGeneration !== PERSISTENCE_GENERATION
@@ -151,6 +152,7 @@ export function decodeDatabaseMetadata(value: unknown): DatabaseMetadataRecord {
     persistenceGeneration: value.persistenceGeneration,
     schemaVersion: value.schemaVersion,
     activeDocumentId: value.activeDocumentId,
+    ...(value.executionBridgeVersion === 1 ? { executionBridgeVersion: 1 as const } : {}),
   };
 }
 

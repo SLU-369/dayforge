@@ -5,8 +5,8 @@
 
 # Dayforge 2.0 — Documentação oficial de produto
 
-**Status:** Etapas 0.1, 0.2, 1.1, 1.2A–1.2D e 2A implementadas; persistência v2 ativa no planner
-**Data:** 28/09/2026
+**Status:** Etapas 0.1, 0.2, 1.1, 1.2A–1.2D, 2A e fundação da 2B implementadas; ação de execução na UI pendente
+**Data:** 06/10/2026
 **Objetivo:** transformar as decisões de produto, UX, domínio e arquitetura discutidas até aqui em uma fonte oficial de verdade para o repositório e para o Codex.
 
 ## Como usar esta documentação
@@ -83,7 +83,8 @@ backup/restauração lógica v2 e bootstrap/cutover. O planner atual usa
 `planner/current` no IndexedDB com metadata ativa; `rotina-369:data:v1`
 permanece intacto e somente leitura. A tela de Dados e backup exporta v2 e
 aceita arquivos v2 e v1. A Etapa 2A adiciona somente o read model contextual;
-execução e reagendamento canônicos não foram iniciados.
+a fundação da 2B inclui identidade, execução interna auditável e recuperação.
+A ação explícita na UI permanece pendente; reagendamento não foi iniciado.
 
 ---
 
@@ -1799,6 +1800,48 @@ A 1.2D lê metadata em transação, migra o v1 atual quando presente e valida o 
 
 A baseline da Etapa 0.2 implementa somente uma proteção: falha de leitura do v1 bloqueia o autosave de defaults, preserva o conteúdo original e mantém a sessão em memória até importação de backup ou restauração explícita. IndexedDB e a migração completa permanecem fora da 0.2.
 
+### Fundação da Etapa 2B
+
+`persistence/execution/` mantém `execution/bridge` em `plannerDocuments`.
+Seu payload lógico versionado em 1 contém contador de alocação e vínculos
+completos/ordenados dos itens de cada registro diário. Cada vínculo guarda ID
+opaco do domínio, data de origem, posição atual, snapshot original imutável,
+snapshot atual e `ExecutionRecord | null`. Não se convertem templates nem se
+inventam campos ausentes de um `ScheduleOccurrence` completo. Timing real e
+`recordedAt` são entradas explícitas validadas pelas factories do domínio.
+
+IDs legados, chave data/ID e hash apenas do conteúdo não distinguem duplicatas
+idênticas. Índice isolado não sobrevive a edição/reordenação. UUID não resolve
+a ligação ambígua e é desnecessário. Aloca-se `occ:<sequência>` uma vez em v2,
+com contador monotônico e snapshot/posição para validar a ligação. Duplicatas
+são aceitas na alocação inicial; edição ambígua posterior falha fechada.
+
+O bootstrap adota a ponte de forma idempotente. Metadata
+`executionBridgeVersion: 1` registra a adoção na mesma transação da ponte.
+Ausência da ponte depois da adoção é corrupção, não autorização para recriá-la.
+O marker externo e a autoridade ativa permanecem intactos.
+
+Backup `formatVersion: 2` ganha extensão opcional `payload.executionBridge`
+com ponte e fingerprint SHA-256 próprio. Ausência significa backup antigo sem
+fatos canônicos de execução. Schema Dexie permanece 1, pois tabelas/índices não
+mudam; `exportedFrom.schemaVersion` continua descrevendo o schema interno.
+A extensão possui versão lógica 1. Geração de persistência permanece 2.
+Aplicações antigas rejeitam a extensão desconhecida em vez de perder execução.
+
+Exportação captura planner, ponte e procedência numa transação readonly, depois
+recalcula hashes. Restore valida e prepara antes das mutações; substitui
+planner, ponte, fontes e migrations numa transação, incluindo metadata de
+adoção, releitura e rollback. Restore ativo antigo regenera vínculos sem
+execução; restore inativo antigo mantém o conjunto legado preparado, adotado
+no cutover. Importação v1 ativa e reset preparam a ponte antes de escrever.
+Nenhum caminho escreve no v1 ou mantém execução de um conjunto substituído.
+
+Comando interno e autosave comparam o snapshot dentro da transação read-write.
+SHA-256 ocorre fora da transação. Falha reverte o conjunto inteiro; retry
+idêntico retorna o fato existente; conflito é rejeitado. O template não muda.
+Snapshot original e `ExecutionRecord.recordedAt` preservam auditoria sem
+duplicar histórico. Hoje usa a ponte validada somente em memória.
+
 ## 5. Motor de planejamento
 
 A primeira versão local usa TypeScript puro, determinístico e independente da UI. Os contratos e vetores de teste devem permitir reprodução fora do navegador.
@@ -1843,7 +1886,7 @@ Camadas futuras devem possuir testes unitários de domínio e planner, testes de
 - Etapa 0.2/B4 de taxonomia, baseline técnica e proteção do v1 concluída.
 - Etapa 1.1 de modelo temporal e contratos do domínio concluída.
 - Etapas 1.2A–1.2D implementadas; v2 é o store principal e v1 permanece somente leitura.
-- Etapa 2A de contexto diário somente para leitura concluída; execução e reagendamento não iniciados.
+- Etapa 2A concluída; fundação da 2B implementada, ação de conclusão na UI pendente; reagendamento não iniciado.
 - Plano da Etapa 1.2 aprovado; cada subetapa exige branch, validação, revisão e autorização próprias.
 - Nenhuma etapa funcional pode começar por consequência automática desta documentação.
 
@@ -2069,6 +2112,47 @@ templates, histórico novo, notificações, IA, scoring, sincronização, cloud 
 mudanças de schema ou geração de persistência sem necessidade demonstrada.
 Execução e reagendamento pertencem a uma subdivisão futura ainda não iniciada.
 
+### Etapa 2B — Execução explícita de ocorrências
+
+Fundação: identidade canônica e persistência auditável, em
+`feature/today-execution`. Esta entrega não encerra toda a 2B: a ação explícita
+na UI depende de autorização posterior, após validação desta fundação.
+
+- Ponte externa `execution/bridge` em `plannerDocuments`, sem alterar o formato
+  de `planner/current`, o schema Dexie 1 ou a geração de persistência 2.
+- Identidades `occ:<sequência>` alocadas uma vez e preservadas; o contador
+  persistido não reutiliza identidades removidas. Datas, posições e snapshots
+  validam o vínculo ao item diário, mas não são sua identidade.
+- Registros diários existentes ganham vínculos no bootstrap ativo v2. Projeções
+  virtuais de rotina não ganham fatos canônicos. Não se infere timezone,
+  flexibilidade, origem temporal nem horário real do legado.
+- `ExecutionRecord` do domínio permanece o único fato de execução; seu ID é
+  `execution:<occurrenceId>`. A presença desse fato representa conclusão
+  canônica terminal; sem ele há apenas vínculo de planejamento legado. Um
+  booleano legado concluído permanece factual, sem criar execução retroativa.
+- O comando interno recebe timing real e `recordedAt` explícitos, preserva o
+  snapshot original e grava ponte/conclusão legada/procedência atomicamente.
+  Não há estado de início. Não existe segunda tabela de histórico: snapshot
+  original, vínculo e ExecutionRecord terminal compõem o histórico desta fase.
+- Repetição idêntica é idempotente; execução conflitante é rejeitada. Comparação
+  do snapshot dentro da transação impede perda por escrita concorrente antiga.
+- Backup v2 inclui ponte e SHA-256 canônico; restore substitui a ponte no mesmo
+  conjunto transacional, com validação prévia, releitura e rollback. Backup
+  antigo sem ponte não contém fatos de execução; restore ativo prepara vínculos
+  novos e substitui os anteriores. Importação v1 e reset são substituições
+  explícitas do conjunto, nunca fontes de execuções inferidas.
+- Hoje recebe a ponte validada e usa a identidade persistente dos registros
+  diários, conservando ordenação, intervalos e seções derivadas da 2A.
+- Edições de IDs únicos preservam o vínculo e o snapshot original. Mudanças
+  ambíguas em dias com IDs repetidos bloqueiam a gravação. Um registro com
+  execução não pode ser removido, reaberto ou alterado por controles legados.
+
+Limites: a ponte é referência canônica de identidade sobre planejamento
+legado, não uma conversão para `ScheduleOccurrence` completo. Essa conversão
+exigiria semânticas ausentes que esta fase não inventa. Não foram adicionados
+botão Concluir, início, reagendamento, timers, notificações, IA ou cloud.
+Não iniciar 2C por consequência desta fundação.
+
 ## 5. Ordem de dependências
 
 - Hoje depende do núcleo temporal e não deve defini-lo dentro de componentes.
@@ -2208,6 +2292,12 @@ Metadata ativa e válida no IndexedDB é autoridade principal. O marker `dayforg
 ### D-030 — Schema mínimo
 O schema Dexie interno 1 contém somente `metadata` e `plannerDocuments`. Tipos temporais não geram tabelas sem produtor e consumidor reais.
 
+### D-031 — Fundação de execução da 2B
+Ponte externa versionada na persistência v2, com identidade alocada uma vez,
+vínculo validado ao item diário, ExecutionRecord existente e recuperação
+integral. Não converter planner/current nem inferir semânticas temporais
+ausentes. Não habilitar ação de conclusão na UI, reagendamento ou 2C nesta fase.
+
 ## Questões abertas antes das etapas correspondentes
 
 1. Quais limiares e pesos formam a primeira regra de risco de Entregas?
@@ -2326,6 +2416,17 @@ Com metadata v2 ativa e marker ausente, o Dayforge usa v2 e repara o marker. Com
 ## Cenário 26 — Backup antes do cutover
 
 O mecanismo v2 passa por round-trip e rollback. Após o cutover, a tela exporta backup v2 e aceita restauração v2 ou importação compatível de arquivos v1, sem escrever no payload legado preservado.
+
+## Cenário 27 — Fundação de execução da 2B
+
+Dois itens diários com ID legado igual recebem identidades persistentes
+distintas, preservadas em reload e backup/restore. Execução interna recebe
+timing real explícito e preserva o snapshot original. Retry e requisições
+equivalentes concorrentes não duplicam execução; escrita antiga não perde
+o fato terminal. Execução órfã, identidade duplicada, vínculo ambíguo e
+fingerprint inválido bloqueiam gravação/restauração sem mutação parcial.
+Backup antigo substitui o conjunto sem inventar execuções; rollback cobre
+ponte, planner, metadata e procedência. Nenhuma UI nova de conclusão é exigida.
 
 ---
 
@@ -2609,7 +2710,10 @@ Manter a fundação visual e a baseline concluída na Etapa 0.2/B4 sem alterar a
   projetado em memória do planner v2 com referência temporal controlável;
 - linha do tempo, controles de execução legados, energia e nota do dia
   acessíveis na visão secundária `Ver dia completo`;
-- nenhuma ocorrência temporal canônica é persistida pela visão contextual.
+- nenhuma ocorrência temporal completa é persistida pela visão contextual;
+- a fundação da 2B fornece identidades persistentes aos registros diários por
+  uma ponte externa; rotina virtual continua sendo projeção. Execução interna
+  auditável e recuperação estão disponíveis, sem nova ação na UI.
 
 ### Alvo
 Manter a experiência principal contextual:
@@ -2623,7 +2727,7 @@ Resumo
 ```
 
 Timeline completa permanece acessível sob demanda. Execução e reagendamento
-canônicos pertencem a uma subdivisão futura, ainda não iniciada.
+na UI permanecem gated; a fundação persistente da 2B está implementada.
 
 `Energia do dia` sai da experiência principal. `Foco AI/LLM` deixa de ser métrica fixa. Progresso deixa de ser um número genérico sem contexto.
 
@@ -2762,8 +2866,10 @@ A definição visual exata permanece pendente de UX.
 
 A Etapa 1.2D encerrou a migração da persistência do planner legado. A 2A
 introduziu somente o contexto de leitura de Hoje, sem persistir entidades
-temporais canônicas. Execução, reagendamento e novos produtores temporais
-continuam sujeitos a autorização própria.
+temporais canônicas. A fundação da 2B adota uma ponte de identidade e execução
+sem converter o planner legado; backup/restore cobre todo o conjunto e rejeita
+vínculos ambíguos. Ação explícita de execução na UI, reagendamento e novos
+produtores temporais continuam sujeitos a autorização própria.
 
 ---
 
