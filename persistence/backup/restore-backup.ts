@@ -1,6 +1,7 @@
 import {
   CURRENT_PLANNER_DOCUMENT_ID,
   LEGACY_V1_MIGRATION_KEY_PREFIX,
+  nextAuthorityEpoch,
   type LocalPersistenceRepository,
 } from "../contracts/index.ts";
 import {
@@ -79,13 +80,18 @@ export async function restoreDayforgeBackupV2(options: Readonly<{
     if (executionDocument) await transaction.putPlannerDocument(executionDocument);
     const baseMetadata = { ...databaseMetadata };
     delete baseMetadata.executionBridgeVersion;
-    await transaction.putDatabaseMetadata(executionDocument ? { ...baseMetadata, executionBridgeVersion: 1 } : baseMetadata);
+    const authorityEpoch = nextAuthorityEpoch(databaseMetadata);
+    await transaction.putDatabaseMetadata(executionDocument
+      ? { ...baseMetadata, authorityEpoch, executionBridgeVersion: 2 } : { ...baseMetadata, authorityEpoch });
     for (const migration of materialized.migrations) {
       await transaction.putMetadata(migration);
     }
 
     options.afterWriteForTest?.();
     await assertPersistedMaterializedBackup(transaction, prepared, options.active);
+    if ((await transaction.getDatabaseMetadata()).authorityEpoch !== authorityEpoch) {
+      throw new BackupValidationError("invalid_backup_integrity", "A autoridade restaurada não corresponde à substituição.");
+    }
   });
 
   return {

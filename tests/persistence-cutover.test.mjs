@@ -261,6 +261,7 @@ test("active v1 import is idempotent and preserves equivalent source provenance"
   await restoreActivePlannerV2({
     repository, input: raw, instant: "2026-09-29T12:00:00.000Z",
   });
+  first.metadata.find((record) => record.key === "database").authorityEpoch += 1;
   assert.deepEqual(await physical(database), first);
 
   const formatted = JSON.stringify(imported, null, 2);

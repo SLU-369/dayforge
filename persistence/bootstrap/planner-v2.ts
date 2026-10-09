@@ -1,6 +1,7 @@
 import {
   CURRENT_PLANNER_DOCUMENT_ID,
   LEGACY_V1_MIGRATION_KEY_PREFIX,
+  nextAuthorityEpoch,
   type LocalPersistenceRepository,
 } from "../contracts/index.ts";
 import {
@@ -19,6 +20,7 @@ import {
 } from "../legacy/index.ts";
 import {
   LEGACY_V1_SOURCE_ID_PREFIX,
+  PLANNER_DOCUMENT_FORMAT,
   WebCryptoSha256Hasher,
   canonicalStringify,
   createLegacyPlannerDocument,
@@ -236,6 +238,7 @@ export async function resetPlannerV2(options: Readonly<{
   defaultState: NormalizedLegacyPlannerV1;
   instant: string;
   hasher?: Sha256Hasher;
+  afterWriteForTest?: () => void;
 }>): Promise<PlannerV2BootResult> {
   const state = normalizeLegacyPlannerSnapshotV1(
     parseLegacyPlannerSnapshotV1(JSON.stringify(options.defaultState)),
@@ -270,7 +273,18 @@ export async function resetPlannerV2(options: Readonly<{
     }
     await transaction.putPlannerDocument(createLegacyPlannerDocument(fingerprint, state));
     await transaction.putPlannerDocument(executionDocument);
-    await transaction.putDatabaseMetadata({ ...currentMetadata, executionBridgeVersion: 1 });
+    const authorityEpoch = nextAuthorityEpoch(currentMetadata);
+    await transaction.putDatabaseMetadata({ ...currentMetadata, executionBridgeVersion: 2, authorityEpoch });
+    options.afterWriteForTest?.();
+    const persisted = await transaction.getPlannerDocument(EXECUTION_BRIDGE_DOCUMENT_ID);
+    const current = await transaction.getPlannerDocument(CURRENT_PLANNER_DOCUMENT_ID);
+    const persistedMetadata = await transaction.getDatabaseMetadata();
+    if (!persisted || persisted.role !== executionDocument.role || persisted.format !== executionDocument.format || persisted.formatVersion !== executionDocument.formatVersion
+      || canonicalStringify(persisted.payload) !== canonicalStringify(executionDocument.payload)
+      || persisted.sourceContentFingerprint !== executionDocument.sourceContentFingerprint
+      || !current || canonicalStringify(current.payload) !== canonicalStringify(encodeNormalizedLegacyPlannerV1(state))
+      || current.sourceContentFingerprint !== fingerprint || current.role !== "active" || current.format !== PLANNER_DOCUMENT_FORMAT || current.formatVersion !== 1
+      || persistedMetadata.authorityEpoch !== authorityEpoch || persistedMetadata.executionBridgeVersion !== 2) throw new PlannerV2UnavailableError();
   });
   if (metadata.activeDocumentId === null) {
     const activeState = await activatePreparedPlanner(options.repository, options.markerStorage, options.instant, hasher);

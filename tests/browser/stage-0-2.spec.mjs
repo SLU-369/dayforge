@@ -126,6 +126,7 @@ test("taxonomia da Etapa 0.2 funciona no layout compacto", async ({ page }) => {
   await page.goto("/formacao/cursos-rapidos");
 
   await expect(page.getByRole("heading", { name: "Aprendizados curtos, com propósito" })).toBeVisible();
+  await expect.poll(() => page.evaluate(() => localStorage.getItem("dayforge:persistence:v2"))).toBe("active");
   await page.getByRole("button", { name: "Abrir navegação" }).click();
   await expect(page.getByRole("link", { name: /Cursos rápidos/ })).toBeVisible();
   await expect(page.getByRole("link", { name: /^Rotina/ })).toBeVisible();

@@ -1,6 +1,7 @@
 import {
   CURRENT_PLANNER_DOCUMENT_ID,
   LEGACY_V1_MIGRATION_KEY_PREFIX,
+  nextAuthorityEpoch,
   type LegacyV1MigrationMetadataRecord,
   type LegacyImportOrigin,
   type LocalPersistenceRepository,
@@ -127,6 +128,7 @@ async function assertPersistedMigration(
   contentFingerprint: string,
   origin: LegacyImportOrigin,
   active: boolean,
+  replacement?: Readonly<{ authorityEpoch: number; executionDocument: PlannerDocumentRecord | null }>,
 ) {
   const [databaseMetadata, persistedSource, persistedCurrent, persistedMetadata] =
     await Promise.all([
@@ -152,6 +154,14 @@ async function assertPersistedMigration(
     throw new LegacyV1MigrationIntegrityError();
   }
   assertMatchingMigration(persistedMetadata, contentFingerprint);
+  if (replacement) {
+    const bridge = await transaction.getPlannerDocument(EXECUTION_BRIDGE_DOCUMENT_ID);
+    if (databaseMetadata.authorityEpoch !== replacement.authorityEpoch
+      || databaseMetadata.executionBridgeVersion !== (replacement.executionDocument ? 2 : undefined)
+      || (replacement.executionDocument ? !bridge || !plannerDocumentsMatch(bridge, replacement.executionDocument) : bridge !== null)) {
+      throw new LegacyV1MigrationIntegrityError();
+    }
+  }
 }
 
 export async function migrateLegacyPlannerV1(options: Readonly<{
@@ -185,6 +195,7 @@ export async function migrateLegacyPlannerV1(options: Readonly<{
     `${LEGACY_V1_MIGRATION_KEY_PREFIX}${contentFingerprint}`;
 
   return options.repository.write(async (transaction) => {
+    let replacement: Readonly<{ authorityEpoch: number; executionDocument: PlannerDocumentRecord | null }> | undefined;
     const existingDocuments = await transaction.listPlannerDocuments();
     if (existingDocuments.some((document) => document.id.startsWith("execution/") && document.id !== EXECUTION_BRIDGE_DOCUMENT_ID)) {
       throw new LegacyV1MigrationIntegrityError();
@@ -198,7 +209,9 @@ export async function migrateLegacyPlannerV1(options: Readonly<{
       await transaction.deletePlannerDocument(EXECUTION_BRIDGE_DOCUMENT_ID);
       const metadata = { ...await transaction.getDatabaseMetadata() };
       delete metadata.executionBridgeVersion;
-      await transaction.putDatabaseMetadata(executionDocument ? { ...metadata, executionBridgeVersion: 1 } : metadata);
+      const authorityEpoch = nextAuthorityEpoch(metadata);
+      replacement = { authorityEpoch, executionDocument };
+      await transaction.putDatabaseMetadata(executionDocument ? { ...metadata, authorityEpoch, executionBridgeVersion: 2 } : { ...metadata, authorityEpoch });
       if (executionDocument) await transaction.putPlannerDocument(executionDocument);
     }
     if ((await transaction.getDatabaseMetadata()).activeDocumentId
@@ -256,6 +269,7 @@ export async function migrateLegacyPlannerV1(options: Readonly<{
         contentFingerprint,
         origin,
         options.active === true,
+        replacement,
       );
 
       return {
@@ -292,6 +306,7 @@ export async function migrateLegacyPlannerV1(options: Readonly<{
       contentFingerprint,
       origin,
       options.active === true,
+      replacement,
     );
 
     return {
