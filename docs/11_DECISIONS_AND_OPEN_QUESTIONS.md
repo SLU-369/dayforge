@@ -98,6 +98,27 @@ vínculo validado ao item diário, ExecutionRecord existente e recuperação
 integral. Não converter planner/current nem inferir semânticas temporais
 ausentes. Não habilitar ação de conclusão na UI, reagendamento ou 2C nesta fase.
 
+### D-032 — Planejamento auditado da 2C e recuperação local
+
+2C divide-se obrigatoriamente em 2C-A (contrato/persistência/recuperação) e
+2C-B (comando/experiência de reagendamento em Hoje), com autorizações próprias.
+2C-A evolui somente a versão lógica da ponte para 2. `planningAudit` opcional
+preserva baseline explicitamente confirmado e cadeia append-only dos
+RescheduleEvents existentes do domínio, separada do ExecutionRecord. Upgrade
+nunca infere confirmação, fuso, origem ou planejamento auditado do legado.
+Regras puras compartilhadas validam continuidade, no-op, IDs e cronologia,
+derivam planejamento vigente e permitem completed_rescheduled posteriormente.
+
+`authorityEpoch` local inicia deterministicamente em 0, é persistido na adoção
+2 e incrementa atomicamente por restore/import/reset, sem integrar o backup.
+Comandos futuros comparam a época capturada dentro da transação. Bootstrap e
+operações normais não incrementam. Restaurar conteúdo idêntico preserva dados
+lógicos, mas representa nova autoridade local. Ponte 1/hash original são
+validados antes da conversão; recuperação aceita ponte 2, ponte 1, ausência
+de ponte e v1. Versões desconhecidas falham fechadas, sem downgrade. Formato
+do planner, backup público, geração, schema, marker e v1 não mudam. Não há
+produtor/UI de reagendamento na 2C-A; D-031 permanece registro histórico.
+
 ## Questões abertas antes das etapas correspondentes
 
 1. Quais limiares e pesos formam a primeira regra de risco de Entregas?

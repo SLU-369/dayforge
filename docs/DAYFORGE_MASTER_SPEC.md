@@ -5,7 +5,7 @@
 
 # Dayforge 2.0 — Documentação oficial de produto
 
-**Status:** Etapas 0.1, 0.2, 1.1, 1.2A–1.2D, 2A, fundação da 2B e 2B-A implementadas; reagendamento não iniciado
+**Status:** Etapas 0.1, 0.2, 1.1, 1.2A–1.2D, 2A, fundação da 2B, 2B-A e 2C-A implementadas; comando/UI de reagendamento 2C-B não iniciados
 **Data:** 07/10/2026
 **Objetivo:** transformar as decisões de produto, UX, domínio e arquitetura discutidas até aqui em uma fonte oficial de verdade para o repositório e para o Codex.
 
@@ -86,7 +86,10 @@ aceita arquivos v2 e v1. A Etapa 2A adiciona somente o read model contextual;
 a fundação da 2B inclui identidade, execução auditável e recuperação.
 A 2B-A adiciona Concluir para ocorrências canônicas, com intervalo real e fuso
 informados explicitamente pelo usuário. Itens virtuais e conclusões históricas
-não recebem fatos retroativos; reagendamento não foi iniciado.
+não recebem fatos retroativos. A 2C-A evolui a ponte lógica para 2, aceita
+planejamento auditado em recuperação e introduz `authorityEpoch` local, sem
+inferir confirmação temporal nem criar produtor de reagendamento. A 2C-B
+depende de autorização própria; PR, merge e avanço de etapa são gates separados.
 
 ---
 
@@ -1638,6 +1641,15 @@ Pode haver humor leve, mas o risco precisa permanecer claro.
 
 Backup sai da navegação principal e fica em Configurações → Dados e backup.
 
+Na 2C-A, o backup público continua com formato 2, geração 2 e schema interno 1.
+Sua extensão `executionBridge` preserva identidade, snapshots, execução e
+eventual `planningAudit` da ponte lógica 2. A época local `authorityEpoch` não
+é conteúdo de backup: cada restore/import/reset incrementa a época do banco
+de destino atomicamente, inclusive ao recuperar conteúdo idêntico. Assim, IDs
+reutilizados não legitimam comandos capturados sobre o conjunto anterior.
+Uma restauração é substituição do conjunto recuperável, sem merge de execuções
+ou auditorias. O conteúdo v1 preservado continua somente leitura.
+
 Deve preservar:
 
 - dados estruturados;
@@ -1805,7 +1817,7 @@ A baseline da Etapa 0.2 implementa somente uma proteção: falha de leitura do v
 ### Fundação da Etapa 2B
 
 `persistence/execution/` mantém `execution/bridge` em `plannerDocuments`.
-Seu payload lógico versionado em 1 contém contador de alocação e vínculos
+Seu payload lógico originalmente versionado em 1 contém contador de alocação e vínculos
 completos/ordenados dos itens de cada registro diário. Cada vínculo guarda ID
 opaco do domínio, data de origem, posição atual, snapshot original imutável,
 snapshot atual e `ExecutionRecord | null`. Não se convertem templates nem se
@@ -1819,7 +1831,8 @@ com contador monotônico e snapshot/posição para validar a ligação. Duplicat
 são aceitas na alocação inicial; edição ambígua posterior falha fechada.
 
 O bootstrap adota a ponte de forma idempotente. Metadata
-`executionBridgeVersion: 1` registra a adoção na mesma transação da ponte.
+`executionBridgeVersion: 1` registrava a adoção na fundação 2B; a 2C-A adota
+versão 2 e época local conforme o contrato abaixo, na mesma transação da ponte.
 Ausência da ponte depois da adoção é corrupção, não autorização para recriá-la.
 O marker externo e a autoridade ativa permanecem intactos.
 
@@ -1827,7 +1840,8 @@ Backup `formatVersion: 2` ganha extensão opcional `payload.executionBridge`
 com ponte e fingerprint SHA-256 próprio. Ausência significa backup antigo sem
 fatos canônicos de execução. Schema Dexie permanece 1, pois tabelas/índices não
 mudam; `exportedFrom.schemaVersion` continua descrevendo o schema interno.
-A extensão possui versão lógica 1. Geração de persistência permanece 2.
+A extensão nasceu com versão lógica 1; a 2C-A escreve versão lógica 2.
+Geração de persistência permanece 2.
 Aplicações antigas rejeitam a extensão desconhecida em vez de perder execução.
 
 Exportação captura planner, ponte e procedência numa transação readonly, depois
@@ -1887,6 +1901,60 @@ terminais. Templates e snapshots originais permanecem intactos. Projeções
 virtuais não são materializadas e históricos concluídos não ganham execução.
 Não há início, undo, reagendamento, nova entidade temporal ou schema de storage.
 
+### Etapa 2C-A — Contrato e recuperação do planejamento auditado
+
+`execution/bridge` passa a versão lógica 2 (envelope persistido e payload),
+sem alterar `planner/current` formato 1, backup formato 2, geração 2, schema
+Dexie 1, tabelas, marker ou v1. O vínculo admite `planningAudit` opcional com
+`baselineItem`, `baselineSchedule`, `confirmedAt` e `rescheduleHistory`.
+O item legado permanece âncora física; não passa a representar o horário vigente.
+O baseline é capturado na futura confirmação explícita, podendo diferir do
+snapshot original. A 2C-A não contém comando que produza essa extensão.
+
+O codec valida o baseline pendente e seu vínculo ao item legado, schedules
+timed/date_only/all_day canônicos, instantes UTC e fuso IANA explícito. Eventos
+usam `reschedule:<occurrenceId>:<posição append-only iniciando em 1>`, sem
+duplicatas. `from` deve igualar baseline/último `to`; no-op e cronologia anterior
+à confirmação/evento prévio falham fechados. `ExecutionRecord.recordedAt`
+não pode anteceder a história. Retornar ao horário original preserva eventos.
+`domain/temporal/planning-history.ts` compartilha validação, append e derivação
+com `ScheduleOccurrence`; histórico não vazio permite `completed_rescheduled`
+em conclusão posterior. Não se fabrica ocorrência completa nem execução.
+Autosave preserva auditoria e rejeita edição do planejamento legado ou exclusão
+do vínculo auditado. Notas do dia continuam independentes.
+
+Upgrade lê/valida ponte 1 e seu SHA-256 original antes de converter. Preserva
+IDs, contador, vínculos, snapshots e ExecutionRecords, sem criar `planningAudit`.
+Prepara ponte 2 e novo hash fora da transação; compare-and-swap e gravação de
+metadata/ponte são atômicos. Planner e marker não mudam. Bootstrap repetido
+de ponte 2 válida não escreve nem incrementa época. Versões desconhecidas,
+referências inválidas ou divergência entre metadata/envelope/payload bloqueiam.
+
+`metadata/database.authorityEpoch` é inteiro seguro não negativo. Bancos novos
+começam em 0; metadata antiga sem campo significa 0, persistido na adoção 2.
+Versão adotada 2 exige o campo. Bootstrap, migração local, autosave e conclusão
+não incrementam. Cada restore v2, import v1 explícito ou reset incrementa uma
+vez na transação de substituição, inclusive na recuperação inativa e em retry
+de conteúdo idêntico. Overflow falha fechado. Rollback cobre época e conjunto.
+`assertAuthorityEpoch` compara dentro da transação; o comando de execução
+aceita `expectedAuthorityEpoch` e verifica a época capturada antes de escrever,
+inclusive no retry equivalente. Futuros diálogos devem capturar a época ao abrir
+e enviá-la ao comando; esta etapa não altera a UI ou a fila para criar esse fluxo.
+
+Restore aceita ponte 2 completa, ponte 1 com hash original válido, backup sem
+ponte e import v1. Ponte 1 converte antes da escrita; ausência mantém a adoção
+existente, sem baseline temporal, eventos ou execução inferidos. Fontes e
+provenance seguem o contrato existente; execução/auditoria do conjunto anterior
+nunca sobrevivem à substituição. `authorityEpoch` vem exclusivamente do banco
+de destino, nunca do backup. Validação e hashes ficam fora das transações,
+com releitura de integridade dentro delas.
+
+Compatibilidade: leitores atuais aceitam pontes 1/2 e backups antigos. Aplicações
+anteriores podem rejeitar metadata/ponte 2 ou sua extensão em backup; devem
+permanecer bloqueadas, sem fallback ao v1 ou downgrade silencioso. Hoje mantém
+a projeção existente; recuperar uma auditoria não ativa a projeção do horário
+reagendado. Comando persistente e experiência de reagendamento pertencem à 2C-B.
+
 ## 5. Motor de planejamento
 
 A primeira versão local usa TypeScript puro, determinístico e independente da UI. Os contratos e vetores de teste devem permitir reprodução fora do navegador.
@@ -1931,7 +1999,7 @@ Camadas futuras devem possuir testes unitários de domínio e planner, testes de
 - Etapa 0.2/B4 de taxonomia, baseline técnica e proteção do v1 concluída.
 - Etapa 1.1 de modelo temporal e contratos do domínio concluída.
 - Etapas 1.2A–1.2D implementadas; v2 é o store principal e v1 permanece somente leitura.
-- Etapa 2A concluída; fundação da 2B e ação canônica de conclusão 2B-A implementadas; reagendamento não iniciado.
+- Etapa 2A concluída; fundação da 2B, conclusão 2B-A e contrato/recuperação 2C-A implementados; comando/UI de reagendamento 2C-B não iniciados.
 - Plano da Etapa 1.2 aprovado; cada subetapa exige branch, validação, revisão e autorização próprias.
 - Nenhuma etapa funcional pode começar por consequência automática desta documentação.
 
@@ -2238,6 +2306,36 @@ Limites: sem ScheduleOccurrence completo, backfill histórico, início, undo,
 correção terminal, reagendamento ou avanço para 2C. Horários ambíguos exigem
 entradas inequívocas; não há escolha de offset nesta UX mínima.
 
+### Etapa 2C — Planejamento auditado e reagendamento
+
+Aprovação com subdivisão obrigatória e gates humanos independentes:
+
+- **2C-A — Contrato e recuperação:** ponte lógica 2, `planningAudit` opcional,
+  regras puras compartilhadas, upgrade 1 → 2, backup/restore compatível,
+  `authorityEpoch` local e provas de integridade/rollback. Implementada na
+  branch `feat/reschedule-foundation` sobre a main após PR #12.
+- **2C-B — Comando e experiência em Hoje:** futuro produtor explícito,
+  projeção do planejamento vigente e UX de reagendamento. Não iniciada.
+
+2C-A não gera auditoria na migração, não reagenda, inicia ou corrige execução,
+não cria UI nem muda templates/minutos por conta própria. A conclusão existente
+continua funcional; o contrato aceita conclusão posterior a uma cadeia válida.
+Backup público 2, geração 2, schema Dexie 1 e planner/current permanecem iguais.
+Época local protege operações de conjuntos substituídos e não integra o backup.
+
+Gates: master consistente, lint, typecheck, suíte Node incluindo build,
+domínio/ponte/metadata/rollback, persistência e regressões 2A/2B/2B-A no Edge,
+diff check e revisão de recuperação contra perda silenciosa. Commit/push da
+branch validada seguem a autorização permanente. Abrir PR, merge e iniciar
+2C-B exigem suas próprias autorizações, sem avanço automático.
+
+Validação da 2C-A: 46 novos testes de contrato/recuperação, 245/245 Node
+incluindo persistência e regressões, build, lint, typecheck, master e diff check.
+Edge: 22/22 cenários aplicáveis sobre build de produção, sem retries automáticos,
+incluindo upgrade instalado, backup antigo, auditoria recuperada, conclusão,
+audit guard, Hoje, backup/cutover e layout compacto. Testes de importação e
+navegação aguardam a prontidão real do bootstrap antes de interagir.
+
 ## 5. Ordem de dependências
 
 - Hoje depende do núcleo temporal e não deve defini-lo dentro de componentes.
@@ -2382,6 +2480,27 @@ Ponte externa versionada na persistência v2, com identidade alocada uma vez,
 vínculo validado ao item diário, ExecutionRecord existente e recuperação
 integral. Não converter planner/current nem inferir semânticas temporais
 ausentes. Não habilitar ação de conclusão na UI, reagendamento ou 2C nesta fase.
+
+### D-032 — Planejamento auditado da 2C e recuperação local
+
+2C divide-se obrigatoriamente em 2C-A (contrato/persistência/recuperação) e
+2C-B (comando/experiência de reagendamento em Hoje), com autorizações próprias.
+2C-A evolui somente a versão lógica da ponte para 2. `planningAudit` opcional
+preserva baseline explicitamente confirmado e cadeia append-only dos
+RescheduleEvents existentes do domínio, separada do ExecutionRecord. Upgrade
+nunca infere confirmação, fuso, origem ou planejamento auditado do legado.
+Regras puras compartilhadas validam continuidade, no-op, IDs e cronologia,
+derivam planejamento vigente e permitem completed_rescheduled posteriormente.
+
+`authorityEpoch` local inicia deterministicamente em 0, é persistido na adoção
+2 e incrementa atomicamente por restore/import/reset, sem integrar o backup.
+Comandos futuros comparam a época capturada dentro da transação. Bootstrap e
+operações normais não incrementam. Restaurar conteúdo idêntico preserva dados
+lógicos, mas representa nova autoridade local. Ponte 1/hash original são
+validados antes da conversão; recuperação aceita ponte 2, ponte 1, ausência
+de ponte e v1. Versões desconhecidas falham fechadas, sem downgrade. Formato
+do planner, backup público, geração, schema, marker e v1 não mudam. Não há
+produtor/UI de reagendamento na 2C-A; D-031 permanece registro histórico.
 
 ## Questões abertas antes das etapas correspondentes
 
@@ -2529,6 +2648,26 @@ em v1. Template e histórico original permanecem intactos. Item virtual não
 recebe ação nem identidade; histórico concluído não recebe backfill. Toggle
 legado e edição/exclusão de terminal canônico permanecem bloqueados. Teclado,
 Escape/Cancelar, loading e foco funcionam, incluindo layout compacto.
+
+## Cenário 29 — Recuperação do planejamento auditado da 2C-A
+
+Instalação/backup com ponte 1 válida converte para 2 preservando contador, IDs,
+snapshots e ExecutionRecords sem criar planningAudit. O hash 1 deve ser válido
+antes da conversão; reabertura da ponte 2 não altera dados. Auditoria fornecida
+em backup 2 válido percorre export/restore/reload integralmente. Cadeia vazia,
+primeiro/múltiplos eventos e retorno ao baseline são aceitos sem apagar eventos;
+duplicatas, no-op, descontinuidade, cronologia, schedules e referências inválidos
+são rejeitados mesmo com hash recalculado. Execução posterior é compatível e
+permite completed_rescheduled; execução anterior à história é inválida.
+
+Backup sem ponte e import v1 preservam adoção sem fatos inventados. Epoch local
+é estável em boot/autosave/conclusão e incrementa a cada restore/import/reset,
+inclusive de conteúdo idêntico; nunca vem do backup. Comando com epoch antigo
+é rejeitado antes da escrita. Falha em cada mutação crítica ou releitura reverte
+ponte, planner, metadata e provenance. V1 permanece intacto e somente leitura.
+UI existente permanece funcional no Edge, com conclusão e backup disponíveis,
+sem botão/diálogo/produtor de reagendamento nem projeção do novo horário nesta
+etapa. Aplicação antiga pode rejeitar a versão 2, sem downgrade ou fallback.
 
 ---
 
@@ -2763,6 +2902,16 @@ Mudanças importantes de estado devem poder ser reconstruídas futuramente, prin
 
 ## 11. Relação entre plano e execução
 
+Na 2C-A, a ponte parcial do legado admite `planningAudit` sem fabricar
+ScheduleOccurrence completo. `baselineItem` ancora o snapshot da confirmação;
+`baselineSchedule` e `confirmedAt` registram fatos temporais explícitos;
+`rescheduleHistory` é append-only. Planejamento vigente deriva do último `to`,
+ou do baseline na cadeia vazia. Regras compartilhadas com ScheduleOccurrence
+validam continuidade, IDs, cronologia e no-op; retornar ao baseline mantém
+histórico e uma conclusão posterior deriva completed_rescheduled. ExecutionRecord
+continua separado e é o único fato de execução. Upgrade/rotina/projeção de Hoje
+não constituem confirmação canônica. O futuro comando produtor é gate da 2C-B.
+
 A arquitetura deve preservar a diferença entre:
 
 ```text
@@ -2815,7 +2964,10 @@ Manter a fundação visual e a baseline concluída na Etapa 0.2/B4 sem alterar a
 - nenhuma ocorrência temporal completa é persistida pela visão contextual;
 - a fundação da 2B fornece identidades persistentes aos registros diários por
   uma ponte externa; rotina virtual continua sendo projeção. Execução interna
-  auditável e recuperação estão disponíveis, sem nova ação na UI.
+  auditável e recuperação estão disponíveis. A 2B-A oferece Concluir para
+  ocorrências canônicas pendentes com timing real explícito; toggle legado
+  permanece bloqueado. A 2C-A recupera auditoria de planejamento na ponte 2,
+  sem produtor/UI de reagendamento nem mudança na projeção contextual.
 
 ### Alvo
 Manter a experiência principal contextual:
@@ -2828,8 +2980,8 @@ Atenção
 Resumo
 ```
 
-Timeline completa permanece acessível sob demanda. Execução e reagendamento
-na UI permanecem gated; a fundação persistente da 2B está implementada.
+Timeline completa permanece acessível sob demanda. Conclusão canônica já está
+implementada; início, correção terminal e UI de reagendamento permanecem gated.
 
 `Energia do dia` sai da experiência principal. `Foco AI/LLM` deixa de ser métrica fixa. Progresso deixa de ser um número genérico sem contexto.
 
@@ -2973,8 +3125,10 @@ sem converter o planner legado; backup/restore cobre todo o conjunto e rejeita
 vínculos ambíguos. A 2B-A implementa Concluir na UI para ocorrências canônicas
 pendentes, com timing real e fuso confirmados, recordedAt explícito e operação
 serializada com autosave. Histórico legado e itens virtuais não recebem fatos
-inventados; planner/current mantém seu formato. Reagendamento, correção
-terminal e novos produtores temporais continuam sujeitos a autorização própria.
+inventados; planner/current mantém seu formato. A 2C-A adiciona contrato e
+recuperação de planningAudit, upgrade lógico 1 → 2 e época local de autoridade
+sem inferências. A 2C-B, correção terminal e novos produtores temporais continuam
+sujeitos a autorização própria; nenhuma UI nova foi criada na 2C-A.
 
 ---
 

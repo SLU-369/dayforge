@@ -229,6 +229,16 @@ Mudanças importantes de estado devem poder ser reconstruídas futuramente, prin
 
 ## 11. Relação entre plano e execução
 
+Na 2C-A, a ponte parcial do legado admite `planningAudit` sem fabricar
+ScheduleOccurrence completo. `baselineItem` ancora o snapshot da confirmação;
+`baselineSchedule` e `confirmedAt` registram fatos temporais explícitos;
+`rescheduleHistory` é append-only. Planejamento vigente deriva do último `to`,
+ou do baseline na cadeia vazia. Regras compartilhadas com ScheduleOccurrence
+validam continuidade, IDs, cronologia e no-op; retornar ao baseline mantém
+histórico e uma conclusão posterior deriva completed_rescheduled. ExecutionRecord
+continua separado e é o único fato de execução. Upgrade/rotina/projeção de Hoje
+não constituem confirmação canônica. O futuro comando produtor é gate da 2C-B.
+
 A arquitetura deve preservar a diferença entre:
 
 ```text

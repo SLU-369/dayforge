@@ -30,7 +30,8 @@
 - Backup format version, persistence generation, and Dexie schema version are independent. Backup v2 is a logical contract, never a raw IndexedDB dump.
 - Export reads one consistent transaction snapshot and recalculates every raw and canonical content fingerprint before returning.
 - Restore requires existing compatible metadata and its appropriate active/inactive guard. The 2B foundation adds `execution/bridge` to the replacement set with `planner/current`, `legacy-v1/source/*`, and `migration/v1/*`; adoption metadata follows that set atomically. Unknown execution namespace records fail closed. Preserve unrelated records.
-- Keep backup format 2, persistence generation 2 and Dexie schema 1. Execution bridge logical version 1 is an optional backup extension; old backups contain no canonical execution facts. Active old restore prepares fresh bindings before writes; inactive old restore adopts at cutover.
+- Keep backup format 2, persistence generation 2 and Dexie schema 1. Execution bridge logical version 2 is an optional backup extension; accept validated bridge 1 and convert without inferred planningAudit. Backups without a bridge contain no canonical execution/planning facts. Active old restore prepares fresh bindings before writes; inactive old restore adopts at cutover.
+- Stage 2C-A owns recovery of optional planningAudit without a rescheduling producer. authorityEpoch is local metadata: absent legacy value means zero, bridge 2 requires it, and explicit restore/import/reset increments atomically. Never export/restore the epoch from logical backup or increment during ordinary bootstrap/saves.
 
 ## Work Guidance
 

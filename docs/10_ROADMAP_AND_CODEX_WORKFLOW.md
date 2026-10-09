@@ -7,7 +7,7 @@
 - Etapa 0.2/B4 de taxonomia, baseline técnica e proteção do v1 concluída.
 - Etapa 1.1 de modelo temporal e contratos do domínio concluída.
 - Etapas 1.2A–1.2D implementadas; v2 é o store principal e v1 permanece somente leitura.
-- Etapa 2A concluída; fundação da 2B e ação canônica de conclusão 2B-A implementadas; reagendamento não iniciado.
+- Etapa 2A concluída; fundação da 2B, conclusão 2B-A e contrato/recuperação 2C-A implementados; comando/UI de reagendamento 2C-B não iniciados.
 - Plano da Etapa 1.2 aprovado; cada subetapa exige branch, validação, revisão e autorização próprias.
 - Nenhuma etapa funcional pode começar por consequência automática desta documentação.
 
@@ -313,6 +313,36 @@ reload, backup/restore, v1 intacto, históricos, virtuais, teclado e madrugada.
 Limites: sem ScheduleOccurrence completo, backfill histórico, início, undo,
 correção terminal, reagendamento ou avanço para 2C. Horários ambíguos exigem
 entradas inequívocas; não há escolha de offset nesta UX mínima.
+
+### Etapa 2C — Planejamento auditado e reagendamento
+
+Aprovação com subdivisão obrigatória e gates humanos independentes:
+
+- **2C-A — Contrato e recuperação:** ponte lógica 2, `planningAudit` opcional,
+  regras puras compartilhadas, upgrade 1 → 2, backup/restore compatível,
+  `authorityEpoch` local e provas de integridade/rollback. Implementada na
+  branch `feat/reschedule-foundation` sobre a main após PR #12.
+- **2C-B — Comando e experiência em Hoje:** futuro produtor explícito,
+  projeção do planejamento vigente e UX de reagendamento. Não iniciada.
+
+2C-A não gera auditoria na migração, não reagenda, inicia ou corrige execução,
+não cria UI nem muda templates/minutos por conta própria. A conclusão existente
+continua funcional; o contrato aceita conclusão posterior a uma cadeia válida.
+Backup público 2, geração 2, schema Dexie 1 e planner/current permanecem iguais.
+Época local protege operações de conjuntos substituídos e não integra o backup.
+
+Gates: master consistente, lint, typecheck, suíte Node incluindo build,
+domínio/ponte/metadata/rollback, persistência e regressões 2A/2B/2B-A no Edge,
+diff check e revisão de recuperação contra perda silenciosa. Commit/push da
+branch validada seguem a autorização permanente. Abrir PR, merge e iniciar
+2C-B exigem suas próprias autorizações, sem avanço automático.
+
+Validação da 2C-A: 46 novos testes de contrato/recuperação, 245/245 Node
+incluindo persistência e regressões, build, lint, typecheck, master e diff check.
+Edge: 22/22 cenários aplicáveis sobre build de produção, sem retries automáticos,
+incluindo upgrade instalado, backup antigo, auditoria recuperada, conclusão,
+audit guard, Hoje, backup/cutover e layout compacto. Testes de importação e
+navegação aguardam a prontidão real do bootstrap antes de interagir.
 
 ## 5. Ordem de dependências
 

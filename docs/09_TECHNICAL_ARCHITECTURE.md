@@ -69,7 +69,7 @@ A baseline da Etapa 0.2 implementa somente uma proteção: falha de leitura do v
 ### Fundação da Etapa 2B
 
 `persistence/execution/` mantém `execution/bridge` em `plannerDocuments`.
-Seu payload lógico versionado em 1 contém contador de alocação e vínculos
+Seu payload lógico originalmente versionado em 1 contém contador de alocação e vínculos
 completos/ordenados dos itens de cada registro diário. Cada vínculo guarda ID
 opaco do domínio, data de origem, posição atual, snapshot original imutável,
 snapshot atual e `ExecutionRecord | null`. Não se convertem templates nem se
@@ -83,7 +83,8 @@ com contador monotônico e snapshot/posição para validar a ligação. Duplicat
 são aceitas na alocação inicial; edição ambígua posterior falha fechada.
 
 O bootstrap adota a ponte de forma idempotente. Metadata
-`executionBridgeVersion: 1` registra a adoção na mesma transação da ponte.
+`executionBridgeVersion: 1` registrava a adoção na fundação 2B; a 2C-A adota
+versão 2 e época local conforme o contrato abaixo, na mesma transação da ponte.
 Ausência da ponte depois da adoção é corrupção, não autorização para recriá-la.
 O marker externo e a autoridade ativa permanecem intactos.
 
@@ -91,7 +92,8 @@ Backup `formatVersion: 2` ganha extensão opcional `payload.executionBridge`
 com ponte e fingerprint SHA-256 próprio. Ausência significa backup antigo sem
 fatos canônicos de execução. Schema Dexie permanece 1, pois tabelas/índices não
 mudam; `exportedFrom.schemaVersion` continua descrevendo o schema interno.
-A extensão possui versão lógica 1. Geração de persistência permanece 2.
+A extensão nasceu com versão lógica 1; a 2C-A escreve versão lógica 2.
+Geração de persistência permanece 2.
 Aplicações antigas rejeitam a extensão desconhecida em vez de perder execução.
 
 Exportação captura planner, ponte e procedência numa transação readonly, depois
@@ -150,6 +152,60 @@ Controles legados de edição/exclusão ficam indisponíveis para execuções
 terminais. Templates e snapshots originais permanecem intactos. Projeções
 virtuais não são materializadas e históricos concluídos não ganham execução.
 Não há início, undo, reagendamento, nova entidade temporal ou schema de storage.
+
+### Etapa 2C-A — Contrato e recuperação do planejamento auditado
+
+`execution/bridge` passa a versão lógica 2 (envelope persistido e payload),
+sem alterar `planner/current` formato 1, backup formato 2, geração 2, schema
+Dexie 1, tabelas, marker ou v1. O vínculo admite `planningAudit` opcional com
+`baselineItem`, `baselineSchedule`, `confirmedAt` e `rescheduleHistory`.
+O item legado permanece âncora física; não passa a representar o horário vigente.
+O baseline é capturado na futura confirmação explícita, podendo diferir do
+snapshot original. A 2C-A não contém comando que produza essa extensão.
+
+O codec valida o baseline pendente e seu vínculo ao item legado, schedules
+timed/date_only/all_day canônicos, instantes UTC e fuso IANA explícito. Eventos
+usam `reschedule:<occurrenceId>:<posição append-only iniciando em 1>`, sem
+duplicatas. `from` deve igualar baseline/último `to`; no-op e cronologia anterior
+à confirmação/evento prévio falham fechados. `ExecutionRecord.recordedAt`
+não pode anteceder a história. Retornar ao horário original preserva eventos.
+`domain/temporal/planning-history.ts` compartilha validação, append e derivação
+com `ScheduleOccurrence`; histórico não vazio permite `completed_rescheduled`
+em conclusão posterior. Não se fabrica ocorrência completa nem execução.
+Autosave preserva auditoria e rejeita edição do planejamento legado ou exclusão
+do vínculo auditado. Notas do dia continuam independentes.
+
+Upgrade lê/valida ponte 1 e seu SHA-256 original antes de converter. Preserva
+IDs, contador, vínculos, snapshots e ExecutionRecords, sem criar `planningAudit`.
+Prepara ponte 2 e novo hash fora da transação; compare-and-swap e gravação de
+metadata/ponte são atômicos. Planner e marker não mudam. Bootstrap repetido
+de ponte 2 válida não escreve nem incrementa época. Versões desconhecidas,
+referências inválidas ou divergência entre metadata/envelope/payload bloqueiam.
+
+`metadata/database.authorityEpoch` é inteiro seguro não negativo. Bancos novos
+começam em 0; metadata antiga sem campo significa 0, persistido na adoção 2.
+Versão adotada 2 exige o campo. Bootstrap, migração local, autosave e conclusão
+não incrementam. Cada restore v2, import v1 explícito ou reset incrementa uma
+vez na transação de substituição, inclusive na recuperação inativa e em retry
+de conteúdo idêntico. Overflow falha fechado. Rollback cobre época e conjunto.
+`assertAuthorityEpoch` compara dentro da transação; o comando de execução
+aceita `expectedAuthorityEpoch` e verifica a época capturada antes de escrever,
+inclusive no retry equivalente. Futuros diálogos devem capturar a época ao abrir
+e enviá-la ao comando; esta etapa não altera a UI ou a fila para criar esse fluxo.
+
+Restore aceita ponte 2 completa, ponte 1 com hash original válido, backup sem
+ponte e import v1. Ponte 1 converte antes da escrita; ausência mantém a adoção
+existente, sem baseline temporal, eventos ou execução inferidos. Fontes e
+provenance seguem o contrato existente; execução/auditoria do conjunto anterior
+nunca sobrevivem à substituição. `authorityEpoch` vem exclusivamente do banco
+de destino, nunca do backup. Validação e hashes ficam fora das transações,
+com releitura de integridade dentro delas.
+
+Compatibilidade: leitores atuais aceitam pontes 1/2 e backups antigos. Aplicações
+anteriores podem rejeitar metadata/ponte 2 ou sua extensão em backup; devem
+permanecer bloqueadas, sem fallback ao v1 ou downgrade silencioso. Hoje mantém
+a projeção existente; recuperar uma auditoria não ativa a projeção do horário
+reagendado. Comando persistente e experiência de reagendamento pertencem à 2C-B.
 
 ## 5. Motor de planejamento
 
