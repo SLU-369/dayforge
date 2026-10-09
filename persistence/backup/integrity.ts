@@ -29,7 +29,7 @@ import type {
   LegacyMigrationSourceExport,
 } from "./contracts.ts";
 import { BackupValidationError, decodeDayforgeBackupV2 } from "./codecs.ts";
-import { createBridgeDocument, decodeBridgeDocument, readBridgeDocument, EXECUTION_BRIDGE_DOCUMENT_ID } from "../execution/bridge.ts";
+import { createBridgeDocument, decodeBridgeDocument, readBridgeDocument, upgradeExecutionBridge, EXECUTION_BRIDGE_DOCUMENT_ID } from "../execution/bridge.ts";
 
 export type MaterializedBackupState = Readonly<{
   backup: DayforgeBackupV2;
@@ -103,11 +103,14 @@ export async function validateAndMaterializeBackupV2(
     return fingerprintError("O fingerprint do planner não corresponde ao conteúdo exportado.");
   }
   const current = createLegacyPlannerDocument(plannerFingerprint, backup.payload.planner);
-  const executionDocument = backup.payload.executionBridge
+  const originalExecutionDocument = backup.payload.executionBridge
     ? await createBridgeDocument(backup.payload.executionBridge.bridge, hasher) : null;
-  if (executionDocument && executionDocument.sourceContentFingerprint !== backup.payload.executionBridge?.contentFingerprint) {
+  if (originalExecutionDocument && originalExecutionDocument.sourceContentFingerprint !== backup.payload.executionBridge?.contentFingerprint) {
     return fingerprintError("O fingerprint da ponte de execução é inválido.");
   }
+  const executionDocument = originalExecutionDocument && backup.payload.executionBridge
+    ? (originalExecutionDocument.formatVersion === 2 ? originalExecutionDocument
+      : await createBridgeDocument(upgradeExecutionBridge(backup.payload.executionBridge.bridge, backup.payload.planner), hasher)) : null;
 
   const sourceByRawFingerprint = new Map<string, LegacyMigrationSourceExport>();
   const sources: PlannerDocumentRecord[] = [];
@@ -263,7 +266,7 @@ export async function readBackupSnapshot(
   }
   const planner = normalizeLegacyPlannerSnapshotV1(plannerSnapshot);
   const executionDocument = await readBridgeDocument(transaction);
-  if ((databaseMetadata.executionBridgeVersion === 1) !== Boolean(executionDocument)) {
+  if (databaseMetadata.executionBridgeVersion !== (executionDocument?.formatVersion ?? undefined)) {
     throw new BackupValidationError("invalid_backup_integrity", "A adoção da ponte de execução não corresponde aos documentos persistidos.");
   }
   const executionBridge = executionDocument ? {
@@ -328,7 +331,7 @@ export async function assertPersistedMaterializedBackup(
   const databaseMetadata = await transaction.getDatabaseMetadata();
   if (active) assertActiveDatabaseMetadata(databaseMetadata);
   else assertInactiveDatabaseMetadata(databaseMetadata);
-  if (databaseMetadata.executionBridgeVersion !== (materialized.executionDocument ? 1 : undefined)) {
+  if (databaseMetadata.executionBridgeVersion !== (materialized.executionDocument?.formatVersion ?? undefined)) {
     throw new BackupValidationError("invalid_backup_integrity", "A adoção da ponte não corresponde ao estado restaurado.");
   }
   const [documents, metadata] = await Promise.all([

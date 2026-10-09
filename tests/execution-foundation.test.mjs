@@ -62,7 +62,7 @@ test("duplicate legacy IDs receive unique persistent identities without changing
   assert.deepEqual(result.executionBridge.entries.map((entry) => entry.originalItem.id), ["same", "same"]);
   assert.equal(legacy.getItem("rotina-369:data:v1"), raw);
   assert.deepEqual(legacy.writes, []);
-  assert.equal((await repository.read((tx) => tx.getDatabaseMetadata())).executionBridgeVersion, 1);
+  assert.equal((await repository.read((tx) => tx.getDatabaseMetadata())).executionBridgeVersion, 2);
   assert.deepEqual(database.tables.map((table) => table.name).sort(), ["metadata", "plannerDocuments"]);
 });
 
@@ -185,6 +185,7 @@ test("new backup restores complete identity, execution and audit snapshot; resto
   await restoreDayforgeBackupV2({ repository: second.repository, backup: data, active: true });
   second.repository.close();
   assert.deepEqual((await second.boot()).executionBridge, data.payload.executionBridge.bridge);
+  once.metadata.find((record) => record.key === "database").authorityEpoch += 1;
   assert.deepEqual(await physical(second.database), once);
   assert.deepEqual((await backup(second.repository)).payload, data.payload);
   assert.equal(data.formatVersion, 2);
@@ -203,6 +204,7 @@ test("old backup replaces existing executions with fresh bindings and preserves 
   assert.deepEqual(restored.state, data.payload.planner);
   const once = await physical(database);
   await restoreDayforgeBackupV2({ repository, backup: data, active: true });
+  once.metadata.find((record) => record.key === "database").authorityEpoch += 1;
   assert.deepEqual(await physical(database), once);
 });
 

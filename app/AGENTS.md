@@ -33,6 +33,7 @@
 - PlannerContext serializes completion, autosave and recovery/backup in one queue. Publish state and bridge together from a validated persisted snapshot; invalidate autosaves captured before publication. Coalesce equivalent concurrent completions, block local edits during a command and preserve the dialog/inputs on action errors. Block storage only when the persisted snapshot cannot be validated; ordinary command failure permits retry.
 - New mocked domains must not be written into the v1 planner payload.
 - With the execution bridge active, disable legacy completion toggles. Minute edits do not imply completion or create an ExecutionRecord. Canonical completion uses recordOccurrenceExecution through PlannerContext; new timed completions derive compatibility actualMinutes from the actual UTC interval atomically.
+- Stage 2C-A accepts logical bridge 2 through persistence without new UI or a rescheduling command. Recovered planningAudit remains preserved data; projecting its effective schedule and capturing authorityEpoch for a rescheduling dialog belong to separately authorized 2C-B.
 - `/hoje` is the primary Hoje route; `/` remains a compatible entry point. Product areas use real, directly loadable App Router routes.
 - Backup, import, and reset controls belong under `/configuracoes/dados-e-backup`, never in primary navigation.
 - Keep backend, D1, Worker, and API changes outside frontend-only stages.

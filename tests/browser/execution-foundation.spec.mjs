@@ -33,7 +33,10 @@ test("duplicate daily identities persist across reload and complete independentl
   await expect.poll(async () => (await read()).document?.payload.entries.length).toBe(2);
   const before = await read();
   expect(new Set(before.document.payload.entries.map((entry) => entry.occurrenceId)).size).toBe(2);
-  expect(before.metadata.executionBridgeVersion).toBe(1);
+  expect(before.metadata.executionBridgeVersion).toBe(2);
+  expect(before.metadata.authorityEpoch).toBe(0);
+  expect(before.document.payload.version).toBe(2);
+  expect(before.document.payload.entries.every((entry) => !Object.hasOwn(entry, "planningAudit"))).toBe(true);
   expect(before.metadata.schemaVersion).toBe(1);
   await page.reload();
   await expect(page.getByRole("region", { name: "Resumo" })).toContainText("2 itens no dia");

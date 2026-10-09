@@ -13,6 +13,7 @@
 - Keep the domain independent from React, App Router, browser globals, persistence, APIs, and external services.
 - Require callers to provide IDs and instants; never read the ambient clock or generate identity inside domain operations.
 - Preserve original planning and append-only reschedule history. Terminal temporal states never return silently to `planned`.
+- `temporal/planning-history.ts` shares chain validation, append, current-schedule and completed-status derivation between full occurrences and partial persistence adapters. Validate IDs, continuity, no-op and chronology including execution; require explicit baseline/confirmation instead of inventing full occurrence semantics.
 - Temporal flexibility is exactly `fixed`, `preferred`, or `flexible`; opportunity belongs to availability contracts.
 - Do not import or adapt `rotina-369:data:v1`; migration and persistence belong to Stage 1.2.
 

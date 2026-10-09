@@ -26,7 +26,10 @@ Manter a fundação visual e a baseline concluída na Etapa 0.2/B4 sem alterar a
 - nenhuma ocorrência temporal completa é persistida pela visão contextual;
 - a fundação da 2B fornece identidades persistentes aos registros diários por
   uma ponte externa; rotina virtual continua sendo projeção. Execução interna
-  auditável e recuperação estão disponíveis, sem nova ação na UI.
+  auditável e recuperação estão disponíveis. A 2B-A oferece Concluir para
+  ocorrências canônicas pendentes com timing real explícito; toggle legado
+  permanece bloqueado. A 2C-A recupera auditoria de planejamento na ponte 2,
+  sem produtor/UI de reagendamento nem mudança na projeção contextual.
 
 ### Alvo
 Manter a experiência principal contextual:
@@ -39,8 +42,8 @@ Atenção
 Resumo
 ```
 
-Timeline completa permanece acessível sob demanda. Execução e reagendamento
-na UI permanecem gated; a fundação persistente da 2B está implementada.
+Timeline completa permanece acessível sob demanda. Conclusão canônica já está
+implementada; início, correção terminal e UI de reagendamento permanecem gated.
 
 `Energia do dia` sai da experiência principal. `Foco AI/LLM` deixa de ser métrica fixa. Progresso deixa de ser um número genérico sem contexto.
 
@@ -184,5 +187,7 @@ sem converter o planner legado; backup/restore cobre todo o conjunto e rejeita
 vínculos ambíguos. A 2B-A implementa Concluir na UI para ocorrências canônicas
 pendentes, com timing real e fuso confirmados, recordedAt explícito e operação
 serializada com autosave. Histórico legado e itens virtuais não recebem fatos
-inventados; planner/current mantém seu formato. Reagendamento, correção
-terminal e novos produtores temporais continuam sujeitos a autorização própria.
+inventados; planner/current mantém seu formato. A 2C-A adiciona contrato e
+recuperação de planningAudit, upgrade lógico 1 → 2 e época local de autoridade
+sem inferências. A 2C-B, correção terminal e novos produtores temporais continuam
+sujeitos a autorização própria; nenhuma UI nova foi criada na 2C-A.

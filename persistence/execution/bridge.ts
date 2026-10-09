@@ -1,7 +1,10 @@
 import {
   createAllDayExecutionTiming, createDateOnlyExecutionTiming, createExecutionRecord,
   createTimedExecutionTiming, executionRecordId, parseLocalDate, scheduleOccurrenceId,
-  type DomainResult, type ExecutionRecord, type ScheduleOccurrenceId,
+  createTimedSchedule, createDateOnlySchedule, createAllDaySchedule, createTemporalReason,
+  parseUtcInstant, rescheduleEventId, validatePlanningHistory,
+  type DomainResult, type ExecutionRecord, type ScheduleOccurrenceId, type OccurrenceSchedule,
+  type RescheduleEvent, type UtcInstant,
 } from "../../domain/temporal/index.ts";
 import { decodeLegacyPlannerSnapshotV1, type LegacyDailyItemV1, type NormalizedLegacyPlannerV1 } from "../legacy/index.ts";
 import { canonicalStringify, WebCryptoSha256Hasher, type Sha256Hasher } from "../migration/index.ts";
@@ -10,6 +13,13 @@ import type { JsonObject, PlannerDocumentRecord, PersistenceReadTransaction } fr
 export const EXECUTION_BRIDGE_DOCUMENT_ID = "execution/bridge";
 export const EXECUTION_BRIDGE_FORMAT = "dayforge/execution-bridge";
 
+export type PlanningAudit = Readonly<{
+  baselineItem: LegacyDailyItemV1;
+  baselineSchedule: OccurrenceSchedule;
+  confirmedAt: UtcInstant;
+  rescheduleHistory: readonly RescheduleEvent[];
+}>;
+
 export type OccurrenceBinding = Readonly<{
   occurrenceId: ScheduleOccurrenceId;
   sourceDate: string;
@@ -17,9 +27,10 @@ export type OccurrenceBinding = Readonly<{
   originalItem: LegacyDailyItemV1;
   item: LegacyDailyItemV1;
   execution: ExecutionRecord | null;
+  planningAudit?: PlanningAudit;
 }>;
 export type ExecutionBridge = Readonly<{
-  version: 1;
+  version: 1 | 2;
   nextSequence: number;
   entries: readonly OccurrenceBinding[];
 }>;
@@ -92,16 +103,63 @@ export function decodeBridgeExecution(input: unknown, occurrenceId: string): Exe
   return decoded;
 }
 
+function decodeSchedule(input: unknown): OccurrenceSchedule {
+  const schedule = object(input);
+  let result: DomainResult<OccurrenceSchedule>;
+  if (schedule.kind === "timed") {
+    fields(schedule, ["kind", "startsAt", "timeZone", "durationMinutes"]);
+    result = createTimedSchedule({ startsAt: string(schedule.startsAt), timeZone: string(schedule.timeZone), durationMinutes: number(schedule.durationMinutes) });
+  } else if (schedule.kind === "date_only") {
+    fields(schedule, ["kind", "date", "timeZone"], ["estimatedDurationMinutes"]);
+    result = createDateOnlySchedule({ date: string(schedule.date), timeZone: string(schedule.timeZone),
+      ...(Object.hasOwn(schedule, "estimatedDurationMinutes") ? { estimatedDurationMinutes: number(schedule.estimatedDurationMinutes) } : {}) });
+  } else if (schedule.kind === "all_day") {
+    fields(schedule, ["kind", "startsOn", "endsBefore", "timeZone"]);
+    result = createAllDaySchedule({ startsOn: string(schedule.startsOn), endsBefore: string(schedule.endsBefore), timeZone: string(schedule.timeZone) });
+  } else return invalid();
+  const decoded = value(result);
+  if (!same(decoded, input)) invalid();
+  return decoded;
+}
+
+function decodePlanningAudit(input: unknown, occurrenceId: string, item: LegacyDailyItemV1, execution: ExecutionRecord | null): PlanningAudit {
+  const audit = object(input);
+  fields(audit, ["baselineItem", "baselineSchedule", "confirmedAt", "rescheduleHistory"]);
+  const baselineItem = dailyItem(audit.baselineItem);
+  // The unchanged legacy item remains the physical anchor, never the effective schedule.
+  if (baselineItem.completed || !same(plan(baselineItem), plan(item)) || (item.completed && !execution)) invalid();
+  const baselineSchedule = decodeSchedule(audit.baselineSchedule);
+  const confirmedAt = value(parseUtcInstant(string(audit.confirmedAt)));
+  if (!Array.isArray(audit.rescheduleHistory)) invalid();
+  const rescheduleHistory = audit.rescheduleHistory.map((raw, index): RescheduleEvent => {
+    const event = object(raw);
+    fields(event, ["id", "from", "to", "changedAt"], ["reason"]);
+    // Identity includes the owning occurrence and append position; copying a chain is invalid.
+    if (event.id !== `reschedule:${occurrenceId}:${index + 1}`) invalid();
+    let reason;
+    if (Object.hasOwn(event, "reason")) {
+      const input = object(event.reason);
+      fields(input, ["code"], ["note"]);
+      reason = value(createTemporalReason({ code: string(input.code), ...(Object.hasOwn(input, "note") ? { note: string(input.note) } : {}) }));
+      if (!same(reason, input)) invalid();
+    }
+    return { id: value(rescheduleEventId(string(event.id))), from: decodeSchedule(event.from), to: decodeSchedule(event.to),
+      changedAt: value(parseUtcInstant(string(event.changedAt))), ...(reason ? { reason } : {}) };
+  });
+  value(validatePlanningHistory({ baselineSchedule, confirmedAt, rescheduleHistory }, execution));
+  return { baselineItem, baselineSchedule, confirmedAt, rescheduleHistory };
+}
+
 export function decodeExecutionBridge(input: unknown, planner: NormalizedLegacyPlannerV1): ExecutionBridge {
   const bridge = object(input);
   fields(bridge, ["version", "nextSequence", "entries"]);
-  if (bridge.version !== 1 || !Number.isSafeInteger(bridge.nextSequence) || number(bridge.nextSequence) < 1 || !Array.isArray(bridge.entries)) invalid();
+  if ((bridge.version !== 1 && bridge.version !== 2) || !Number.isSafeInteger(bridge.nextSequence) || number(bridge.nextSequence) < 1 || !Array.isArray(bridge.entries)) invalid();
   const ids = new Set<string>();
   const bindings = new Set<string>();
   let previous = "";
   const entries = bridge.entries.map((raw): OccurrenceBinding => {
     const entry = object(raw);
-    fields(entry, ["occurrenceId", "sourceDate", "itemIndex", "originalItem", "item", "execution"]);
+    fields(entry, ["occurrenceId", "sourceDate", "itemIndex", "originalItem", "item", "execution"], bridge.version === 2 ? ["planningAudit"] : []);
     const id = string(entry.occurrenceId);
     const match = /^occ:([1-9]\d*)$/.exec(id);
     if (!match || !Number.isSafeInteger(Number(match[1])) || Number(match[1]) >= number(bridge.nextSequence) || ids.has(id)) invalid();
@@ -120,15 +178,24 @@ export function decodeExecutionBridge(input: unknown, planner: NormalizedLegacyP
     if (!record || record.date !== sourceDate || !same(record.items[index], item)) invalid();
     const execution = entry.execution === null ? null : decodeBridgeExecution(entry.execution, id);
     if (execution && !item.completed) invalid();
-    return { occurrenceId: value(scheduleOccurrenceId(id)), sourceDate, itemIndex: index, originalItem, item, execution };
+    const planningAudit = Object.hasOwn(entry, "planningAudit") ? decodePlanningAudit(entry.planningAudit, id, item, execution) : undefined;
+    return { occurrenceId: value(scheduleOccurrenceId(id)), sourceDate, itemIndex: index, originalItem, item, execution,
+      ...(planningAudit ? { planningAudit } : {}) };
   });
   const count = Object.values(planner.records).reduce((total, record) => total + record.items.length, 0);
   if (entries.length !== count) invalid();
-  return { version: 1, nextSequence: number(bridge.nextSequence), entries };
+  return { version: bridge.version, nextSequence: number(bridge.nextSequence), entries };
+}
+
+/** Validate the original version first; no confirmation, timezone or history is inferred. */
+export function upgradeExecutionBridge(input: unknown, planner: NormalizedLegacyPlannerV1): ExecutionBridge {
+  const bridge = decodeExecutionBridge(input, planner);
+  return { ...bridge, version: 2 };
 }
 
 /** Allocates once in persisted v2; array positions locate bindings, never identify occurrences. */
-export function reconcileExecutionBridge(planner: NormalizedLegacyPlannerV1, prior?: ExecutionBridge): ExecutionBridge {
+export function reconcileExecutionBridge(planner: NormalizedLegacyPlannerV1, prior?: ExecutionBridge,
+  completion?: Readonly<{ occurrenceId: string; record: ExecutionRecord }>): ExecutionBridge {
   let nextSequence = prior?.nextSequence ?? 1;
   const entries: OccurrenceBinding[] = [];
   const retained = new Set<string>();
@@ -144,25 +211,30 @@ export function reconcileExecutionBridge(planner: NormalizedLegacyPlannerV1, pri
       const old = unchangedPlan ? previous[itemIndex] : previous.find((entry) => entry.item.id === item.id);
       if (old?.execution && (!same(plan(old.item), plan(item)) || !item.completed
         || old.item.actualMinutes !== item.actualMinutes)) invalid();
+      if (old?.planningAudit && !same(plan(old.item), plan(item))) invalid();
       const occurrenceId = old?.occurrenceId ?? value(scheduleOccurrenceId(`occ:${nextSequence++}`));
+      const supplied = completion?.occurrenceId === occurrenceId ? decodeBridgeExecution(completion.record, occurrenceId) : undefined;
+      if (old?.execution && supplied && !same(old.execution, supplied)) invalid();
       if (!Number.isSafeInteger(nextSequence)) invalid();
       retained.add(occurrenceId);
-      entries.push({ occurrenceId, sourceDate, itemIndex, originalItem: old?.originalItem ?? { ...item }, item: { ...item }, execution: old?.execution ?? null });
+      entries.push({ occurrenceId, sourceDate, itemIndex, originalItem: old?.originalItem ?? { ...item }, item: { ...item }, execution: supplied ?? old?.execution ?? null,
+        ...(old?.planningAudit ? { planningAudit: old.planningAudit } : {}) });
     });
   }
-  if (prior?.entries.some((entry) => entry.execution && !retained.has(entry.occurrenceId))) invalid();
-  return decodeExecutionBridge({ version: 1, nextSequence, entries }, planner);
+  if (prior?.entries.some((entry) => (entry.execution || entry.planningAudit) && !retained.has(entry.occurrenceId))) invalid();
+  return decodeExecutionBridge({ version: 2, nextSequence, entries }, planner);
 }
 
 export async function createBridgeDocument(bridge: ExecutionBridge, hasher: Sha256Hasher = new WebCryptoSha256Hasher()): Promise<PlannerDocumentRecord> {
   const payload = bridgeJson(bridge);
   return { id: EXECUTION_BRIDGE_DOCUMENT_ID, role: "active", format: EXECUTION_BRIDGE_FORMAT,
-    formatVersion: 1, sourceContentFingerprint: await hasher.digestUtf8(canonicalStringify(payload)), payload };
+    formatVersion: bridge.version, sourceContentFingerprint: await hasher.digestUtf8(canonicalStringify(payload)), payload };
 }
 
 export function decodeBridgeDocument(document: PlannerDocumentRecord, planner: NormalizedLegacyPlannerV1): ExecutionBridge {
   if (document.id !== EXECUTION_BRIDGE_DOCUMENT_ID || document.role !== "active" || document.format !== EXECUTION_BRIDGE_FORMAT
-    || document.formatVersion !== 1 || !/^[a-f0-9]{64}$/.test(document.sourceContentFingerprint ?? "")) invalid();
+    || (document.formatVersion !== 1 && document.formatVersion !== 2) || document.payload.version !== document.formatVersion
+    || !/^[a-f0-9]{64}$/.test(document.sourceContentFingerprint ?? "")) invalid();
   return decodeExecutionBridge(document.payload, planner);
 }
 

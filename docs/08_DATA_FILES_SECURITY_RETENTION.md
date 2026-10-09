@@ -44,6 +44,15 @@ Pode haver humor leve, mas o risco precisa permanecer claro.
 
 Backup sai da navegação principal e fica em Configurações → Dados e backup.
 
+Na 2C-A, o backup público continua com formato 2, geração 2 e schema interno 1.
+Sua extensão `executionBridge` preserva identidade, snapshots, execução e
+eventual `planningAudit` da ponte lógica 2. A época local `authorityEpoch` não
+é conteúdo de backup: cada restore/import/reset incrementa a época do banco
+de destino atomicamente, inclusive ao recuperar conteúdo idêntico. Assim, IDs
+reutilizados não legitimam comandos capturados sobre o conjunto anterior.
+Uma restauração é substituição do conjunto recuperável, sem merge de execuções
+ou auditorias. O conteúdo v1 preservado continua somente leitura.
+
 Deve preservar:
 
 - dados estruturados;

@@ -133,3 +133,23 @@ em v1. Template e histórico original permanecem intactos. Item virtual não
 recebe ação nem identidade; histórico concluído não recebe backfill. Toggle
 legado e edição/exclusão de terminal canônico permanecem bloqueados. Teclado,
 Escape/Cancelar, loading e foco funcionam, incluindo layout compacto.
+
+## Cenário 29 — Recuperação do planejamento auditado da 2C-A
+
+Instalação/backup com ponte 1 válida converte para 2 preservando contador, IDs,
+snapshots e ExecutionRecords sem criar planningAudit. O hash 1 deve ser válido
+antes da conversão; reabertura da ponte 2 não altera dados. Auditoria fornecida
+em backup 2 válido percorre export/restore/reload integralmente. Cadeia vazia,
+primeiro/múltiplos eventos e retorno ao baseline são aceitos sem apagar eventos;
+duplicatas, no-op, descontinuidade, cronologia, schedules e referências inválidos
+são rejeitados mesmo com hash recalculado. Execução posterior é compatível e
+permite completed_rescheduled; execução anterior à história é inválida.
+
+Backup sem ponte e import v1 preservam adoção sem fatos inventados. Epoch local
+é estável em boot/autosave/conclusão e incrementa a cada restore/import/reset,
+inclusive de conteúdo idêntico; nunca vem do backup. Comando com epoch antigo
+é rejeitado antes da escrita. Falha em cada mutação crítica ou releitura reverte
+ponte, planner, metadata e provenance. V1 permanece intacto e somente leitura.
+UI existente permanece funcional no Edge, com conclusão e backup disponíveis,
+sem botão/diálogo/produtor de reagendamento nem projeção do novo horário nesta
+etapa. Aplicação antiga pode rejeitar a versão 2, sem downgrade ou fallback.

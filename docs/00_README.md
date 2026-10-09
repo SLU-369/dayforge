@@ -1,6 +1,6 @@
 # Dayforge 2.0 — Documentação oficial de produto
 
-**Status:** Etapas 0.1, 0.2, 1.1, 1.2A–1.2D, 2A, fundação da 2B e 2B-A implementadas; reagendamento não iniciado
+**Status:** Etapas 0.1, 0.2, 1.1, 1.2A–1.2D, 2A, fundação da 2B, 2B-A e 2C-A implementadas; comando/UI de reagendamento 2C-B não iniciados
 **Data:** 07/10/2026
 **Objetivo:** transformar as decisões de produto, UX, domínio e arquitetura discutidas até aqui em uma fonte oficial de verdade para o repositório e para o Codex.
 
@@ -81,4 +81,7 @@ aceita arquivos v2 e v1. A Etapa 2A adiciona somente o read model contextual;
 a fundação da 2B inclui identidade, execução auditável e recuperação.
 A 2B-A adiciona Concluir para ocorrências canônicas, com intervalo real e fuso
 informados explicitamente pelo usuário. Itens virtuais e conclusões históricas
-não recebem fatos retroativos; reagendamento não foi iniciado.
+não recebem fatos retroativos. A 2C-A evolui a ponte lógica para 2, aceita
+planejamento auditado em recuperação e introduz `authorityEpoch` local, sem
+inferir confirmação temporal nem criar produtor de reagendamento. A 2C-B
+depende de autorização própria; PR, merge e avanço de etapa são gates separados.

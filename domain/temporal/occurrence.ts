@@ -1,4 +1,5 @@
 import { failure, success, type DomainResult } from "./errors.ts";
+import { appendRescheduleEvent, deriveCompletedStatus, validatePlanningHistory } from "./planning-history.ts";
 import type {
   ExecutionRecordId,
   RescheduleEventId,
@@ -340,12 +341,16 @@ export function rescheduleOccurrence(
     ...(command.reason ? { reason: copyReason(command.reason) } : {}),
   };
 
+  const history = appendRescheduleEvent({ baselineSchedule: planned.value.originalSchedule,
+    confirmedAt: planned.value.createdAt, rescheduleHistory: planned.value.rescheduleHistory }, event);
+  if (!history.ok) return history;
+
   return success({
     ...planned.value,
     origin: copyOrigin(planned.value.origin),
     originalSchedule: copyOccurrenceSchedule(planned.value.originalSchedule),
-    currentSchedule: copyOccurrenceSchedule(command.schedule),
-    rescheduleHistory: [...planned.value.rescheduleHistory.map(copyRescheduleEvent), event],
+    currentSchedule: copyOccurrenceSchedule(history.value.currentSchedule),
+    rescheduleHistory: history.value.rescheduleHistory,
     updatedAt: changedAt.value,
   });
 }
@@ -359,6 +364,9 @@ export function completeOccurrence(
   if (execution.recordedAt < planned.value.updatedAt) {
     return failure("invalid_transition", "Execution record cannot precede the occurrence history.", "execution.recordedAt");
   }
+  const history = validatePlanningHistory({ baselineSchedule: planned.value.originalSchedule,
+    confirmedAt: planned.value.createdAt, rescheduleHistory: planned.value.rescheduleHistory }, execution);
+  if (!history.ok) return history;
 
   const base = {
     ...planned.value,
@@ -370,7 +378,7 @@ export function completeOccurrence(
     updatedAt: execution.recordedAt,
   };
 
-  if (planned.value.rescheduleHistory.length === 0) {
+  if (deriveCompletedStatus(history.value.rescheduleHistory) === "completed") {
     return success({ ...base, status: "completed", rescheduleHistory: [] });
   }
 

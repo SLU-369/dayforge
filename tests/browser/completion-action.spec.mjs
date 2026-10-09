@@ -152,10 +152,12 @@ test("UI completion is exported, restored and reloaded as an identical fact with
   expect(backup.payload.executionBridge.bridge).toEqual(saved.bridge);
   await page.goto("/hoje"); await complete(page, "Próxima");
   await page.goto("/configuracoes/dados-e-backup");
+  await expect(page.getByRole("button", { name: "Selecionar arquivo", exact: true })).toBeEnabled();
   await page.locator('input[type="file"]').setInputFiles({ name: "completion-fictional.json", mimeType: "application/json", buffer: Buffer.from(raw) });
   await expect(page.getByRole("status")).toContainText("Backup importado com sucesso");
   await page.goto("/hoje"); await page.reload();
   await expect(page.getByRole("region", { name: "Resumo", exact: true })).toContainText("1 concluídos");
+  saved.metadata.authorityEpoch += 1;
   expect(await read(page)).toEqual(saved); await healthy(page);
 });
 test("completion dialog supports keyboard cancel, predictable focus and compact layout", async ({ page }) => {

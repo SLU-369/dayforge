@@ -133,8 +133,13 @@ function isPlannerDocumentRole(value: unknown): value is PlannerDocumentRecord["
 
 export function decodeDatabaseMetadata(value: unknown): DatabaseMetadataRecord {
   if (!isPlainObjectRecord(value)
-    || !(hasExactFields(value, DATABASE_METADATA_FIELDS)
-      || (hasExactFields(value, [...DATABASE_METADATA_FIELDS, "executionBridgeVersion"]) && value.executionBridgeVersion === 1))
+    || !DATABASE_METADATA_FIELDS.every((field) => Object.hasOwn(value, field))
+    || !Reflect.ownKeys(value).every((field) => typeof field === "string"
+      && [...DATABASE_METADATA_FIELDS, "executionBridgeVersion", "authorityEpoch"].includes(field))
+    || (Object.hasOwn(value, "executionBridgeVersion") && value.executionBridgeVersion !== 1 && value.executionBridgeVersion !== 2)
+    || (Object.hasOwn(value, "authorityEpoch") && (!Number.isSafeInteger(value.authorityEpoch)
+      || typeof value.authorityEpoch !== "number" || value.authorityEpoch < 0))
+    || (value.executionBridgeVersion === 2 && !Object.hasOwn(value, "authorityEpoch"))
     || value.key !== DATABASE_METADATA_KEY
     || value.kind !== "database"
     || value.persistenceGeneration !== PERSISTENCE_GENERATION
@@ -152,7 +157,8 @@ export function decodeDatabaseMetadata(value: unknown): DatabaseMetadataRecord {
     persistenceGeneration: value.persistenceGeneration,
     schemaVersion: value.schemaVersion,
     activeDocumentId: value.activeDocumentId,
-    ...(value.executionBridgeVersion === 1 ? { executionBridgeVersion: 1 as const } : {}),
+    ...(value.executionBridgeVersion === 1 || value.executionBridgeVersion === 2 ? { executionBridgeVersion: value.executionBridgeVersion } : {}),
+    ...(typeof value.authorityEpoch === "number" ? { authorityEpoch: value.authorityEpoch } : {}),
   };
 }
 
