@@ -34,7 +34,8 @@ async function restore(page, data) {
   await expect(page.getByRole("status")).toContainText("Backup importado com sucesso");
   await page.goto("/hoje"); await page.reload();
   await expect(page.locator(".storage-warning")).toHaveCount(0);
-  await expect(page.getByRole("button", { name: /Reagendar/i })).toHaveCount(0);
+  await expect(page.getByRole("region", { name: "Resumo", exact: true })).toContainText("1 itens no dia");
+  await expect(page.getByRole("button", { name: "Reagendar Treino fictício", exact: true })).toBeEnabled();
   expect(await page.evaluate(() => localStorage.getItem("rotina-369:data:v1"))).toBe(raw);
 }
 test("old installed bridge upgrades without changing planner or marker; old backup restores as bridge v2", async ({ page }) => {
@@ -58,13 +59,14 @@ test("old installed bridge upgrades without changing planner or marker; old back
   expect(restored.bridge.payload).toEqual(adopted.bridge.payload); expect(restored.metadata.authorityEpoch).toBe(1);
   expect(restored.planner).toEqual(saved.planner);
 });
-test("audited bridge round-trips in the existing backup UI without a rescheduling producer", async ({ page }) => {
+test("recovered audited bridge round-trips without adding an event and projects the effective interval", async ({ page }) => {
   await open(page); const data = await backup(page), bridge = data.payload.executionBridge.bridge;
   const schedule = { kind: "timed", startsAt: `${date}T06:30:00.000Z`, durationMinutes: 60, timeZone: "UTC" };
   bridge.entries[0].planningAudit = { baselineItem: structuredClone(bridge.entries[0].item), baselineSchedule: schedule, confirmedAt: instant,
     rescheduleHistory: [{ id: "reschedule:occ:1:1", from: schedule, to: { ...schedule, startsAt: `${date}T20:00:00.000Z` }, changedAt: instant }] };
   data.payload.executionBridge.contentFingerprint = hash(bridge);
   await restore(page, data); const saved = await read(page); expect(saved.bridge.payload).toEqual(bridge);
+  await expect(page.getByRole("region", { name: "Próximo" })).toContainText("20:00–21:00");
   const exported = await backup(page); expect(exported.payload).toEqual(data.payload);
   expect(exported.formatVersion).toBe(2); expect(exported.exportedFrom).toEqual({ persistenceGeneration: 2, schemaVersion: 1 });
   expect(JSON.stringify(exported)).not.toContain("authorityEpoch");

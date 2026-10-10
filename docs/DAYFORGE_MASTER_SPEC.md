@@ -5,8 +5,8 @@
 
 # Dayforge 2.0 — Documentação oficial de produto
 
-**Status:** Etapas 0.1, 0.2, 1.1, 1.2A–1.2D, 2A, fundação da 2B, 2B-A e 2C-A implementadas; comando/UI de reagendamento 2C-B não iniciados
-**Data:** 07/10/2026
+**Status:** Etapas 0.1, 0.2, 1.1, 1.2A–1.2D, 2A, fundação da 2B, 2B-A, 2C-A e 2C-B implementadas; integração da 2C-B depende de PR e aprovação humanas
+**Data:** 10/10/2026
 **Objetivo:** transformar as decisões de produto, UX, domínio e arquitetura discutidas até aqui em uma fonte oficial de verdade para o repositório e para o Codex.
 
 ## Como usar esta documentação
@@ -88,8 +88,10 @@ A 2B-A adiciona Concluir para ocorrências canônicas, com intervalo real e fuso
 informados explicitamente pelo usuário. Itens virtuais e conclusões históricas
 não recebem fatos retroativos. A 2C-A evolui a ponte lógica para 2, aceita
 planejamento auditado em recuperação e introduz `authorityEpoch` local, sem
-inferir confirmação temporal nem criar produtor de reagendamento. A 2C-B
-depende de autorização própria; PR, merge e avanço de etapa são gates separados.
+inferir confirmação temporal nem criar produtor de reagendamento. A 2C-B foi
+autorizada e implementa confirmação, comando atômico e projeção efetiva de
+reagendamentos em Hoje, com histórico e detecção de diálogos obsoletos.
+PR, merge e avanço de etapa são gates separados.
 
 ---
 
@@ -629,6 +631,34 @@ Exemplos bons:
 - `Dentro do ritmo`;
 - `Acima do seu padrão`;
 - `Quase pronto`.
+
+## 14. Reagendamento explícito em Hoje — 2C-B
+
+Somente ocorrências canônicas pendentes inequívocas recebem Reagendar; virtuais
+não são materializados por interação. O diálogo `Reagendar [atividade]` informa:
+`Altere o planejamento desta ocorrência. A execução será registrada separadamente.`
+No primeiro evento, apresenta datas/horas anteriores editáveis e fuso IANA
+sugerido visível, com confirmação explícita que inicia o histórico auditável.
+Nos seguintes, mostra o planejamento vigente canônico sem reinterpretá-lo.
+
+Novo início/fim são datas e horas completas; fuso IANA editável, duração UTC
+resultante e motivo livre opcional. Prefill é sugestão de planejamento sem
+persistência. Não há rollover de madrugada implícito nem entrada de horário
+ambíguo/inexistente em DST. Destino totalmente passado e no-op são rejeitados.
+Cancelar/Escape funcionam antes da escrita. Durante commit, campos e ações
+ficam indisponíveis e Escape não simula cancelamento de uma transação iniciada.
+Erro preserva entradas; retry inalterado preserva changedAt e intenção.
+
+Após sucesso, Agora/Próximo/Depois/Atenção/Resumo e dia completo recalculam sem
+reload. A data selecionada permanece; confirmação oferece Ver dia reagendado.
+Foco retorna ao acionador conectado ou ao título de Hoje quando ele desaparece.
+O dialog tem labels, foco inicial previsível, percurso nativo dos campos de data
+via Tab, Enter, layout de 390 px e somente scroll vertical quando necessário.
+
+Histórico progressivo distingue original legado (sem inventar fuso histórico),
+baseline confirmada, mudanças ordenadas/motivo/instante, vigente e execução real.
+Continua acessível após conclusão. Edição/exclusão/toggle legados do vínculo
+auditado são bloqueados; notas/energia do registro continuam independentes.
 
 ---
 
@@ -1955,6 +1985,53 @@ permanecer bloqueadas, sem fallback ao v1 ou downgrade silencioso. Hoje mantém
 a projeção existente; recuperar uma auditoria não ativa a projeção do horário
 reagendado. Comando persistente e experiência de reagendamento pertencem à 2C-B.
 
+### Etapa 2C-B — Comando, revisão e planejamento efetivo
+
+`persistence/execution/rescheduling.ts` produz explicitamente planningAudit e
+append de RescheduleEvent mediante epoch/revisão/intenção capturados na abertura.
+O comando reutiliza appendRescheduleEvent e o codec estrito, preservando item,
+original, identidade e execução. IDs de eventos usam ocorrência e posição de
+append. Conteúdo confirmado e changedAt distinguem retry equivalente de conflito.
+Hashes são calculados fora da transação; savePlannerWithBridge compara o snapshot
+e authorityEpoch antes de persistir atomicamente a ponte, com readback e rollback.
+
+`readPlannerAuthoritySnapshot` captura payload e epoch em uma única transação
+readonly e valida hashes fora dela. Epoch permanece apenas local; o export
+público continua formato 2/geração 2/schema 1. UI publica planner/bridge/epoch
+coerentes após comando, falha recuperável e substituição. Erro estrutural aciona
+o bloqueio existente; conflitos com snapshot íntegro preservam o diálogo. Restore,
+import e reset invalidam ações antigas mesmo se reutilizarem occurrenceId.
+
+PlannerWriteQueue serializa autosave, execução, reagendamento e recuperação/
+exportação, coalescendo intenções equivalentes e invalidando autosaves antigos
+pela revisão React. Concluir recebe também epoch e revisão dos fatos esperados
+para detectar planejamento alterado durante a confirmação. Não há fila paralela.
+
+`app/temporal-input.ts` mantém o conversor estrito compartilhado de horários
+inequívocos. `rescheduling-input.ts` exige início/fim completos e IANA, calcula
+duração real e rejeita offsets sem nome. A política permissiva de leitura legada
+da 2A nunca gera fatos automaticamente. O produtor 2C-B é timed; os contratos
+date_only/all_day existentes continuam recuperáveis, sem nova UX produtora.
+A visão horária de Hoje falha fechada se receber uma auditoria vigente não
+timed; não converte data sem horário em intervalo horário artificial.
+
+`today-context.ts` centraliza planejamento efetivo e índices efêmeros por snapshot:
+vínculos físicos por data/posição e auditorias ordenadas por início/fim. Consulta
+interseções via busca binária no menor conjunto candidato; não varre todos os
+registros para localizar origens distantes nem materializa dias. Sem auditoria,
+mantém leitura 2A. Com auditoria, usa somente o último to/baseline, sem duplicar
+o horário original. Hoje/dia completo/compatibilidade mensal usam essa projeção;
+o mês conta uma vez no dia de início efetivo, preservando o item físico de origem.
+Virtuais mantêm IDs próprios; títulos/horários não são chaves de deduplicação.
+
+Guards de reconciliação bloqueiam mudança de minutos, plano, identidade ou
+remoção de item/registro auditado. A execução pode alterar completed/actualMinutes
+somente pelo comando canônico e mantém a cadeia. UI bloqueia controles desses
+itens, permitindo nota/energia e edição/reordenação inequívoca de outros itens.
+Nenhuma correção terminal, motor de sobreposição, template, backend ou etapa
+posterior é ativada. A descrição de ausência de produtor na 2C-A acima registra
+o limite histórico daquela etapa; D-033 registra a evolução 2C-B.
+
 ## 5. Motor de planejamento
 
 A primeira versão local usa TypeScript puro, determinístico e independente da UI. Os contratos e vetores de teste devem permitir reprodução fora do navegador.
@@ -1999,7 +2076,7 @@ Camadas futuras devem possuir testes unitários de domínio e planner, testes de
 - Etapa 0.2/B4 de taxonomia, baseline técnica e proteção do v1 concluída.
 - Etapa 1.1 de modelo temporal e contratos do domínio concluída.
 - Etapas 1.2A–1.2D implementadas; v2 é o store principal e v1 permanece somente leitura.
-- Etapa 2A concluída; fundação da 2B, conclusão 2B-A e contrato/recuperação 2C-A implementados; comando/UI de reagendamento 2C-B não iniciados.
+- Etapa 2A concluída; fundação da 2B, conclusão 2B-A, contrato/recuperação 2C-A e comando/UI 2C-B implementados. PR/integração da 2C-B aguardam autorização própria.
 - Plano da Etapa 1.2 aprovado; cada subetapa exige branch, validação, revisão e autorização próprias.
 - Nenhuma etapa funcional pode começar por consequência automática desta documentação.
 
@@ -2314,8 +2391,9 @@ Aprovação com subdivisão obrigatória e gates humanos independentes:
   regras puras compartilhadas, upgrade 1 → 2, backup/restore compatível,
   `authorityEpoch` local e provas de integridade/rollback. Implementada na
   branch `feat/reschedule-foundation` sobre a main após PR #12.
-- **2C-B — Comando e experiência em Hoje:** futuro produtor explícito,
-  projeção do planejamento vigente e UX de reagendamento. Não iniciada.
+- **2C-B — Comando e experiência em Hoje:** produtor explícito, projeção do
+  planejamento vigente e UX de reagendamento implementados em `feat/today-rescheduling`,
+  sobre `cfaad03881956ab1d3d26cd2d86d2b98e049db3c` após merge da PR #13.
 
 2C-A não gera auditoria na migração, não reagenda, inicia ou corrige execução,
 não cria UI nem muda templates/minutos por conta própria. A conclusão existente
@@ -2335,6 +2413,34 @@ Edge: 22/22 cenários aplicáveis sobre build de produção, sem retries automá
 incluindo upgrade instalado, backup antigo, auditoria recuperada, conclusão,
 audit guard, Hoje, backup/cutover e layout compacto. Testes de importação e
 navegação aguardam a prontidão real do bootstrap antes de interagir.
+
+### Etapa 2C-B — Reagendamento explícito e auditável
+
+Reagendar atua somente em ocorrência canônica pendente inequívoca: confirma a
+baseline temporal no primeiro evento e anexa eventos seguintes, sem mover o
+item físico da origem, alterar template, concluir, falhar ou criar ocorrência.
+Destino precisa terminar depois do instante explícito da decisão. Datas finais
+de madrugada são explícitas; horários DST inexistentes/ambíguos são rejeitados.
+Motivo livre opcional usa `TemporalReason { code: "user_note", note }`.
+
+Hoje, dia completo e compatibilidade mensal consomem a projeção efetiva; o
+histórico diferencia original legado sem fuso histórico, baseline confirmada,
+eventos, vigente e execução. A conclusão continua separada e detecta mudanças
+de planejamento desde a abertura do diálogo. Epoch e revisão capturados,
+CAS transacional, fila única e replay do evento protegem concorrência e retry.
+Guards preservam auditorias, impedem edição/exclusão/toggle/minutos e permitem
+nota/energia e edição inequívoca de outros itens.
+
+Validação em 10/10/2026: lint, typecheck, build, 297/297 testes Node (52 novos de
+reagendamento), 34/34 cenários Edge sobre build estável, incluindo duas páginas
+independentes, recuperação e regressões 2A/2B/2B-A/2C-A. Revisão visual desktop
+e 390 px confirmou diálogo e timeline sem scroll horizontal. A primeira rodada
+Edge identificou uma expectativa incorreta do teste sobre Tab nos segmentos
+nativos de datetime-local; o teste passou a verificar a navegação real mantendo
+o foco no diálogo, sem retries automáticos ou redução dos cenários.
+Documentação gerada, diff e varredura de segredos também foram verificados.
+Commit e push da branch validada estão autorizados; abertura de PR, merge,
+deploy e qualquer etapa posterior dependem de autorização humana específica.
 
 ## 5. Ordem de dependências
 
@@ -2502,6 +2608,48 @@ de ponte e v1. Versões desconhecidas falham fechadas, sem downgrade. Formato
 do planner, backup público, geração, schema, marker e v1 não mudam. Não há
 produtor/UI de reagendamento na 2C-A; D-031 permanece registro histórico.
 
+### D-033 — Intenção, revisão e projeção do reagendamento explícito
+
+Na 2C-B, `rescheduleOccurrencePlanning` exige occurrenceId, authorityEpoch,
+revisão dos fatos do vínculo, quantidade de eventos esperada, destino, changedAt
+e baseline confirmada quando ausente. A revisão inclui item/original/auditoria/
+execução e origem, mas ignora posição no array e a estimativa compatível de
+actualMinutes do item atual: nenhum dos dois identifica o planejamento. Isso
+permite reordenação inequívoca e replay de auditorias recuperadas da 2C-A que
+podem ter estimativas diferentes do baselineItem. Os guards 2C-B continuam
+bloqueando alteração legada desses minutos após auditoria. Cada intenção ocupa
+`reschedule:<occurrenceId>:<posição>`; replay
+exige a revisão anterior e o mesmo conteúdo confirmado, inclusive changedAt e
+motivo. Requests equivalentes em andamento compartilham Promise na fila única;
+conflitos falham, hashes são preparados fora da transação, CAS e epoch são
+comparados dentro dela. Retry inalterado conserva o instante vencedor.
+
+A primeira confirmação cria baselineItem e baselineSchedule explicitamente,
+sem afirmar origem, flexibilidade, criação ou fuso histórico inexistentes. O
+produtor desta etapa aceita somente intervalos timed e destino com fim posterior
+à decisão, inclusive intervalo já iniciado ainda não encerrado. Não aceita
+reagendamento inteiramente retrospectivo, rollover implícito, DST inexistente/
+ambíguo ou offset numérico em lugar de identificador IANA. Duração é a diferença
+dos instantes confirmados. Motivo opcional é texto com código estável user_note.
+
+O item legado fica fisicamente na origem. Hoje deriva o intervalo vigente da
+cadeia, com índice efêmero de vínculos e limites ordenados em memória por
+snapshot validado, busca binária e filtro de interseção; nenhuma tabela/geração
+ou backup novo. Dia completo reutiliza essa visão; a compatibilidade mensal
+atribui cada intervalo ao dia de início efetivo uma única vez. Virtuais têm
+identidade distinta, sem deduplicação por aparência nem materialização.
+
+Concluir captura também epoch/revisão na abertura e rejeita planejamento mudado.
+Execução real permanece independente, actualMinutes vem do intervalo real e
+completed_rescheduled deriva da cadeia. Controles legados não podem editar,
+apagar, reabrir ou mudar minutos do vínculo auditado. Notas/energia do registro
+continuam permitidas. Mudança de conjunto atualiza a UI e exige uma nova ação;
+um diálogo antigo nunca é reanexado por coincidência de occurrenceId.
+
+Aplicações anteriores à 2C-B que leem bridge 2 preservam a auditoria, porém não
+projetam o horário vigente; use a versão 2C-B para operar dados reagendados.
+D-031 e D-032 permanecem decisões históricas sem reescrita retrospectiva.
+
 ## Questões abertas antes das etapas correspondentes
 
 1. Quais limiares e pesos formam a primeira regra de risco de Entregas?
@@ -2668,6 +2816,37 @@ ponte, planner, metadata e provenance. V1 permanece intacto e somente leitura.
 UI existente permanece funcional no Edge, com conclusão e backup disponíveis,
 sem botão/diálogo/produtor de reagendamento nem projeção do novo horário nesta
 etapa. Aplicação antiga pode rejeitar a versão 2, sem downgrade ou fallback.
+
+## Cenário 30 — Reagendamento explícito em Hoje — 2C-B
+
+Treino de 06:30 já passou sem execução. Usuário abre Reagendar, verifica e
+confirma a baseline anterior, informa 20:00–21:00 na data/fuso completos e
+confirma. Um evento é anexado; occ:sequência, original, template e item físico
+de origem permanecem intactos. Nenhuma execução/falha/not_completed é criada.
+Hoje troca Atenção pelo planejamento vigente, sem duplicação e sem reload.
+Concluir depois exige horários reais, conserva histórico, deriva
+completed_rescheduled e actualMinutes pelo intervalo real. Reload e
+export/restore mantêm vigente e história idênticos no backup 2/geração 2/schema 1.
+
+Mesmo dia, amanhã, meses adiante, origem antiga para Hoje, madrugada com data
+final explícita, múltiplos eventos e volta ao baseline futuro são cobertos.
+Virtuais coexistem como entidades distintas e não recebem botão nem identidade.
+No-op, fim inválido, DST inexistente/ambíguo, offset sem IANA e destino terminado
+antes/na decisão são rejeitados sem escrita. Duração pode mudar; sobreposições
+não alteram automaticamente outras atividades.
+
+Duplo submit/intenção equivalente, retry após rollback/publicação React falha,
+requests conflitantes, duas conexões e autosave antigo preservam a cadeia. Uma
+conclusão iniciada antes de outro planejamento é rejeitada. Restore/import/reset
+durante diálogo invalidam epoch e atualizam snapshot; ação antiga nunca se liga
+silenciosamente a um ID reutilizado. Erro de integridade bloqueia sem fallback.
+
+Editar horário/minutos/identidade, excluir item/registro e toggle legado são
+bloqueados na UI e persistência. Nota/energia e reordenação inequívoca de outros
+itens continuam válidas; ambiguidades falham fechadas. Histórico fica disponível
+após conclusão. Dialog cobre confirmação inicial, inputs preservados, loading,
+Tab pelos segmentos nativos, Enter, Escape/Cancelar, foco restaurado e 390 px
+sem scroll horizontal; fechamento é impedido durante escrita.
 
 ---
 
@@ -2912,6 +3091,18 @@ histórico e uma conclusão posterior deriva completed_rescheduled. ExecutionRec
 continua separado e é o único fato de execução. Upgrade/rotina/projeção de Hoje
 não constituem confirmação canônica. O futuro comando produtor é gate da 2C-B.
 
+Esse gate foi autorizado e implementado na 2C-B: o comando parcial recebe os
+fatos confirmados sem fabricar uma ocorrência completa. Primeiro append cria a
+baseline explicitamente; os seguintes usam o último to. Não há execução, falha,
+not_completed ou modificação do template ao reagendar. A intenção é identificada
+pela posição de append e payload confirmado, com epoch e revisão dos fatos para
+detectar conjuntos substituídos e planejamento obsoleto. O destino timed deve
+terminar depois de changedAt. Motivo livre opcional adapta-se a TemporalReason
+com código user_note; não há julgamento, taxonomia extensa ou motivo obrigatório.
+O produtor valida entrada temporal estrita; a leitura legada permissiva não cria
+fatos. Planejamento físico de origem, baseline confirmada, vigente e execução
+continuam camadas distintas, conforme D-033.
+
 A arquitetura deve preservar a diferença entre:
 
 ```text
@@ -2966,8 +3157,11 @@ Manter a fundação visual e a baseline concluída na Etapa 0.2/B4 sem alterar a
   uma ponte externa; rotina virtual continua sendo projeção. Execução interna
   auditável e recuperação estão disponíveis. A 2B-A oferece Concluir para
   ocorrências canônicas pendentes com timing real explícito; toggle legado
-  permanece bloqueado. A 2C-A recupera auditoria de planejamento na ponte 2,
-  sem produtor/UI de reagendamento nem mudança na projeção contextual.
+  permanece bloqueado. A 2C-A recupera auditoria de planejamento na ponte 2.
+  A 2C-B produz reagendamento explícito, projeta intervalo vigente em Hoje/dia
+  completo e preserva item físico/original/identidade. Diálogos capturam epoch e
+  revisão, histórico continua disponível após execução e controles legados do
+  vínculo auditado não podem apagá-lo. Virtuais continuam sem ação/identidade.
 
 ### Alvo
 Manter a experiência principal contextual:
@@ -2980,8 +3174,8 @@ Atenção
 Resumo
 ```
 
-Timeline completa permanece acessível sob demanda. Conclusão canônica já está
-implementada; início, correção terminal e UI de reagendamento permanecem gated.
+Timeline completa permanece acessível sob demanda. Conclusão canônica
+e reagendamento explícito já estão implementados; início e correção terminal permanecem gated.
 
 `Energia do dia` sai da experiência principal. `Foco AI/LLM` deixa de ser métrica fixa. Progresso deixa de ser um número genérico sem contexto.
 
@@ -3127,8 +3321,12 @@ pendentes, com timing real e fuso confirmados, recordedAt explícito e operaçã
 serializada com autosave. Histórico legado e itens virtuais não recebem fatos
 inventados; planner/current mantém seu formato. A 2C-A adiciona contrato e
 recuperação de planningAudit, upgrade lógico 1 → 2 e época local de autoridade
-sem inferências. A 2C-B, correção terminal e novos produtores temporais continuam
-sujeitos a autorização própria; nenhuma UI nova foi criada na 2C-A.
+sem inferências. A 2C-B implementa produtor/UX com intenção estável, CAS/epoch,
+fila única, projeção efetiva indexada em memória e recuperação sem novo formato.
+Aplicações 2C-A preservam a auditoria mas ainda mostram horário legado; use 2C-B
+para operar intervalos reagendados. Correção terminal e novos produtores
+temporais continuam sujeitos a autorização própria; nenhuma etapa posterior foi
+iniciada. PR/merge da branch 2C-B ainda exigem autorização humana.
 
 ---
 

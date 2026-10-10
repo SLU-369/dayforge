@@ -15,6 +15,9 @@ import {
 import type { ExecutionRecord } from "../domain/temporal/index";
 import { PlannerWriteQueue } from "./planner-write-queue";
 import { CompletionPersistenceError, persistCompletion } from "./completion-command";
+import { persistRescheduling } from "./rescheduling-command";
+import type { ReschedulingIntent } from "../persistence/execution/rescheduling";
+import { readPlannerAuthoritySnapshot } from "../persistence/backup/export-backup-v2";
 import { createDefaultState, type PlannerState } from "./planner-data";
 import { decodePlannerState, downloadJsonBackup } from "./planner-repository";
 import {
@@ -31,7 +34,9 @@ import {
 type PlannerContextValue = {
   state: PlannerState;
   executionBridge: ExecutionBridge | null;
-  completeOccurrence: (id: string, execution: ExecutionRecord) => Promise<void>;
+  authorityEpoch: number;
+  completeOccurrence: (id: string, execution: ExecutionRecord, fence: { expectedAuthorityEpoch: number; expectedRevision: string }) => Promise<void>;
+  rescheduleOccurrence: (intent: ReschedulingIntent) => Promise<void>;
   completingIds: readonly string[];
   setState: Dispatch<SetStateAction<PlannerState>>;
   exportBackup: () => Promise<boolean>;
@@ -59,8 +64,8 @@ function toPlannerState(snapshot: NormalizedLegacyPlannerV1): PlannerState {
 
 export function PlannerProvider({ children }: Readonly<{ children: ReactNode }>) {
   const [repository] = useState(() => new IndexedDbPersistenceRepository());
-  const [snapshot, setSnapshot] = useState(() => ({ state: createDefaultState(), executionBridge: null as ExecutionBridge | null, revision: 0 }));
-  const { state, executionBridge } = snapshot;
+  const [snapshot, setSnapshot] = useState(() => ({ state: createDefaultState(), executionBridge: null as ExecutionBridge | null, revision: 0, authorityEpoch: 0 }));
+  const { state, executionBridge, authorityEpoch } = snapshot;
   const [completingIds, setCompletingIds] = useState<readonly string[]>([]);
   const [ready, setReady] = useState(false);
   const [storageBlocked, setStorageBlocked] = useState(false);
@@ -73,7 +78,7 @@ export function PlannerProvider({ children }: Readonly<{ children: ReactNode }>)
   const notify = useCallback((message: string) => setToast(message), []);
 
   const setState: Dispatch<SetStateAction<PlannerState>> = useCallback((action) => {
-    if (saveQueue.current.completingIds.length) { notify("Aguarde a conclusão em andamento."); return; }
+    if (saveQueue.current.completingIds.length) { notify("Aguarde a operação em andamento."); return; }
     setSnapshot((current) => ({ ...current, state: typeof action === "function" ? action(current.state) : action }));
   }, [notify]);
 
@@ -86,9 +91,10 @@ export function PlannerProvider({ children }: Readonly<{ children: ReactNode }>)
       defaultState: createDefaultState(),
       instant: new Date().toISOString(),
     });
-    bootPromise.current.then((result) => {
+    bootPromise.current.then(async (result) => {
+      const current = await readPlannerAuthoritySnapshot({ repository, exportedAt: new Date().toISOString(), active: true });
       if (cancelled) return;
-      setSnapshot({ state: toPlannerState(result.state), executionBridge: result.executionBridge, revision: saveQueue.current.revision });
+      setSnapshot({ state: toPlannerState(current.backup.payload.planner), executionBridge: current.backup.payload.executionBridge!.bridge, authorityEpoch: current.authorityEpoch, revision: saveQueue.current.revision });
       if (!result.markerRepaired) setStorageWarning(MARKER_WARNING);
       setReady(true);
     }).catch(() => {
@@ -106,25 +112,37 @@ export function PlannerProvider({ children }: Readonly<{ children: ReactNode }>)
     void saveQueue.current.autosave(snapshot.revision, async () => {
       if (writesBlocked.current) return;
       try {
-        const bridge = await saveActivePlannerV2({ repository, state });
+        const bridge = await saveActivePlannerV2({ repository, state, expectedAuthorityEpoch: snapshot.authorityEpoch });
         setSnapshot((current) => current.state === state && current.revision === snapshot.revision
           ? { ...current, executionBridge: bridge } : current);
       } catch (error) {
+        // A replacement in another tab is a fence conflict, not corrupt storage.
+        try {
+          const latest = await readPlannerAuthoritySnapshot({ repository, exportedAt: new Date().toISOString(), active: true });
+          if (latest.authorityEpoch !== snapshot.authorityEpoch
+            || latest.backup.payload.executionBridge?.bridge.entries.some((entry) =>
+              (entry.execution || entry.planningAudit) && JSON.stringify(entry.item) !== JSON.stringify(state.records[entry.sourceDate]?.items[entry.itemIndex]))) {
+            const revision = ++saveQueue.current.revision;
+            setSnapshot({ state: toPlannerState(latest.backup.payload.planner), executionBridge: latest.backup.payload.executionBridge!.bridge, authorityEpoch: latest.authorityEpoch, revision });
+            notify("Os dados mudaram em outra aba. Confira o conjunto atualizado.");
+            return;
+          }
+        } catch { /* The existing fail-closed guard handles an invalid snapshot. */ }
         writesBlocked.current = true;
         setStorageBlocked(true);
         setStorageWarning(BLOCKED_MESSAGE);
         throw error;
       }
     }).catch(() => undefined);
-  }, [repository, state, snapshot.revision, ready, storageBlocked]);
+  }, [repository, state, snapshot.revision, snapshot.authorityEpoch, ready, storageBlocked, notify]);
 
-  const completeOccurrence = useCallback((id: string, execution: ExecutionRecord) => {
-    const request = saveQueue.current.complete(id, execution, async () => {
+  const completeOccurrence = useCallback((id: string, execution: ExecutionRecord, fence: { expectedAuthorityEpoch: number; expectedRevision: string }) => {
+    const request = saveQueue.current.command(id, { kind: "completion", execution, ...fence }, async () => {
       if (writesBlocked.current) throw new Error("O armazenamento está bloqueado; recupere os dados antes de concluir.");
       try {
-        await persistCompletion({ repository, occurrenceId: id, execution, publish: (persisted) => {
+        await persistCompletion({ repository, occurrenceId: id, execution, ...fence, publish: (persisted) => {
           const revision = ++saveQueue.current.revision;
-          setSnapshot({ state: toPlannerState(persisted.state), executionBridge: persisted.executionBridge, revision });
+          setSnapshot({ state: toPlannerState(persisted.state), executionBridge: persisted.executionBridge, authorityEpoch: persisted.authorityEpoch, revision });
         } });
         notify("Ocorrência concluída.");
       } catch (error) {
@@ -132,6 +150,28 @@ export function PlannerProvider({ children }: Readonly<{ children: ReactNode }>)
           writesBlocked.current = true;
           setStorageBlocked(true);
           setStorageWarning(BLOCKED_MESSAGE);
+        }
+        throw error;
+      }
+    });
+    setCompletingIds(saveQueue.current.completingIds);
+    const finished = () => setCompletingIds(saveQueue.current.completingIds);
+    void request.then(finished, finished);
+    return request;
+  }, [repository, notify]);
+
+  const rescheduleOccurrence = useCallback((intent: ReschedulingIntent) => {
+    const request = saveQueue.current.command(intent.occurrenceId, { kind: "rescheduling", intent }, async () => {
+      if (writesBlocked.current) throw new Error("O armazenamento está bloqueado; recupere os dados antes de reagendar.");
+      try {
+        await persistRescheduling({ ...intent, repository, publish: (persisted) => {
+          const revision = ++saveQueue.current.revision;
+          setSnapshot({ state: toPlannerState(persisted.state), executionBridge: persisted.executionBridge, authorityEpoch: persisted.authorityEpoch, revision });
+        } });
+        notify("Ocorrência reagendada. A execução será registrada separadamente.");
+      } catch (error) {
+        if (error instanceof CompletionPersistenceError && error.blocked) {
+          writesBlocked.current = true; setStorageBlocked(true); setStorageWarning(BLOCKED_MESSAGE);
         }
         throw error;
       }
@@ -170,7 +210,8 @@ export function PlannerProvider({ children }: Readonly<{ children: ReactNode }>)
           instant: new Date().toISOString(),
         });
         const revision = ++saveQueue.current.revision;
-        setSnapshot({ state: toPlannerState(restored.state), executionBridge: restored.executionBridge, revision });
+        const current = await readPlannerAuthoritySnapshot({ repository, exportedAt: new Date().toISOString(), active: true });
+        setSnapshot({ state: toPlannerState(current.backup.payload.planner), executionBridge: current.backup.payload.executionBridge!.bridge, authorityEpoch: current.authorityEpoch, revision });
         writesBlocked.current = false;
         setStorageBlocked(false);
         setStorageWarning(restored.markerRepaired ? "" : MARKER_WARNING);
@@ -192,7 +233,8 @@ export function PlannerProvider({ children }: Readonly<{ children: ReactNode }>)
           instant: new Date().toISOString(),
         });
         const revision = ++saveQueue.current.revision;
-        setSnapshot({ state: toPlannerState(restored.state), executionBridge: restored.executionBridge, revision });
+        const current = await readPlannerAuthoritySnapshot({ repository, exportedAt: new Date().toISOString(), active: true });
+        setSnapshot({ state: toPlannerState(current.backup.payload.planner), executionBridge: current.backup.payload.executionBridge!.bridge, authorityEpoch: current.authorityEpoch, revision });
         writesBlocked.current = false;
         setStorageBlocked(false);
         setStorageWarning(restored.markerRepaired ? "" : MARKER_WARNING);
@@ -211,8 +253,8 @@ export function PlannerProvider({ children }: Readonly<{ children: ReactNode }>)
   }, [toast]);
 
   const value = useMemo(
-    () => ({ state, executionBridge, setState, completeOccurrence, completingIds, exportBackup, importBackup, resetData, ready, storageBlocked, storageWarning, toast, notify }),
-    [state, executionBridge, setState, completeOccurrence, completingIds, exportBackup, importBackup, resetData, ready, storageBlocked, storageWarning, toast, notify],
+    () => ({ state, executionBridge, authorityEpoch, setState, completeOccurrence, rescheduleOccurrence, completingIds, exportBackup, importBackup, resetData, ready, storageBlocked, storageWarning, toast, notify }),
+    [state, executionBridge, authorityEpoch, setState, completeOccurrence, rescheduleOccurrence, completingIds, exportBackup, importBackup, resetData, ready, storageBlocked, storageWarning, toast, notify],
   );
 
   return (

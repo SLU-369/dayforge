@@ -119,6 +119,48 @@ de ponte e v1. Versões desconhecidas falham fechadas, sem downgrade. Formato
 do planner, backup público, geração, schema, marker e v1 não mudam. Não há
 produtor/UI de reagendamento na 2C-A; D-031 permanece registro histórico.
 
+### D-033 — Intenção, revisão e projeção do reagendamento explícito
+
+Na 2C-B, `rescheduleOccurrencePlanning` exige occurrenceId, authorityEpoch,
+revisão dos fatos do vínculo, quantidade de eventos esperada, destino, changedAt
+e baseline confirmada quando ausente. A revisão inclui item/original/auditoria/
+execução e origem, mas ignora posição no array e a estimativa compatível de
+actualMinutes do item atual: nenhum dos dois identifica o planejamento. Isso
+permite reordenação inequívoca e replay de auditorias recuperadas da 2C-A que
+podem ter estimativas diferentes do baselineItem. Os guards 2C-B continuam
+bloqueando alteração legada desses minutos após auditoria. Cada intenção ocupa
+`reschedule:<occurrenceId>:<posição>`; replay
+exige a revisão anterior e o mesmo conteúdo confirmado, inclusive changedAt e
+motivo. Requests equivalentes em andamento compartilham Promise na fila única;
+conflitos falham, hashes são preparados fora da transação, CAS e epoch são
+comparados dentro dela. Retry inalterado conserva o instante vencedor.
+
+A primeira confirmação cria baselineItem e baselineSchedule explicitamente,
+sem afirmar origem, flexibilidade, criação ou fuso histórico inexistentes. O
+produtor desta etapa aceita somente intervalos timed e destino com fim posterior
+à decisão, inclusive intervalo já iniciado ainda não encerrado. Não aceita
+reagendamento inteiramente retrospectivo, rollover implícito, DST inexistente/
+ambíguo ou offset numérico em lugar de identificador IANA. Duração é a diferença
+dos instantes confirmados. Motivo opcional é texto com código estável user_note.
+
+O item legado fica fisicamente na origem. Hoje deriva o intervalo vigente da
+cadeia, com índice efêmero de vínculos e limites ordenados em memória por
+snapshot validado, busca binária e filtro de interseção; nenhuma tabela/geração
+ou backup novo. Dia completo reutiliza essa visão; a compatibilidade mensal
+atribui cada intervalo ao dia de início efetivo uma única vez. Virtuais têm
+identidade distinta, sem deduplicação por aparência nem materialização.
+
+Concluir captura também epoch/revisão na abertura e rejeita planejamento mudado.
+Execução real permanece independente, actualMinutes vem do intervalo real e
+completed_rescheduled deriva da cadeia. Controles legados não podem editar,
+apagar, reabrir ou mudar minutos do vínculo auditado. Notas/energia do registro
+continuam permitidas. Mudança de conjunto atualiza a UI e exige uma nova ação;
+um diálogo antigo nunca é reanexado por coincidência de occurrenceId.
+
+Aplicações anteriores à 2C-B que leem bridge 2 preservam a auditoria, porém não
+projetam o horário vigente; use a versão 2C-B para operar dados reagendados.
+D-031 e D-032 permanecem decisões históricas sem reescrita retrospectiva.
+
 ## Questões abertas antes das etapas correspondentes
 
 1. Quais limiares e pesos formam a primeira regra de risco de Entregas?

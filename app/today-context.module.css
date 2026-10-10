@@ -21,3 +21,11 @@
 .item button { margin-top: 8px; }
 @media (max-width: 900px) { .secondary { grid-template-columns: 1fr 1fr; } }
 @media (max-width: 640px) { .primary, .secondary { grid-template-columns: 1fr; } }
+.baseline { border: 1px solid var(--line-strong); border-radius: 12px; padding: 12px; margin: 12px 0; min-width: 0; }
+.dialog .confirmation { display: flex; align-items: start; gap: 8px; font-size: 0.85rem; }
+.dialog .confirmation input { width: 18px; height: 18px; padding: 0; margin: 2px 0; flex: none; }
+.history { margin-top: 12px; font-size: 0.8rem; overflow-wrap: anywhere; }
+.history summary { cursor: pointer; }
+.history p { margin: 6px 0; }
+.dialog { overflow-x: hidden; }
+.dialog input, .dialog textarea { min-width: 0; max-width: 100%; }

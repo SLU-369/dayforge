@@ -7,7 +7,7 @@
 - Etapa 0.2/B4 de taxonomia, baseline técnica e proteção do v1 concluída.
 - Etapa 1.1 de modelo temporal e contratos do domínio concluída.
 - Etapas 1.2A–1.2D implementadas; v2 é o store principal e v1 permanece somente leitura.
-- Etapa 2A concluída; fundação da 2B, conclusão 2B-A e contrato/recuperação 2C-A implementados; comando/UI de reagendamento 2C-B não iniciados.
+- Etapa 2A concluída; fundação da 2B, conclusão 2B-A, contrato/recuperação 2C-A e comando/UI 2C-B implementados. PR/integração da 2C-B aguardam autorização própria.
 - Plano da Etapa 1.2 aprovado; cada subetapa exige branch, validação, revisão e autorização próprias.
 - Nenhuma etapa funcional pode começar por consequência automática desta documentação.
 
@@ -322,8 +322,9 @@ Aprovação com subdivisão obrigatória e gates humanos independentes:
   regras puras compartilhadas, upgrade 1 → 2, backup/restore compatível,
   `authorityEpoch` local e provas de integridade/rollback. Implementada na
   branch `feat/reschedule-foundation` sobre a main após PR #12.
-- **2C-B — Comando e experiência em Hoje:** futuro produtor explícito,
-  projeção do planejamento vigente e UX de reagendamento. Não iniciada.
+- **2C-B — Comando e experiência em Hoje:** produtor explícito, projeção do
+  planejamento vigente e UX de reagendamento implementados em `feat/today-rescheduling`,
+  sobre `cfaad03881956ab1d3d26cd2d86d2b98e049db3c` após merge da PR #13.
 
 2C-A não gera auditoria na migração, não reagenda, inicia ou corrige execução,
 não cria UI nem muda templates/minutos por conta própria. A conclusão existente
@@ -343,6 +344,34 @@ Edge: 22/22 cenários aplicáveis sobre build de produção, sem retries automá
 incluindo upgrade instalado, backup antigo, auditoria recuperada, conclusão,
 audit guard, Hoje, backup/cutover e layout compacto. Testes de importação e
 navegação aguardam a prontidão real do bootstrap antes de interagir.
+
+### Etapa 2C-B — Reagendamento explícito e auditável
+
+Reagendar atua somente em ocorrência canônica pendente inequívoca: confirma a
+baseline temporal no primeiro evento e anexa eventos seguintes, sem mover o
+item físico da origem, alterar template, concluir, falhar ou criar ocorrência.
+Destino precisa terminar depois do instante explícito da decisão. Datas finais
+de madrugada são explícitas; horários DST inexistentes/ambíguos são rejeitados.
+Motivo livre opcional usa `TemporalReason { code: "user_note", note }`.
+
+Hoje, dia completo e compatibilidade mensal consomem a projeção efetiva; o
+histórico diferencia original legado sem fuso histórico, baseline confirmada,
+eventos, vigente e execução. A conclusão continua separada e detecta mudanças
+de planejamento desde a abertura do diálogo. Epoch e revisão capturados,
+CAS transacional, fila única e replay do evento protegem concorrência e retry.
+Guards preservam auditorias, impedem edição/exclusão/toggle/minutos e permitem
+nota/energia e edição inequívoca de outros itens.
+
+Validação em 10/10/2026: lint, typecheck, build, 297/297 testes Node (52 novos de
+reagendamento), 34/34 cenários Edge sobre build estável, incluindo duas páginas
+independentes, recuperação e regressões 2A/2B/2B-A/2C-A. Revisão visual desktop
+e 390 px confirmou diálogo e timeline sem scroll horizontal. A primeira rodada
+Edge identificou uma expectativa incorreta do teste sobre Tab nos segmentos
+nativos de datetime-local; o teste passou a verificar a navegação real mantendo
+o foco no diálogo, sem retries automáticos ou redução dos cenários.
+Documentação gerada, diff e varredura de segredos também foram verificados.
+Commit e push da branch validada estão autorizados; abertura de PR, merge,
+deploy e qualquer etapa posterior dependem de autorização humana específica.
 
 ## 5. Ordem de dependências
 

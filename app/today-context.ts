@@ -5,7 +5,7 @@ import {
   type PlannerState,
   type RoutineItem,
 } from "./planner-data";
-import type { ExecutionBridge } from "../persistence/execution/bridge.ts";
+import type { ExecutionBridge, OccurrenceBinding } from "../persistence/execution/bridge.ts";
 
 export type TodayContextItem = Readonly<{
   id: string;
@@ -21,11 +21,17 @@ export type TodayContextItem = Readonly<{
   occurrenceId: string | null;
   sourceItemId: string;
   sourceIndex: number;
+  binding?: OccurrenceBinding;
+  reschedulable?: boolean;
+  planningTimeZone?: string;
+  durationMinutes?: number;
+  actualMinutes?: number;
 }>;
 
 export type TodayContext = Readonly<{
   date: string;
   timeZone: string;
+  items: readonly TodayContextItem[];
   agora: TodayContextItem | null;
   proximo: TodayContextItem | null;
   depois: readonly TodayContextItem[];
@@ -143,7 +149,7 @@ function projectItem(entry: RoutineItem | DailyItem, sourceDate: string, formatt
   };
 }
 
-function projectDay(state: PlannerState, sourceDate: string, formatter: Intl.DateTimeFormat, bridge?: ExecutionBridge): TodayContextItem[] {
+function projectDay(state: PlannerState, sourceDate: string, formatter: Intl.DateTimeFormat, bindings?: ReadonlyMap<string, OccurrenceBinding>): TodayContextItem[] {
   const entries = entriesForDay(state, sourceDate);
   let dayOffset = 0;
   return entries.map((entry, index) => {
@@ -158,9 +164,9 @@ function projectDay(state: PlannerState, sourceDate: string, formatter: Intl.Dat
     }
     const projected = projectItem(entry, sourceDate, formatter, dayOffset);
     const binding = state.records[sourceDate]
-      ? bridge?.entries.find((candidate) => candidate.sourceDate === sourceDate && candidate.itemIndex === index)
+      ? bindings?.get(`${sourceDate}:${index}`)
       : undefined;
-    if (bridge && state.records[sourceDate] && (!binding
+    if (bindings && state.records[sourceDate] && (!binding
       || Object.keys(binding.item).length !== Object.keys(entry).length
       || !Object.entries(binding.item).every(([key, value]) => entry[key as keyof typeof entry] === value))) {
       throw new Error("Vínculo de ocorrência incompatível com o dia projetado.");
@@ -171,8 +177,54 @@ function projectDay(state: PlannerState, sourceDate: string, formatter: Intl.Dat
       occurrenceId: binding?.occurrenceId ?? null,
       sourceIndex: index,
       completed: binding?.execution ? true : projected.completed,
+      ...(binding ? { binding, reschedulable: !binding.item.completed && !binding.execution
+        && entries.filter((candidate) => candidate.id === entry.id).length === 1 } : {}),
     };
   });
+}
+
+type EffectiveIndex = { bindings: Map<string, OccurrenceBinding>; byStart: readonly OccurrenceBinding[]; byEnd: readonly OccurrenceBinding[] };
+const effectiveIndexes = new WeakMap<ExecutionBridge, EffectiveIndex>();
+function auditedLimits(binding: OccurrenceBinding) {
+  const audit = binding.planningAudit!;
+  const schedule = audit.rescheduleHistory.at(-1)?.to ?? audit.baselineSchedule;
+  if (schedule.kind !== "timed") throw new Error("Planejamento auditado sem intervalo horário não é suportado em Hoje.");
+  return { start: Date.parse(schedule.startsAt), end: Date.parse(schedule.startsAt) + schedule.durationMinutes * 60_000 };
+}
+function effectiveIndex(bridge: ExecutionBridge): EffectiveIndex {
+  const cached = effectiveIndexes.get(bridge);
+  if (cached) return cached;
+  const audited = bridge.entries.filter((entry) => entry.planningAudit);
+  const index = { bindings: new Map(bridge.entries.map((entry) => [`${entry.sourceDate}:${entry.itemIndex}`, entry])),
+    byStart: [...audited].sort((a, b) => auditedLimits(a).start - auditedLimits(b).start),
+    byEnd: [...audited].sort((a, b) => auditedLimits(a).end - auditedLimits(b).end) };
+  effectiveIndexes.set(bridge, index);
+  return index;
+}
+function auditedBetween(index: EffectiveIndex, start: number, end: number) {
+  function boundary(entries: readonly OccurrenceBinding[], matches: (entry: OccurrenceBinding) => boolean) {
+    let low = 0, high = entries.length;
+    while (low < high) { const middle = (low + high) >>> 1; if (matches(entries[middle])) low = middle + 1; else high = middle; }
+    return low;
+  }
+  const before = boundary(index.byStart, (entry) => auditedLimits(entry).start < end);
+  const after = boundary(index.byEnd, (entry) => auditedLimits(entry).end <= start);
+  const candidates = before <= index.byEnd.length - after ? index.byStart.slice(0, before) : index.byEnd.slice(after);
+  return candidates.filter((entry) => { const limits = auditedLimits(entry); return limits.start < end && limits.end > start; });
+}
+function auditedItem(binding: OccurrenceBinding, formatter: Intl.DateTimeFormat): TodayContextItem {
+  const audit = binding.planningAudit!;
+  const schedule = audit.rescheduleHistory.at(-1)?.to ?? audit.baselineSchedule;
+  if (schedule.kind !== "timed") throw new Error("Planejamento auditado sem intervalo horário não é suportado em Hoje.");
+  const end = new Date(Date.parse(schedule.startsAt) + schedule.durationMinutes * 60_000).toISOString();
+  const clock = (instant: string) => { const civil = civilAt(Date.parse(instant), formatter); return `${String(civil.hour).padStart(2, "0")}:${String(civil.minute).padStart(2, "0")}`; };
+  return { id: binding.occurrenceId, occurrenceId: binding.occurrenceId, sourceDate: binding.sourceDate,
+    sourceIndex: binding.itemIndex, sourceItemId: binding.item.id, title: binding.item.title, notes: binding.item.notes,
+    category: binding.item.category, start: clock(schedule.startsAt), end: clock(end), startsAt: schedule.startsAt, endsAt: end,
+    completed: !!binding.execution || binding.item.completed, binding, reschedulable: !binding.item.completed && !binding.execution,
+    planningTimeZone: schedule.timeZone, durationMinutes: schedule.durationMinutes,
+    ...(binding.execution?.timing.kind === "timed" ? { actualMinutes: (Date.parse(binding.execution.timing.interval.end) - Date.parse(binding.execution.timing.interval.start)) / 60_000 }
+      : binding.item.actualMinutes === undefined ? {} : { actualMinutes: binding.item.actualMinutes }) };
 }
 
 function bySchedule(left: TodayContextItem, right: TodayContextItem) {
@@ -196,9 +248,16 @@ export function deriveTodayContext(state: PlannerState, referenceTime: Date, tim
   const dayStart = zonedEpoch(civilParts(date), formatter);
   const dayEnd = zonedEpoch(civilParts(shiftDate(date, 1)), formatter);
   const previousDate = shiftDate(date, -1);
+  const index = bridge ? effectiveIndex(bridge) : undefined;
   const items = [
-    ...projectDay(state, previousDate, formatter, bridge),
-    ...projectDay(state, date, formatter, bridge),
+    ...projectDay(state, previousDate, formatter, index?.bindings).filter((entry) => !entry.binding?.planningAudit),
+    ...projectDay(state, date, formatter, index?.bindings).filter((entry) => !entry.binding?.planningAudit),
+    ...(index ? auditedBetween(index, dayStart, dayEnd).map((binding) => {
+      const physical = state.records[binding.sourceDate]?.items[binding.itemIndex];
+      if (!physical || Object.entries(binding.item).some(([key, value]) => physical[key as keyof typeof physical] !== value)) throw new Error("Vínculo auditado incompatível com o planner.");
+      const item = auditedItem(binding, formatter);
+      return { ...item, reschedulable: item.reschedulable && state.records[binding.sourceDate].items.filter((entry) => entry.id === binding.item.id).length === 1 };
+    }) : []),
   ].filter((entry) => Date.parse(entry.startsAt) < dayEnd && Date.parse(entry.endsAt) > dayStart)
     .sort(bySchedule);
   const pending = items.filter((entry) => !entry.completed);
@@ -213,6 +272,7 @@ export function deriveTodayContext(state: PlannerState, referenceTime: Date, tim
   return {
     date,
     timeZone,
+    items,
     agora,
     proximo,
     depois,

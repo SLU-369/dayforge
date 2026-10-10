@@ -11,8 +11,9 @@
 - `planner-context.tsx` owns shared client state and persistence lifecycle.
 - `planner-repository.ts` retains the v1 parsing and guard compatibility helpers plus JSON download; `persistence/` owns active IndexedDB storage and backup.
 - `planner-data.ts` owns only the versioned legacy v1 planner payload types, defaults, and its existing date/duration helpers. New product-domain contracts live in root `domain/`.
-- `today-context.ts` owns the pure, read-only projection of the active planner document into daily context; `today-context-view.tsx` owns the contextual Hoje presentation. Neither writes derived context.
+- `today-context.ts` owns the pure effective planning projection with an ephemeral interval index per validated bridge snapshot; Today, full day and monthly compatibility reuse it. `today-context-view.tsx` owns Hoje presentation. Neither writes derived context.
 - `completion-dialog.tsx` and `completion-input.ts` own explicit actual timing/zone confirmation and domain factory inputs; `completion-command.ts` refreshes validated persisted snapshots. `planner-write-queue.ts` serializes application writes and invalidates obsolete autosaves.
+- `rescheduling-dialog.tsx`, `rescheduling-input.ts` and `rescheduling-command.ts` own explicit planning confirmation and refresh. `temporal-input.ts` shares strict unambiguous wall-time conversion; `planning-history-view.tsx` exposes progressive facts after rescheduling/completion.
 - `appearance.ts` owns appearance preferences, the offline capital catalog, solar calculations, and the standalone theme bootstrap; `theme-provider.tsx` owns their browser lifecycle.
 - Route folders own only their page composition; shared navigation belongs in `components/shell/navigation-config.tsx`.
 
@@ -33,11 +34,13 @@
 - PlannerContext serializes completion, autosave and recovery/backup in one queue. Publish state and bridge together from a validated persisted snapshot; invalidate autosaves captured before publication. Coalesce equivalent concurrent completions, block local edits during a command and preserve the dialog/inputs on action errors. Block storage only when the persisted snapshot cannot be validated; ordinary command failure permits retry.
 - New mocked domains must not be written into the v1 planner payload.
 - With the execution bridge active, disable legacy completion toggles. Minute edits do not imply completion or create an ExecutionRecord. Canonical completion uses recordOccurrenceExecution through PlannerContext; new timed completions derive compatibility actualMinutes from the actual UTC interval atomically.
-- Stage 2C-A accepts logical bridge 2 through persistence without new UI or a rescheduling command. Recovered planningAudit remains preserved data; projecting its effective schedule and capturing authorityEpoch for a rescheduling dialog belong to separately authorized 2C-B.
+- Stage 2C-B captures authorityEpoch and occurrenceRevision when either rescheduling or completion opens. Never rebase an old dialog onto a replacement or a newer plan. First rescheduling explicitly confirms baseline; following events use the canonical chain. A stable append-position intent and confirmed changedAt survive unchanged retry. Reuse the existing queue for every mutation/export/recovery.
+- Rescheduling input requires explicit complete start/end dates, named IANA zone and positive whole-minute elapsed duration. Reject implicit rollover, numeric offsets, nonexistent/ambiguous DST, no-op and targets ending at/before changedAt. No automatic execution, template edit, failure or virtual materialization.
+- Audited items remain physically at their source date. Project only their effective interval, including distant origins and every intersecting day. Never deduplicate virtual and canonical items by title/time. Monthly compatibility counts each interval once on its effective start day. Legacy editors/deletion/toggles/minutes cannot change audited bindings; record note/energy remain independent.
 - `/hoje` is the primary Hoje route; `/` remains a compatible entry point. Product areas use real, directly loadable App Router routes.
 - Backup, import, and reset controls belong under `/configuracoes/dados-e-backup`, never in primary navigation.
 - Keep backend, D1, Worker, and API changes outside frontend-only stages.
-- The delivered shell and visual stage are approved and closed. Stage 2A owns the read-only Hoje projection; 2B-A adds only explicit canonical completion. Rescheduling and terminal corrections remain gated, and reserved product routes do not authorize unrelated work.
+- The delivered shell and visual stage are approved and closed. Stage 2A owns the initial Hoje projection; 2B-A adds canonical completion and 2C-B explicit rescheduling. Terminal corrections remain gated, and reserved product routes do not authorize unrelated work.
 
 ## Work Guidance
 
@@ -71,6 +74,7 @@
 - Run the planner persistence regression test whenever the v1 read/write guard changes.
 - Run the cutover integration suite when bootstrap, marker, active backup, or planner autosave changes.
 - Run completion-action Node and Edge suites for completion/timing/queue changes, including failure/retry, obsolete autosave, reload, backup/restore, v1, keyboard and overnight boundaries.
+- Run rescheduling Node/Edge and reschedule-foundation recovery regressions for planning changes, including two connections/pages, stale dialogs, rollback/retry, effective intervals, history, legacy guards and 390 px.
 
 ## Child DOX Index
 

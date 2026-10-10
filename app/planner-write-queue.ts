@@ -20,9 +20,13 @@ export class PlannerWriteQueue {
   }
 
   complete(id: string, record: ExecutionRecord, work: () => Promise<void>): Promise<void> {
-    const key = canonicalStringify(JSON.parse(JSON.stringify(record)));
+    return this.command(id, { kind: "completion", record }, work);
+  }
+
+  command(id: string, intent: unknown, work: () => Promise<void>): Promise<void> {
+    const key = canonicalStringify(JSON.parse(JSON.stringify(intent)));
     const existing = this.completions.get(id);
-    if (existing) return existing.key === key ? existing.promise : Promise.reject(new Error("Há outra conclusão em andamento para esta ocorrência."));
+    if (existing) return existing.key === key ? existing.promise : Promise.reject(new Error("Há outra operação em andamento para esta ocorrência."));
     const promise = this.enqueue(work);
     this.completions.set(id, { key, promise });
     const release = () => { this.completions.delete(id); };

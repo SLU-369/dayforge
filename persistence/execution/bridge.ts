@@ -3,6 +3,7 @@ import {
   createTimedExecutionTiming, executionRecordId, parseLocalDate, scheduleOccurrenceId,
   createTimedSchedule, createDateOnlySchedule, createAllDaySchedule, createTemporalReason,
   parseUtcInstant, rescheduleEventId, validatePlanningHistory,
+  parseLocalTime,
   type DomainResult, type ExecutionRecord, type ScheduleOccurrenceId, type OccurrenceSchedule,
   type RescheduleEvent, type UtcInstant,
 } from "../../domain/temporal/index.ts";
@@ -63,6 +64,20 @@ export function bridgeJson(bridge: ExecutionBridge): JsonObject {
 }
 function same(left: unknown, right: unknown) {
   return canonicalStringify(JSON.parse(JSON.stringify(left))) === canonicalStringify(JSON.parse(JSON.stringify(right)));
+}
+
+/** Planning/execution fence. Position and compatibility minute estimates are not planning identity. */
+export function occurrenceRevision(binding: OccurrenceBinding): string {
+  const { itemIndex: _position, item, ...facts } = binding;
+  const { actualMinutes: _estimate, ...planningItem } = item;
+  void _position; void _estimate;
+  return canonicalStringify(JSON.parse(JSON.stringify({ ...facts, item: planningItem })));
+}
+
+export function canRescheduleBinding(binding: OccurrenceBinding, bridge: ExecutionBridge): boolean {
+  return !binding.item.completed && !binding.execution && !!binding.item.title.trim()
+    && parseLocalTime(binding.item.start).ok && parseLocalTime(binding.item.end).ok
+    && bridge.entries.filter((entry) => entry.sourceDate === binding.sourceDate && entry.item.id === binding.item.id).length === 1;
 }
 function plan(item: LegacyDailyItemV1) {
   const { id, start, end, title, notes, category } = item;
@@ -211,7 +226,8 @@ export function reconcileExecutionBridge(planner: NormalizedLegacyPlannerV1, pri
       const old = unchangedPlan ? previous[itemIndex] : previous.find((entry) => entry.item.id === item.id);
       if (old?.execution && (!same(plan(old.item), plan(item)) || !item.completed
         || old.item.actualMinutes !== item.actualMinutes)) invalid();
-      if (old?.planningAudit && !same(plan(old.item), plan(item))) invalid();
+      if (old?.planningAudit && (!same(plan(old.item), plan(item))
+        || old.item.actualMinutes !== item.actualMinutes && completion?.occurrenceId !== old.occurrenceId)) invalid();
       const occurrenceId = old?.occurrenceId ?? value(scheduleOccurrenceId(`occ:${nextSequence++}`));
       const supplied = completion?.occurrenceId === occurrenceId ? decodeBridgeExecution(completion.record, occurrenceId) : undefined;
       if (old?.execution && supplied && !same(old.execution, supplied)) invalid();

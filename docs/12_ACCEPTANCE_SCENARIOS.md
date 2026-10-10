@@ -153,3 +153,34 @@ ponte, planner, metadata e provenance. V1 permanece intacto e somente leitura.
 UI existente permanece funcional no Edge, com conclusão e backup disponíveis,
 sem botão/diálogo/produtor de reagendamento nem projeção do novo horário nesta
 etapa. Aplicação antiga pode rejeitar a versão 2, sem downgrade ou fallback.
+
+## Cenário 30 — Reagendamento explícito em Hoje — 2C-B
+
+Treino de 06:30 já passou sem execução. Usuário abre Reagendar, verifica e
+confirma a baseline anterior, informa 20:00–21:00 na data/fuso completos e
+confirma. Um evento é anexado; occ:sequência, original, template e item físico
+de origem permanecem intactos. Nenhuma execução/falha/not_completed é criada.
+Hoje troca Atenção pelo planejamento vigente, sem duplicação e sem reload.
+Concluir depois exige horários reais, conserva histórico, deriva
+completed_rescheduled e actualMinutes pelo intervalo real. Reload e
+export/restore mantêm vigente e história idênticos no backup 2/geração 2/schema 1.
+
+Mesmo dia, amanhã, meses adiante, origem antiga para Hoje, madrugada com data
+final explícita, múltiplos eventos e volta ao baseline futuro são cobertos.
+Virtuais coexistem como entidades distintas e não recebem botão nem identidade.
+No-op, fim inválido, DST inexistente/ambíguo, offset sem IANA e destino terminado
+antes/na decisão são rejeitados sem escrita. Duração pode mudar; sobreposições
+não alteram automaticamente outras atividades.
+
+Duplo submit/intenção equivalente, retry após rollback/publicação React falha,
+requests conflitantes, duas conexões e autosave antigo preservam a cadeia. Uma
+conclusão iniciada antes de outro planejamento é rejeitada. Restore/import/reset
+durante diálogo invalidam epoch e atualizam snapshot; ação antiga nunca se liga
+silenciosamente a um ID reutilizado. Erro de integridade bloqueia sem fallback.
+
+Editar horário/minutos/identidade, excluir item/registro e toggle legado são
+bloqueados na UI e persistência. Nota/energia e reordenação inequívoca de outros
+itens continuam válidas; ambiguidades falham fechadas. Histórico fica disponível
+após conclusão. Dialog cobre confirmação inicial, inputs preservados, loading,
+Tab pelos segmentos nativos, Enter, Escape/Cancelar, foco restaurado e 390 px
+sem scroll horizontal; fechamento é impedido durante escrita.

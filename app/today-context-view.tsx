@@ -2,6 +2,11 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Button } from "../components/ui/button";
 import type { ExecutionRecord } from "../domain/temporal/index";
 import { CompletionDialog } from "./completion-dialog";
+import { ReschedulingDialog } from "./rescheduling-dialog";
+import { PlanningHistoryView } from "./planning-history-view";
+import { occurrenceRevision } from "../persistence/execution/bridge";
+import type { ReschedulingIntent } from "../persistence/execution/rescheduling";
+import { localPlanningTime } from "./rescheduling-input";
 import { CATEGORIES } from "./planner-data";
 import type { TodayContext, TodayContextItem } from "./today-context";
 import styles from "./today-context.module.css";
@@ -17,7 +22,7 @@ function dateTitle(date: Date) {
   return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
-type CompletionControls = { onSelect: (item: TodayContextItem, trigger: HTMLButtonElement) => void; completingIds: readonly string[] };
+type CompletionControls = { onSelect: (item: TodayContextItem, trigger: HTMLButtonElement, action?: "reschedule") => void; completingIds: readonly string[] };
 
 function Item({ item, onSelect, completingIds }: { item: TodayContextItem } & CompletionControls) {
   return (
@@ -28,6 +33,8 @@ function Item({ item, onSelect, completingIds }: { item: TodayContextItem } & Co
         <h3>{item.title}</h3>
         {item.notes && <p>{item.notes}</p>}
         {item.occurrenceId && !item.completed && <Button size="sm" variant="secondary" aria-label={`Concluir ${item.title}`} disabled={completingIds.includes(item.occurrenceId)} onClick={(event) => onSelect(item, event.currentTarget)}>Concluir</Button>}
+        {item.occurrenceId && item.reschedulable && <Button size="sm" variant="secondary" aria-label={`Reagendar ${item.title}`} disabled={completingIds.includes(item.occurrenceId)} onClick={(event) => onSelect(item, event.currentTarget, "reschedule")}>Reagendar</Button>}
+        {item.binding?.planningAudit && <PlanningHistoryView binding={item.binding} />}
       </div>
     </article>
   );
@@ -51,6 +58,8 @@ export function TodayContextView({
   details,
   onComplete,
   completingIds,
+  authorityEpoch,
+  onReschedule,
 }: {
   context: TodayContext | null;
   selectedDate: Date;
@@ -58,14 +67,19 @@ export function TodayContextView({
   blocked: boolean;
   error: boolean;
   details: ReactNode;
-  onComplete: (id: string, execution: ExecutionRecord) => Promise<void>;
+  onComplete: (id: string, execution: ExecutionRecord, fence: { expectedAuthorityEpoch: number; expectedRevision: string }) => Promise<void>;
+  authorityEpoch: number;
+  onReschedule: (intent: ReschedulingIntent) => Promise<void>;
   completingIds: readonly string[];
 }) {
   const [selected, setSelected] = useState<TodayContextItem | null>(null);
+  const [action, setAction] = useState<"complete" | "reschedule">("complete");
+  const [selectedEpoch, setSelectedEpoch] = useState(authorityEpoch);
+  const [destination, setDestination] = useState<string | null>(null);
   const trigger = useRef<HTMLButtonElement | null>(null);
   const heading = useRef<HTMLHeadingElement | null>(null);
   const restoreFocus = useRef(false);
-  const controls: CompletionControls = { completingIds, onSelect: (item, button) => { trigger.current = button; setSelected(item); } };
+  const controls: CompletionControls = { completingIds, onSelect: (item, button, selectedAction) => { trigger.current = button; setSelectedEpoch(authorityEpoch); setAction(selectedAction ? "reschedule" : "complete"); setSelected(item); } };
   function close() {
     restoreFocus.current = true;
     setSelected(null);
@@ -86,6 +100,7 @@ export function TodayContextView({
         <button className="date-main" onClick={() => onDate(new Date())}>{dateTitle(selectedDate)}</button>
         <button aria-label="Próximo dia" onClick={() => onDate(addDays(selectedDate, 1))}>›</button>
       </div>
+      {destination && <p role="status" className={styles.caption}>Reagendamento confirmado para {destination}. <Button size="sm" variant="secondary" onClick={() => { onDate(new Date(`${destination}T12:00:00`)); setDestination(null); }}>Ver dia reagendado</Button></p>}
       {blocked || error || !context ? (
         <section className={`panel ${styles.section}`} role="alert">
           <h2>Dados locais protegidos</h2>
@@ -110,7 +125,14 @@ export function TodayContextView({
           </div>
         </>
       )}
-      {selected?.occurrenceId && <CompletionDialog occurrenceId={selected.occurrenceId} title={selected.title} onComplete={onComplete} onClose={close} />}
+      {selected?.occurrenceId && action === "complete" && <CompletionDialog occurrenceId={selected.occurrenceId} title={selected.title} onComplete={(id, execution) => onComplete(id, execution, { expectedAuthorityEpoch: selectedEpoch, expectedRevision: occurrenceRevision(selected.binding!) })} onClose={close} />}
+      {selected && action === "reschedule" && <ReschedulingDialog item={selected} authorityEpoch={selectedEpoch} onReschedule={async (intent) => {
+        await onReschedule(intent);
+        if (intent.schedule.kind === "timed") setDestination(localPlanningTime(intent.schedule.startsAt, context!.timeZone).slice(0, 10));
+      }} onClose={close} />}
+      {context?.items.some((item) => item.completed && item.binding?.planningAudit) && <section className={`panel ${styles.section}`} aria-label="Histórico concluído">
+        <h2>Histórico concluído</h2>{context.items.filter((item) => item.completed && item.binding?.planningAudit).map((item) => <PlanningHistoryView key={item.id} binding={item.binding!} />)}
+      </section>}
       {details && <details className={styles.details}>
         <summary>Ver dia completo</summary>
         {details}
