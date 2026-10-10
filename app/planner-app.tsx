@@ -24,6 +24,9 @@ import {
 import { usePlanner } from "./planner-context";
 import { deriveTodayContext } from "./today-context";
 import { TodayContextView } from "./today-context-view";
+import { PlanningHistoryView } from "./planning-history-view";
+import type { TodayContextItem } from "./today-context";
+import { localPlanningTime } from "./rescheduling-input";
 
 export type PlannerView = "hoje" | "mes" | "rotina";
 type EditorTarget = { type: "day" | "routine"; item?: RoutineItem; index?: number } | null;
@@ -63,7 +66,7 @@ function itemMinutes(item: RoutineItem) {
 }
 
 export default function PlannerApp({ view = "hoje", initialDate }: { view?: PlannerView; initialDate?: string }) {
-  const { state, executionBridge, setState, ready, storageBlocked, notify, completeOccurrence, completingIds } = usePlanner();
+  const { state, executionBridge, authorityEpoch, rescheduleOccurrence, setState, ready, storageBlocked, notify, completeOccurrence, completingIds } = usePlanner();
   const router = useRouter();
   const searchParams = useSearchParams();
   const requestedDate = searchParams.get("date");
@@ -115,11 +118,18 @@ export default function PlannerApp({ view = "hoje", initialDate }: { view?: Plan
 
   const metrics = useMemo(() => {
     if (!record) return { planned: 0, completed: 0, focus: 0, count: 0, done: 0 };
+    if (todayContext.context && executionBridge?.entries.some((entry) => entry.planningAudit)) {
+      const items = todayContext.context.items;
+      const minutes = (item: TodayContextItem) => item.completed ? item.actualMinutes ?? item.binding?.item.actualMinutes ?? (Date.parse(item.endsAt) - Date.parse(item.startsAt)) / 60_000 : 0;
+      return { planned: items.reduce((sum, item) => sum + (Date.parse(item.endsAt) - Date.parse(item.startsAt)) / 60_000, 0),
+        completed: items.reduce((sum, item) => sum + minutes(item), 0), focus: items.filter((item) => item.category === "foco").reduce((sum, item) => sum + minutes(item), 0),
+        count: items.length, done: items.filter((item) => item.completed).length };
+    }
     const planned = record.items.reduce((sum, entry) => sum + itemMinutes(entry), 0);
     const completed = record.items.reduce((sum, entry) => sum + (entry.completed ? entry.actualMinutes || itemMinutes(entry) : 0), 0);
     const focus = record.items.reduce((sum, entry) => sum + (entry.completed && entry.category === "foco" ? entry.actualMinutes || itemMinutes(entry) : 0), 0);
     return { planned, completed, focus, count: record.items.length, done: record.items.filter((entry) => entry.completed).length };
-  }, [record]);
+  }, [record, todayContext.context, executionBridge]);
 
   function updateRecord(mutator: (current: DailyRecord) => DailyRecord) {
     if (!selectedDate) return;
@@ -143,6 +153,7 @@ export default function PlannerApp({ view = "hoje", initialDate }: { view?: Plan
 
   function deleteItem(index: number, target: "day" | "routine") {
     if (target === "day") {
+      if (executionBridge?.entries.some((entry) => entry.sourceDate === selectedDate && entry.itemIndex === index && (entry.execution || entry.planningAudit))) return;
       updateRecord((current) => ({ ...current, items: current.items.filter((_, itemIndex) => itemIndex !== index) }));
     } else {
       setState((current) => ({
@@ -190,6 +201,8 @@ export default function PlannerApp({ view = "hoje", initialDate }: { view?: Plan
       <div className="view-stage" key={view}>
           {view === "hoje" && (
             <TodayContextView
+              authorityEpoch={authorityEpoch}
+              onReschedule={rescheduleOccurrence}
               onComplete={completeOccurrence}
               completingIds={completingIds}
               context={todayContext.context}
@@ -205,7 +218,9 @@ export default function PlannerApp({ view = "hoje", initialDate }: { view?: Plan
                 onDate={selectDate}
                 onToggle={toggleItem}
                 completionLocked={executionBridge !== null}
-                terminalIndexes={executionBridge?.entries.filter((entry) => entry.sourceDate === selectedDate && entry.execution).map((entry) => entry.itemIndex) ?? []}
+                terminalIndexes={executionBridge?.entries.filter((entry) => entry.sourceDate === selectedDate && (entry.execution || entry.planningAudit)).map((entry) => entry.itemIndex) ?? []}
+                effectiveItems={todayContext.context?.items}
+                effectivePlanning={executionBridge?.entries.some((entry) => entry.planningAudit) ?? false}
                 onEdit={(item, index) => setEditor({ type: "day", item, index })}
                 onDelete={(index) => deleteItem(index, "day")}
                 onAdd={() => setEditor({ type: "day" })}
@@ -217,6 +232,7 @@ export default function PlannerApp({ view = "hoje", initialDate }: { view?: Plan
           {view === "mes" && (
             <MonthView
               state={state}
+              executionBridge={executionBridge}
               monthDate={monthDate}
               todayISO={todayISO}
               onMonth={(date) => setMonthDate(date)}
@@ -240,7 +256,19 @@ export default function PlannerApp({ view = "hoje", initialDate }: { view?: Plan
   );
 }
 
-function TodayView({ record, selectedDate, todayISO, metrics, onDate, onToggle, completionLocked, terminalIndexes, onEdit, onDelete, onAdd, onNote, onEnergy }: {
+function EffectiveTimelineItem({ item, current, onEdit, onDelete }: { item: TodayContextItem; current: boolean; onEdit?: () => void; onDelete?: () => void }) {
+  const category = CATEGORIES[item.category];
+  const duration = (Date.parse(item.endsAt) - Date.parse(item.startsAt)) / 60_000;
+  const actual = item.actualMinutes ?? item.binding?.item.actualMinutes ?? duration;
+  return <article className={`timeline-item ${item.completed ? "completed" : ""} ${current ? "current" : ""}`} style={{ "--item-color": category.color, "--item-soft": category.soft } as React.CSSProperties}>
+    <button className="check-button" disabled aria-label={item.completed ? "Atividade concluída" : "Atividade pendente"}>{item.completed ? "✓" : ""}</button>
+    <div className="time-column"><strong>{item.start}</strong><span>{item.end}</span></div>
+    <div className="item-body"><span className="category-tag">{category.label}</span>{current && <span className="now-tag">agora</span>}<h3>{item.title}</h3>{item.notes && <p>{item.notes}</p>}<small>{item.completed ? `${actual} min realizados` : `${duration} min planejados`}</small>{item.binding && <PlanningHistoryView binding={item.binding} />}</div>
+    <div className="item-actions"><button disabled={!onEdit} aria-label="Editar atividade" onClick={onEdit}>Editar</button><button disabled={!onDelete} aria-label="Excluir atividade" onClick={onDelete}>×</button></div>
+  </article>;
+}
+
+function TodayView({ record, selectedDate, todayISO, metrics, onDate, onToggle, completionLocked, terminalIndexes, effectiveItems, effectivePlanning, onEdit, onDelete, onAdd, onNote, onEnergy }: {
   record: DailyRecord;
   selectedDate: Date;
   todayISO: string;
@@ -249,6 +277,8 @@ function TodayView({ record, selectedDate, todayISO, metrics, onDate, onToggle, 
   onToggle: (index: number) => void;
   completionLocked: boolean;
   terminalIndexes: readonly number[];
+  effectiveItems?: readonly TodayContextItem[];
+  effectivePlanning: boolean;
   onEdit: (item: DailyItem, index: number) => void;
   onDelete: (index: number) => void;
   onAdd: () => void;
@@ -279,7 +309,11 @@ function TodayView({ record, selectedDate, todayISO, metrics, onDate, onToggle, 
         <section className="panel timeline-panel">
           <div className="panel-heading"><div><span className="eyebrow">LINHA DO TEMPO</span><h2>Planejado x realizado</h2>{completionLocked && <small>Conclua ocorrências na visão contextual acima. Registros concluídos não podem ser reabertos nesta etapa.</small>}</div><span className="progress-chip">{percentage}% concluído</span></div>
           <div className="timeline-list">
-            {record.items.map((entry, index) => {
+            {effectivePlanning ? effectiveItems?.map((item) => {
+              const editable = item.sourceDate === record.date && !item.binding?.execution && !item.binding?.planningAudit;
+              const current = isToday && !item.completed && item.startsAt <= now.toISOString() && now.toISOString() < item.endsAt;
+              return <EffectiveTimelineItem key={item.id} item={item} current={current} onEdit={editable ? () => onEdit(record.items[item.sourceIndex], item.sourceIndex) : undefined} onDelete={editable ? () => onDelete(item.sourceIndex) : undefined} />;
+            }) : record.items.map((entry, index) => {
               const category = CATEGORIES[entry.category];
               const isNow = isToday && timeContains(entry, now);
               return (
@@ -319,8 +353,9 @@ function timeContains(item: RoutineItem, now: Date) {
   return current >= start && current < end;
 }
 
-function MonthView({ state, monthDate, todayISO, onMonth, onOpenDay, onGoal }: {
+function MonthView({ state, executionBridge, monthDate, todayISO, onMonth, onOpenDay, onGoal }: {
   state: PlannerState;
+  executionBridge: import("../persistence/execution/bridge").ExecutionBridge | null;
   monthDate: Date;
   todayISO: string;
   onMonth: (date: Date) => void;
@@ -334,12 +369,38 @@ function MonthView({ state, monthDate, todayISO, onMonth, onOpenDay, onGoal }: {
   for (let day = 1; day <= daysInMonth; day++) cells.push(localISO(new Date(monthDate.getFullYear(), monthDate.getMonth(), day)));
   while (cells.length % 7) cells.push(null);
 
+  const effectiveDays = useMemo(() => {
+    if (!executionBridge?.entries.some((entry) => entry.planningAudit)) return null;
+    const days = new Map<string, readonly TodayContextItem[]>();
+    const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    for (let day = 1; day <= daysInMonth; day++) {
+      const date = localISO(new Date(monthDate.getFullYear(), monthDate.getMonth(), day));
+      // Monthly totals attribute an interval once to its effective start day; Today shows every intersecting day.
+      days.set(date, deriveTodayContext(state, new Date(), zone, date, executionBridge).items.filter((item) => {
+        const start = localPlanningTime(item.startsAt, zone).slice(0, 10);
+        return start === date;
+      }));
+    }
+    return days;
+  }, [state, executionBridge, monthDate, daysInMonth]);
+
   const monthMetrics = useMemo(() => {
     let planned = 0, completed = 0, activities = 0, done = 0;
     const byCategory = Object.fromEntries(Object.keys(CATEGORIES).map((category) => [category, 0])) as Record<CategoryKey, number>;
     for (let day = 1; day <= daysInMonth; day++) {
       const date = localISO(new Date(monthDate.getFullYear(), monthDate.getMonth(), day));
       if (date > todayISO) continue;
+      if (effectiveDays) {
+        const entries = effectiveDays.get(date)!;
+        planned += entries.reduce((sum, entry) => sum + (Date.parse(entry.endsAt) - Date.parse(entry.startsAt)) / 60_000, 0);
+        activities += entries.length;
+        for (const entry of entries) {
+          if (!entry.completed) continue;
+          const minutes = entry.actualMinutes ?? entry.binding?.item.actualMinutes ?? (Date.parse(entry.endsAt) - Date.parse(entry.startsAt)) / 60_000;
+          completed += minutes; done++; byCategory[entry.category] += minutes;
+        }
+        continue;
+      }
       const record = state.records[date];
       const entries = record?.items || state.routine[dayKeyFor(parseISO(date))];
       planned += entries.reduce((sum, entry) => sum + itemMinutes(entry), 0);
@@ -358,6 +419,11 @@ function MonthView({ state, monthDate, todayISO, onMonth, onOpenDay, onGoal }: {
     const lastDay = key === monthKey(new Date()) ? new Date().getDate() : daysInMonth;
     for (let day = lastDay; day >= 1; day--) {
       const date = localISO(new Date(monthDate.getFullYear(), monthDate.getMonth(), day));
+      if (effectiveDays) {
+        const entries = effectiveDays.get(date)!;
+        if (safePercent(entries.filter((entry) => entry.completed).length, entries.length) < 60) break;
+        streak++; continue;
+      }
       const record = state.records[date];
       if (!record) break;
       const ratio = safePercent(record.items.filter((entry) => entry.completed).length, record.items.length);
@@ -365,7 +431,7 @@ function MonthView({ state, monthDate, todayISO, onMonth, onOpenDay, onGoal }: {
       streak++;
     }
     return { planned, completed, activities, done, byCategory, streak };
-  }, [state, monthDate, daysInMonth, todayISO, key]);
+  }, [state, monthDate, daysInMonth, todayISO, key, effectiveDays]);
 
   const maxCategory = Math.max(1, ...Object.values(monthMetrics.byCategory));
 
@@ -386,7 +452,8 @@ function MonthView({ state, monthDate, todayISO, onMonth, onOpenDay, onGoal }: {
           <div className="calendar-grid">{cells.map((date, index) => {
             if (!date) return <span className="calendar-empty" key={`empty-${index}`} />;
             const dayRecord = state.records[date];
-            const rate = dayRecord ? safePercent(dayRecord.items.filter((entry) => entry.completed).length, dayRecord.items.length) : 0;
+            const projected = effectiveDays?.get(date);
+            const rate = projected ? safePercent(projected.filter((entry) => entry.completed).length, projected.length) : dayRecord ? safePercent(dayRecord.items.filter((entry) => entry.completed).length, dayRecord.items.length) : 0;
             const isFuture = date > todayISO;
             return <button key={date} className={`${date === todayISO ? "today" : ""} ${isFuture ? "future" : ""}`} style={{ "--day-rate": `${rate}%` } as React.CSSProperties} onClick={() => onOpenDay(date)}><strong>{Number(date.slice(-2))}</strong><span>{rate ? `${rate}%` : "—"}</span></button>;
           })}</div>
