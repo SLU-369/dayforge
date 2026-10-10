@@ -28,8 +28,11 @@ Manter a fundação visual e a baseline concluída na Etapa 0.2/B4 sem alterar a
   uma ponte externa; rotina virtual continua sendo projeção. Execução interna
   auditável e recuperação estão disponíveis. A 2B-A oferece Concluir para
   ocorrências canônicas pendentes com timing real explícito; toggle legado
-  permanece bloqueado. A 2C-A recupera auditoria de planejamento na ponte 2,
-  sem produtor/UI de reagendamento nem mudança na projeção contextual.
+  permanece bloqueado. A 2C-A recupera auditoria de planejamento na ponte 2.
+  A 2C-B produz reagendamento explícito, projeta intervalo vigente em Hoje/dia
+  completo e preserva item físico/original/identidade. Diálogos capturam epoch e
+  revisão, histórico continua disponível após execução e controles legados do
+  vínculo auditado não podem apagá-lo. Virtuais continuam sem ação/identidade.
 
 ### Alvo
 Manter a experiência principal contextual:
@@ -42,8 +45,8 @@ Atenção
 Resumo
 ```
 
-Timeline completa permanece acessível sob demanda. Conclusão canônica já está
-implementada; início, correção terminal e UI de reagendamento permanecem gated.
+Timeline completa permanece acessível sob demanda. Conclusão canônica
+e reagendamento explícito já estão implementados; início e correção terminal permanecem gated.
 
 `Energia do dia` sai da experiência principal. `Foco AI/LLM` deixa de ser métrica fixa. Progresso deixa de ser um número genérico sem contexto.
 
@@ -189,5 +192,9 @@ pendentes, com timing real e fuso confirmados, recordedAt explícito e operaçã
 serializada com autosave. Histórico legado e itens virtuais não recebem fatos
 inventados; planner/current mantém seu formato. A 2C-A adiciona contrato e
 recuperação de planningAudit, upgrade lógico 1 → 2 e época local de autoridade
-sem inferências. A 2C-B, correção terminal e novos produtores temporais continuam
-sujeitos a autorização própria; nenhuma UI nova foi criada na 2C-A.
+sem inferências. A 2C-B implementa produtor/UX com intenção estável, CAS/epoch,
+fila única, projeção efetiva indexada em memória e recuperação sem novo formato.
+Aplicações 2C-A preservam a auditoria mas ainda mostram horário legado; use 2C-B
+para operar intervalos reagendados. Correção terminal e novos produtores
+temporais continuam sujeitos a autorização própria; nenhuma etapa posterior foi
+iniciada. PR/merge da branch 2C-B ainda exigem autorização humana.

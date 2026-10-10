@@ -183,3 +183,31 @@ Exemplos bons:
 - `Dentro do ritmo`;
 - `Acima do seu padrão`;
 - `Quase pronto`.
+
+## 14. Reagendamento explícito em Hoje — 2C-B
+
+Somente ocorrências canônicas pendentes inequívocas recebem Reagendar; virtuais
+não são materializados por interação. O diálogo `Reagendar [atividade]` informa:
+`Altere o planejamento desta ocorrência. A execução será registrada separadamente.`
+No primeiro evento, apresenta datas/horas anteriores editáveis e fuso IANA
+sugerido visível, com confirmação explícita que inicia o histórico auditável.
+Nos seguintes, mostra o planejamento vigente canônico sem reinterpretá-lo.
+
+Novo início/fim são datas e horas completas; fuso IANA editável, duração UTC
+resultante e motivo livre opcional. Prefill é sugestão de planejamento sem
+persistência. Não há rollover de madrugada implícito nem entrada de horário
+ambíguo/inexistente em DST. Destino totalmente passado e no-op são rejeitados.
+Cancelar/Escape funcionam antes da escrita. Durante commit, campos e ações
+ficam indisponíveis e Escape não simula cancelamento de uma transação iniciada.
+Erro preserva entradas; retry inalterado preserva changedAt e intenção.
+
+Após sucesso, Agora/Próximo/Depois/Atenção/Resumo e dia completo recalculam sem
+reload. A data selecionada permanece; confirmação oferece Ver dia reagendado.
+Foco retorna ao acionador conectado ou ao título de Hoje quando ele desaparece.
+O dialog tem labels, foco inicial previsível, percurso nativo dos campos de data
+via Tab, Enter, layout de 390 px e somente scroll vertical quando necessário.
+
+Histórico progressivo distingue original legado (sem inventar fuso histórico),
+baseline confirmada, mudanças ordenadas/motivo/instante, vigente e execução real.
+Continua acessível após conclusão. Edição/exclusão/toggle legados do vínculo
+auditado são bloqueados; notas/energia do registro continuam independentes.

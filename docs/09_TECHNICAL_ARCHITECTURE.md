@@ -207,6 +207,53 @@ permanecer bloqueadas, sem fallback ao v1 ou downgrade silencioso. Hoje mantém
 a projeção existente; recuperar uma auditoria não ativa a projeção do horário
 reagendado. Comando persistente e experiência de reagendamento pertencem à 2C-B.
 
+### Etapa 2C-B — Comando, revisão e planejamento efetivo
+
+`persistence/execution/rescheduling.ts` produz explicitamente planningAudit e
+append de RescheduleEvent mediante epoch/revisão/intenção capturados na abertura.
+O comando reutiliza appendRescheduleEvent e o codec estrito, preservando item,
+original, identidade e execução. IDs de eventos usam ocorrência e posição de
+append. Conteúdo confirmado e changedAt distinguem retry equivalente de conflito.
+Hashes são calculados fora da transação; savePlannerWithBridge compara o snapshot
+e authorityEpoch antes de persistir atomicamente a ponte, com readback e rollback.
+
+`readPlannerAuthoritySnapshot` captura payload e epoch em uma única transação
+readonly e valida hashes fora dela. Epoch permanece apenas local; o export
+público continua formato 2/geração 2/schema 1. UI publica planner/bridge/epoch
+coerentes após comando, falha recuperável e substituição. Erro estrutural aciona
+o bloqueio existente; conflitos com snapshot íntegro preservam o diálogo. Restore,
+import e reset invalidam ações antigas mesmo se reutilizarem occurrenceId.
+
+PlannerWriteQueue serializa autosave, execução, reagendamento e recuperação/
+exportação, coalescendo intenções equivalentes e invalidando autosaves antigos
+pela revisão React. Concluir recebe também epoch e revisão dos fatos esperados
+para detectar planejamento alterado durante a confirmação. Não há fila paralela.
+
+`app/temporal-input.ts` mantém o conversor estrito compartilhado de horários
+inequívocos. `rescheduling-input.ts` exige início/fim completos e IANA, calcula
+duração real e rejeita offsets sem nome. A política permissiva de leitura legada
+da 2A nunca gera fatos automaticamente. O produtor 2C-B é timed; os contratos
+date_only/all_day existentes continuam recuperáveis, sem nova UX produtora.
+A visão horária de Hoje falha fechada se receber uma auditoria vigente não
+timed; não converte data sem horário em intervalo horário artificial.
+
+`today-context.ts` centraliza planejamento efetivo e índices efêmeros por snapshot:
+vínculos físicos por data/posição e auditorias ordenadas por início/fim. Consulta
+interseções via busca binária no menor conjunto candidato; não varre todos os
+registros para localizar origens distantes nem materializa dias. Sem auditoria,
+mantém leitura 2A. Com auditoria, usa somente o último to/baseline, sem duplicar
+o horário original. Hoje/dia completo/compatibilidade mensal usam essa projeção;
+o mês conta uma vez no dia de início efetivo, preservando o item físico de origem.
+Virtuais mantêm IDs próprios; títulos/horários não são chaves de deduplicação.
+
+Guards de reconciliação bloqueiam mudança de minutos, plano, identidade ou
+remoção de item/registro auditado. A execução pode alterar completed/actualMinutes
+somente pelo comando canônico e mantém a cadeia. UI bloqueia controles desses
+itens, permitindo nota/energia e edição/reordenação inequívoca de outros itens.
+Nenhuma correção terminal, motor de sobreposição, template, backend ou etapa
+posterior é ativada. A descrição de ausência de produtor na 2C-A acima registra
+o limite histórico daquela etapa; D-033 registra a evolução 2C-B.
+
 ## 5. Motor de planejamento
 
 A primeira versão local usa TypeScript puro, determinístico e independente da UI. Os contratos e vetores de teste devem permitir reprodução fora do navegador.

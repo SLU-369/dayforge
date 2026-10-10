@@ -239,6 +239,18 @@ histórico e uma conclusão posterior deriva completed_rescheduled. ExecutionRec
 continua separado e é o único fato de execução. Upgrade/rotina/projeção de Hoje
 não constituem confirmação canônica. O futuro comando produtor é gate da 2C-B.
 
+Esse gate foi autorizado e implementado na 2C-B: o comando parcial recebe os
+fatos confirmados sem fabricar uma ocorrência completa. Primeiro append cria a
+baseline explicitamente; os seguintes usam o último to. Não há execução, falha,
+not_completed ou modificação do template ao reagendar. A intenção é identificada
+pela posição de append e payload confirmado, com epoch e revisão dos fatos para
+detectar conjuntos substituídos e planejamento obsoleto. O destino timed deve
+terminar depois de changedAt. Motivo livre opcional adapta-se a TemporalReason
+com código user_note; não há julgamento, taxonomia extensa ou motivo obrigatório.
+O produtor valida entrada temporal estrita; a leitura legada permissiva não cria
+fatos. Planejamento físico de origem, baseline confirmada, vigente e execução
+continuam camadas distintas, conforme D-033.
+
 A arquitetura deve preservar a diferença entre:
 
 ```text
