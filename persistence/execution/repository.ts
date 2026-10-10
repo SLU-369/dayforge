@@ -6,7 +6,11 @@ import { assertActiveDatabaseMetadata } from "../backup/integrity.ts";
 import type { DayforgeBackupV2 } from "../backup/contracts.ts";
 import { decodeLegacyPlannerSnapshotV1, normalizeLegacyPlannerSnapshotV1, encodeNormalizedLegacyPlannerV1, type NormalizedLegacyPlannerV1 } from "../legacy/index.ts";
 import { canonicalStringify, createLegacyPlannerDocument, LEGACY_V1_SOURCE_ID_PREFIX, PLANNER_DOCUMENT_FORMAT, WebCryptoSha256Hasher, type Sha256Hasher } from "../migration/index.ts";
-import { bridgeJson, createBridgeDocument, decodeBridgeExecution, ExecutionBridgeError, EXECUTION_BRIDGE_DOCUMENT_ID, EXECUTION_BRIDGE_FORMAT, reconcileExecutionBridge, type ExecutionBridge } from "./bridge.ts";
+import { bridgeJson, createBridgeDocument, decodeBridgeExecution, decodeExecutionBridge, occurrenceRevision, ExecutionBridgeError, EXECUTION_BRIDGE_DOCUMENT_ID, EXECUTION_BRIDGE_FORMAT, reconcileExecutionBridge, type ExecutionBridge, type PlanningAudit } from "./bridge.ts";
+
+export class OccurrenceConflictError extends Error {
+  constructor(message = "O planejamento mudou. Cancele e abra uma nova confirmação.") { super(message); this.name = "OccurrenceConflictError"; }
+}
 
 function assertSnapshot(current: PlannerDocumentRecord | null, documents: readonly PlannerDocumentRecord[], before: DayforgeBackupV2) {
   if (documents.some((document) => document.id.startsWith("execution/") && document.id !== EXECUTION_BRIDGE_DOCUMENT_ID)) throw new ExecutionBridgeError();
@@ -27,6 +31,7 @@ export async function savePlannerWithBridge(options: Readonly<{
   state: NormalizedLegacyPlannerV1;
   hasher?: Sha256Hasher;
   execution?: Readonly<{ occurrenceId: string; record: ExecutionRecord }>;
+  rescheduling?: Readonly<{ occurrenceId: string; audit: PlanningAudit }>;
   afterWriteForTest?: () => void;
   expectedSnapshot?: DayforgeBackupV2;
   expectedAuthorityEpoch?: number;
@@ -38,6 +43,14 @@ export async function savePlannerWithBridge(options: Readonly<{
   // Export time is only validation metadata; it is not an execution instant.
   const before = options.expectedSnapshot ?? await exportDayforgeBackupV2({ repository: options.repository, exportedAt: "1970-01-01T00:00:00.000Z", active: true, hasher });
   let bridge = reconcileExecutionBridge(state, before.payload.executionBridge?.bridge, options.execution);
+  if (options.rescheduling) {
+    const { occurrenceId, audit } = options.rescheduling;
+    const prior = bridge.entries.find((entry) => entry.occurrenceId === occurrenceId);
+    if (!prior || prior.execution || prior.item.completed || audit.rescheduleHistory.length !== (prior.planningAudit?.rescheduleHistory.length ?? 0) + 1
+      || prior.planningAudit && canonicalStringify(JSON.parse(JSON.stringify({ ...audit, rescheduleHistory: audit.rescheduleHistory.slice(0, -1) })))
+        !== canonicalStringify(JSON.parse(JSON.stringify(prior.planningAudit)))) throw new OccurrenceConflictError();
+    bridge = decodeExecutionBridge({ ...bridge, entries: bridge.entries.map((entry) => entry.occurrenceId === occurrenceId ? { ...entry, planningAudit: audit } : entry) }, state);
+  }
   if (options.execution) {
     const { occurrenceId, record } = options.execution;
     const execution = decodeBridgeExecution(record, occurrenceId);
@@ -106,6 +119,7 @@ export async function recordOccurrenceExecution(options: Readonly<{
   hasher?: Sha256Hasher;
   afterWriteForTest?: () => void;
   expectedAuthorityEpoch?: number;
+  expectedRevision?: string;
 }>): Promise<ExecutionBridge> {
   const expectedAuthorityEpoch = options.expectedAuthorityEpoch
     ?? await options.repository.read(async (transaction) => authorityEpoch(await transaction.getDatabaseMetadata()));
@@ -115,6 +129,8 @@ export async function recordOccurrenceExecution(options: Readonly<{
   if (!binding || (binding.item.completed && !binding.execution) || !binding.item.title.trim() || !parseLocalTime(binding.item.start).ok
     || !parseLocalTime(binding.item.end).ok) throw new ExecutionBridgeError();
   const execution = decodeBridgeExecution(options.execution, options.occurrenceId);
+  if (options.expectedRevision !== undefined && occurrenceRevision(binding) !== options.expectedRevision
+    && (!binding.execution || canonicalStringify(JSON.parse(JSON.stringify(binding.execution))) !== canonicalStringify(JSON.parse(JSON.stringify(execution))))) throw new OccurrenceConflictError();
   const actualMinutes = !binding.execution && execution.timing.kind === "timed"
     ? (Date.parse(execution.timing.interval.end) - Date.parse(execution.timing.interval.start)) / 60_000
     : binding.item.actualMinutes;

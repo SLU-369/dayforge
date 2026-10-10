@@ -163,6 +163,7 @@ export async function saveActivePlannerV2(options: Readonly<{
   repository: LocalPersistenceRepository;
   state: NormalizedLegacyPlannerV1;
   hasher?: Sha256Hasher;
+  expectedAuthorityEpoch?: number;
 }>): Promise<ExecutionBridge> {
   const state = normalizeLegacyPlannerSnapshotV1(
     parseLegacyPlannerSnapshotV1(JSON.stringify(options.state)),

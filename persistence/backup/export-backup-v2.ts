@@ -1,5 +1,6 @@
 import {
   type LocalPersistenceRepository,
+  authorityEpoch,
 } from "../contracts/index.ts";
 import { WebCryptoSha256Hasher, type Sha256Hasher } from "../migration/index.ts";
 import type { DayforgeBackupV2 } from "./contracts.ts";
@@ -12,6 +13,13 @@ export async function exportDayforgeBackupV2(options: Readonly<{
   hasher?: Sha256Hasher;
   active?: boolean;
 }>): Promise<DayforgeBackupV2> {
+  return (await readPlannerAuthoritySnapshot(options)).backup;
+}
+
+/** The local replacement fence and payload come from one readonly transaction. */
+export async function readPlannerAuthoritySnapshot(options: Readonly<{
+  repository: LocalPersistenceRepository; exportedAt: string; hasher?: Sha256Hasher; active?: boolean;
+}>) {
   const hasher = options.hasher ?? new WebCryptoSha256Hasher();
   const snapshot = await options.repository.read((transaction) => readBackupSnapshot(transaction, options.active));
   const backup = decodeDayforgeBackupV2({
@@ -24,5 +32,6 @@ export async function exportDayforgeBackupV2(options: Readonly<{
     },
     payload: snapshot.payload,
   });
-  return (await validateAndMaterializeBackupV2(backup, hasher)).backup;
+  return { backup: (await validateAndMaterializeBackupV2(backup, hasher)).backup,
+    authorityEpoch: authorityEpoch(snapshot.databaseMetadata) };
 }
