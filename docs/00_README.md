@@ -1,7 +1,8 @@
 # Dayforge 2.0 — Documentação oficial de produto
 
-**Status:** Etapas 0.1, 0.2, 1.1, 1.2A–1.2D, 2A, fundação da 2B, 2B-A, 2C-A e 2C-B implementadas; integração da 2C-B depende de PR e aprovação humanas
-**Data:** 10/10/2026
+**Status:** Etapas 0.1, 0.2, 1.1 e 1.2A–1.2D implementadas; 2A, fundação da 2B, 2B-A, 2C-A e 2C-B concluídas e integradas; macroetapa 2 encerrada
+**Data:** 11/10/2026
+**Próxima macroetapa prevista:** Etapa 3 — Rotina, Agenda, Semana, Metas e consistência; não iniciada e sem autorização de implementação
 **Objetivo:** transformar as decisões de produto, UX, domínio e arquitetura discutidas até aqui em uma fonte oficial de verdade para o repositório e para o Codex.
 
 ## Como usar esta documentação
@@ -86,4 +87,10 @@ planejamento auditado em recuperação e introduz `authorityEpoch` local, sem
 inferir confirmação temporal nem criar produtor de reagendamento. A 2C-B foi
 autorizada e implementa confirmação, comando atômico e projeção efetiva de
 reagendamentos em Hoje, com histórico e detecção de diálogos obsoletos.
-PR, merge e avanço de etapa são gates separados.
+
+A 2C-A foi integrada pela PR #13 e a 2C-B pela PR #14, cujo merge é
+`52a77de3eac6e3740204ae64a5318cb790b5e7e8`. Com 2A, fundação da 2B, 2B-A,
+2C-A e 2C-B concluídas e integradas, a macroetapa 2 está formalmente encerrada.
+Os gates humanos de implementação e integração permanecem no histórico.
+A Etapa 3 exige planejamento, subdivisão e aprovação próprios; este encerramento
+documental não inicia seu planejamento detalhado nem autoriza sua implementação.
