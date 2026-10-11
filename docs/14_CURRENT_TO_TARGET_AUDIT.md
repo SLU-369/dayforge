@@ -1,5 +1,11 @@
 # 14 — Estado Atual → Estado Alvo
 
+Estado pós-merge da PR #14: 2A, fundação da 2B, 2B-A, 2C-A (PR #13) e 2C-B
+(PR #14) concluídas e integradas; macroetapa 2 encerrada. A próxima macroetapa
+prevista é a Etapa 3 — Rotina, Agenda, Semana, Metas e consistência, não iniciada
+e sem autorização de implementação; planejamento, subdivisão e aprovação
+próprios permanecem necessários.
+
 ## 1. App Shell
 
 ### Atual pós-0.2
@@ -46,7 +52,7 @@ Resumo
 ```
 
 Timeline completa permanece acessível sob demanda. Conclusão canônica
-e reagendamento explícito já estão implementados; início e correção terminal permanecem gated.
+e reagendamento explícito já estão implementados e integrados; início e correção terminal permanecem gated.
 
 `Energia do dia` sai da experiência principal. `Foco AI/LLM` deixa de ser métrica fixa. Progresso deixa de ser um número genérico sem contexto.
 
@@ -197,4 +203,6 @@ fila única, projeção efetiva indexada em memória e recuperação sem novo fo
 Aplicações 2C-A preservam a auditoria mas ainda mostram horário legado; use 2C-B
 para operar intervalos reagendados. Correção terminal e novos produtores
 temporais continuam sujeitos a autorização própria; nenhuma etapa posterior foi
-iniciada. PR/merge da branch 2C-B ainda exigem autorização humana.
+iniciada. A 2C-A foi integrada pela PR #13 e a 2C-B pela PR #14, encerrando a
+macroetapa 2. A próxima macroetapa prevista é a Etapa 3, com planejamento,
+subdivisão e aprovação próprios ainda necessários.

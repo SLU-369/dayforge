@@ -7,7 +7,13 @@
 - Etapa 0.2/B4 de taxonomia, baseline técnica e proteção do v1 concluída.
 - Etapa 1.1 de modelo temporal e contratos do domínio concluída.
 - Etapas 1.2A–1.2D implementadas; v2 é o store principal e v1 permanece somente leitura.
-- Etapa 2A concluída; fundação da 2B, conclusão 2B-A, contrato/recuperação 2C-A e comando/UI 2C-B implementados. PR/integração da 2C-B aguardam autorização própria.
+- Etapa 2A — Hoje contextual: concluída e integrada.
+- Fundação da 2B — execução canônica: concluída e integrada.
+- Etapa 2B-A — conclusão explícita e auditável: concluída e integrada.
+- Etapa 2C-A — contrato/recuperação do planejamento auditado: concluída e integrada pela PR #13.
+- Etapa 2C-B — reagendamento explícito e auditável em Hoje: concluída e integrada pela PR #14.
+- Macroetapa 2 encerrada; os escopos, validações e gates de suas unidades permanecem registrados abaixo.
+- Próxima macroetapa prevista: Etapa 3 — Rotina, Agenda, Semana, Metas e consistência; não iniciada e sem autorização de implementação. Exige planejamento, subdivisão e aprovação próprios.
 - Plano da Etapa 1.2 aprovado; cada subetapa exige branch, validação, revisão e autorização próprias.
 - Nenhuma etapa funcional pode começar por consequência automática desta documentação.
 
@@ -199,7 +205,8 @@ Etapa 2.
 
 ### Etapa 2A — Hoje contextual e read model temporal
 
-Status: concluída em 28/09/2026; execução e reagendamento não iniciados.
+Status: concluída em 28/09/2026 e integrada; execução e reagendamento ainda não
+haviam sido iniciados no fechamento desta subetapa.
 Branch: `feature/today-context`, a partir do checkpoint validado da 1.2D.
 
 Escopo: derivar em memória, com instante de referência controlável, uma visão
@@ -231,9 +238,12 @@ de persistência em falha e integridade de backup/restauração.
 Fora de escopo: conclusão, execução, timer, adiamento, reagendamento, edição de
 templates, histórico novo, notificações, IA, scoring, sincronização, cloud e
 mudanças de schema ou geração de persistência sem necessidade demonstrada.
-Execução e reagendamento pertencem a uma subdivisão futura ainda não iniciada.
+No fechamento da 2A, execução e reagendamento pertenciam a subdivisões futuras
+ainda não iniciadas; suas entregas posteriores estão registradas abaixo.
 
 ### Etapa 2B — Execução explícita de ocorrências
+
+Status da fundação: concluída e integrada pelas PRs #10 e #11.
 
 Fundação: identidade canônica e persistência auditável, em
 `feature/today-execution`. A fundação foi entregue separadamente da ação na UI,
@@ -276,7 +286,7 @@ Não iniciar 2C por consequência desta fundação.
 
 #### Etapa 2B-A — Ação canônica de conclusão
 
-Status: implementada em 07/10/2026. Branch: `feature/today-completion`, a partir
+Status: implementada em 07/10/2026 e integrada pela PR #12. Branch: `feature/today-completion`, a partir
 de `dbe3e732ae87a035019dc5b223e3cb80f5e90a25` (PRs #10 e #11 integradas).
 
 - Concluir está disponível apenas para ocorrência canônica pendente em Hoje.
@@ -316,15 +326,17 @@ entradas inequívocas; não há escolha de offset nesta UX mínima.
 
 ### Etapa 2C — Planejamento auditado e reagendamento
 
-Aprovação com subdivisão obrigatória e gates humanos independentes:
+Aprovação histórica com subdivisão obrigatória e gates humanos independentes,
+cumpridos nas integrações de cada unidade:
 
 - **2C-A — Contrato e recuperação:** ponte lógica 2, `planningAudit` opcional,
   regras puras compartilhadas, upgrade 1 → 2, backup/restore compatível,
   `authorityEpoch` local e provas de integridade/rollback. Implementada na
-  branch `feat/reschedule-foundation` sobre a main após PR #12.
+  branch `feat/reschedule-foundation` sobre a main após PR #12 e integrada pela PR #13.
 - **2C-B — Comando e experiência em Hoje:** produtor explícito, projeção do
   planejamento vigente e UX de reagendamento implementados em `feat/today-rescheduling`,
-  sobre `cfaad03881956ab1d3d26cd2d86d2b98e049db3c` após merge da PR #13.
+  sobre `cfaad03881956ab1d3d26cd2d86d2b98e049db3c` após merge da PR #13,
+  e integrada pela PR #14.
 
 2C-A não gera auditoria na migração, não reagenda, inicia ou corrige execução,
 não cria UI nem muda templates/minutos por conta própria. A conclusão existente
@@ -332,11 +344,11 @@ continua funcional; o contrato aceita conclusão posterior a uma cadeia válida.
 Backup público 2, geração 2, schema Dexie 1 e planner/current permanecem iguais.
 Época local protege operações de conjuntos substituídos e não integra o backup.
 
-Gates: master consistente, lint, typecheck, suíte Node incluindo build,
+Gates utilizados na 2C-A: master consistente, lint, typecheck, suíte Node incluindo build,
 domínio/ponte/metadata/rollback, persistência e regressões 2A/2B/2B-A no Edge,
 diff check e revisão de recuperação contra perda silenciosa. Commit/push da
-branch validada seguem a autorização permanente. Abrir PR, merge e iniciar
-2C-B exigem suas próprias autorizações, sem avanço automático.
+branch validada seguiram a autorização permanente. Abrir PR, realizar merge e
+iniciar 2C-B exigiram suas próprias autorizações, sem avanço automático.
 
 Validação da 2C-A: 46 novos testes de contrato/recuperação, 245/245 Node
 incluindo persistência e regressões, build, lint, typecheck, master e diff check.
@@ -346,6 +358,10 @@ audit guard, Hoje, backup/cutover e layout compacto. Testes de importação e
 navegação aguardam a prontidão real do bootstrap antes de interagir.
 
 ### Etapa 2C-B — Reagendamento explícito e auditável
+
+Status: concluída e integrada pela PR #14 em 10/10/2026, com merge
+`52a77de3eac6e3740204ae64a5318cb790b5e7e8`. A branch de implementação
+`feat/today-rescheduling` foi excluída após a integração.
 
 Reagendar atua somente em ocorrência canônica pendente inequívoca: confirma a
 baseline temporal no primeiro evento e anexa eventos seguintes, sem mover o
@@ -370,8 +386,23 @@ Edge identificou uma expectativa incorreta do teste sobre Tab nos segmentos
 nativos de datetime-local; o teste passou a verificar a navegação real mantendo
 o foco no diálogo, sem retries automáticos ou redução dos cenários.
 Documentação gerada, diff e varredura de segredos também foram verificados.
-Commit e push da branch validada estão autorizados; abertura de PR, merge,
-deploy e qualquer etapa posterior dependem de autorização humana específica.
+No fechamento da implementação, commit e push da branch validada estavam
+autorizados; abertura de PR e merge ainda dependiam de autorização humana
+específica. Esses gates foram cumpridos com a integração pela PR #14.
+Deploy e qualquer etapa posterior continuam sujeitos a autorização própria.
+
+### Encerramento da macroetapa 2 e próxima macroetapa
+
+2A, fundação da 2B, 2B-A, 2C-A (PR #13) e 2C-B (PR #14) estão concluídas e
+integradas. A macroetapa 2 — Hoje contextual e execução/reagendamento está
+formalmente encerrada. Os limites de cada entrega e seus gates históricos
+permanecem válidos; este registro não amplia o escopo funcional entregue.
+
+A próxima macroetapa prevista é a Etapa 3 — Rotina, Agenda, Semana, Metas e
+consistência. Está não iniciada, sem planejamento detalhado ou subdivisão
+oficial realizados neste encerramento e sem autorização de implementação.
+Planejamento, subdivisão e aprovação próprios são necessários antes de iniciar
+seu desenvolvimento. O motor determinístico permanece na Etapa 5 do roadmap.
 
 ## 5. Ordem de dependências
 
