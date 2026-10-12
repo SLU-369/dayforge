@@ -7,8 +7,8 @@ import type { TodayContextItem } from "./today-context";
 import { buildPlanningSchedule, planningInput, type PlanningInput } from "./rescheduling-input";
 import styles from "./today-context.module.css";
 
-export function ReschedulingDialog({ item, authorityEpoch, onReschedule, onClose }: {
-  item: TodayContextItem; authorityEpoch: number;
+export function ReschedulingDialog({ item, authorityEpoch, datasetRevision, onReschedule, onClose }: {
+  item: TodayContextItem; authorityEpoch: number; datasetRevision: number;
   onReschedule: (intent: ReschedulingIntent) => Promise<void>; onClose: () => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null), submitting = useRef(false);
@@ -30,7 +30,7 @@ export function ReschedulingDialog({ item, authorityEpoch, onReschedule, onClose
       if (first && !confirmed) throw new Error("Confirme explicitamente o planejamento anterior.");
       const key = JSON.stringify({ previous, next, reason });
       if (cached.current?.key !== key) cached.current = { key, intent: {
-        occurrenceId: item.occurrenceId, expectedAuthorityEpoch: authorityEpoch,
+        occurrenceId: item.occurrenceId, expectedAuthorityEpoch: authorityEpoch, expectedDatasetRevision: datasetRevision,
         expectedRevision: occurrenceRevision(item.binding), expectedHistoryLength: item.binding.planningAudit?.rescheduleHistory.length ?? 0,
         ...(first ? { previousSchedule: buildPlanningSchedule(previous) } : {}),
         schedule: buildPlanningSchedule(next), changedAt: new Date().toISOString(),

@@ -13,7 +13,7 @@
 - Etapa 2C-A — contrato/recuperação do planejamento auditado: concluída e integrada pela PR #13.
 - Etapa 2C-B — reagendamento explícito e auditável em Hoje: concluída e integrada pela PR #14.
 - Macroetapa 2 encerrada; os escopos, validações e gates de suas unidades permanecem registrados abaixo.
-- Próxima macroetapa prevista: Etapa 3 — Rotina, Agenda, Semana, Metas e consistência; não iniciada e sem autorização de implementação. Exige planejamento, subdivisão e aprovação próprios.
+- Etapa 3 em andamento exclusivamente na 3A-1 — proteção de escritas: implementada na branch de trabalho, ainda sem integração. A 3A-2 e funcionalidades posteriores não foram iniciadas nem autorizadas.
 - Plano da Etapa 1.2 aprovado; cada subetapa exige branch, validação, revisão e autorização próprias.
 - Nenhuma etapa funcional pode começar por consequência automática desta documentação.
 
@@ -403,6 +403,38 @@ consistência. Está não iniciada, sem planejamento detalhado ou subdivisão
 oficial realizados neste encerramento e sem autorização de implementação.
 Planejamento, subdivisão e aprovação próprios são necessários antes de iniciar
 seu desenvolvimento. O motor determinístico permanece na Etapa 5 do roadmap.
+
+### Etapa 3A-1 — Proteção contra snapshots obsoletos
+
+Implementada em `fix/planning-write-fences` sobre
+`c4d3557711e987cf0748fbc6b7c378ca7194ab72`. Ainda não integrada: abertura de PR,
+merge e próxima unidade exigem autorização própria. O planejamento global foi
+realizado em conversa; a autorização desta entrega é exclusiva da 3A-1.
+
+Escopo: datasetRevision local validada, CAS transacional com authorityEpoch,
+cobertura de autosave/comandos/recovery/adopção, replay idempotente, invalidação
+entre abas, preservação de rascunho/formulários e resolução explícita. D-034
+registra a decisão; a seção 3A-1 da arquitetura descreve o contrato.
+
+Validação desta entrega: lint e typecheck aprovados; `npm.cmd test` executou
+build de produção e 325/325 testes Node, incluindo 28 novos cenários de revisão,
+duas conexões, hash em preparação, rollback/quota, versões, recuperação,
+replays e rascunhos. Edge sobre build final: 42/42 cenários aplicáveis, incluindo
+oito novos, regressões 2A/2B/2B-A/2C-A/2C-B, audit guard e cutover. Revisão visual
+desktop/390 px, master check, diff check e varredura de segredos aprovados.
+
+Falhas iniciais de lançamento/conexão do Edge foram de ambiente. A primeira
+rodada funcional revelou um seletor que tratava Adicionar como botão em vez de
+link. Na rodada ampla, a expectativa de revisão após conclusão/restore foi
+atualizada; a regressão de autosave passou a exigir preservação do rascunho, e
+a mensagem existente de backup inválido foi restaurada. Assertions mantêm a
+cobertura integral, com retries desabilitados. Rascunhos permanecem na sessão;
+download separado permite guardá-los antes do descarte explícito. Não existe
+merge automático nem restauração desse rascunho como backup lógico.
+
+Fora de escopo: 3A-2, mudanças dos formatos atuais, novos produtores, Agenda,
+Metas estruturadas, Rotina canônica, Semana, Consistência e motor. A macroetapa 3
+não está concluída. O encerramento da macroetapa 2 acima permanece histórico.
 
 ## 5. Ordem de dependências
 

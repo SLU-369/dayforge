@@ -135,7 +135,11 @@ export function decodeDatabaseMetadata(value: unknown): DatabaseMetadataRecord {
   if (!isPlainObjectRecord(value)
     || !DATABASE_METADATA_FIELDS.every((field) => Object.hasOwn(value, field))
     || !Reflect.ownKeys(value).every((field) => typeof field === "string"
-      && [...DATABASE_METADATA_FIELDS, "executionBridgeVersion", "authorityEpoch"].includes(field))
+      && [...DATABASE_METADATA_FIELDS, "executionBridgeVersion", "authorityEpoch", "writeFenceVersion", "datasetRevision"].includes(field))
+    || (Object.hasOwn(value, "writeFenceVersion") && value.writeFenceVersion !== 1)
+    || (Object.hasOwn(value, "datasetRevision") && (typeof value.datasetRevision !== "number"
+      || !Number.isSafeInteger(value.datasetRevision) || value.datasetRevision < 0))
+    || (Object.hasOwn(value, "writeFenceVersion") !== Object.hasOwn(value, "datasetRevision"))
     || (Object.hasOwn(value, "executionBridgeVersion") && value.executionBridgeVersion !== 1 && value.executionBridgeVersion !== 2)
     || (Object.hasOwn(value, "authorityEpoch") && (!Number.isSafeInteger(value.authorityEpoch)
       || typeof value.authorityEpoch !== "number" || value.authorityEpoch < 0))
@@ -159,6 +163,7 @@ export function decodeDatabaseMetadata(value: unknown): DatabaseMetadataRecord {
     activeDocumentId: value.activeDocumentId,
     ...(value.executionBridgeVersion === 1 || value.executionBridgeVersion === 2 ? { executionBridgeVersion: value.executionBridgeVersion } : {}),
     ...(typeof value.authorityEpoch === "number" ? { authorityEpoch: value.authorityEpoch } : {}),
+    ...(value.writeFenceVersion === 1 ? { writeFenceVersion: 1 as const, datasetRevision: value.datasetRevision as number } : {}),
   };
 }
 

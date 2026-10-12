@@ -11,14 +11,15 @@ export async function persistRescheduling(options: ReschedulingIntent & Readonly
   try { await rescheduleOccurrencePlanning(options); } catch (error) { failure = error; }
   let snapshot: CompletionSnapshot;
   try {
-    const { backup, authorityEpoch } = await readPlannerAuthoritySnapshot({ repository: options.repository, exportedAt: "1970-01-01T00:00:00.000Z", active: true });
+    const { backup, authorityEpoch, datasetRevision } = await readPlannerAuthoritySnapshot({ repository: options.repository, exportedAt: "1970-01-01T00:00:00.000Z", active: true });
     if (!backup.payload.executionBridge) throw new Error();
-    snapshot = { state: backup.payload.planner, executionBridge: backup.payload.executionBridge.bridge, authorityEpoch };
+    snapshot = { state: backup.payload.planner, executionBridge: backup.payload.executionBridge.bridge, authorityEpoch, datasetRevision };
   } catch { throw new CompletionPersistenceError(true); }
   options.publish(snapshot);
   if (snapshot.authorityEpoch !== options.expectedAuthorityEpoch) throw new Error("Os dados foram substituídos. Cancele e abra uma nova ação.");
   if (failure) {
     if (failure instanceof Error && failure.name === "OccurrenceConflictError") throw failure;
+    if (failure instanceof Error && failure.name === "PlanningConflictError") throw failure;
     throw new Error("Não foi possível confirmar o reagendamento; os dados foram preservados. Confira e tente novamente.");
   }
 }

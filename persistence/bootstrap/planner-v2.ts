@@ -1,3 +1,4 @@
+import { capturePlanningFence, assertPlanningFence, PlanningConflictError } from "../contracts/dataset-revision.ts";
 import {
   CURRENT_PLANNER_DOCUMENT_ID,
   LEGACY_V1_MIGRATION_KEY_PREFIX,
@@ -77,10 +78,12 @@ async function activatePreparedPlanner(
   instant: string,
   hasher?: Sha256Hasher,
 ) {
+  const fence = await capturePlanningFence(repository);
   const validated = await exportDayforgeBackupV2({ repository, exportedAt: instant, hasher });
   if (!repairMarker(markerStorage)) throw new PlannerV2UnavailableError();
   await repository.write(async (transaction) => {
     const metadata = await transaction.getDatabaseMetadata();
+    assertPlanningFence(metadata, fence);
     assertInactiveDatabaseMetadata(metadata);
     const current = await transaction.getPlannerDocument(CURRENT_PLANNER_DOCUMENT_ID);
     if (current === null || current.role !== "active"
@@ -127,12 +130,14 @@ export async function bootstrapPlannerV2(options: Readonly<{
         hasher: options.hasher,
       });
     } else {
+      const fence = await capturePlanningFence(repository);
       const hasher = options.hasher ?? new WebCryptoSha256Hasher();
       const snapshot = normalizeLegacyPlannerSnapshotV1(
         parseLegacyPlannerSnapshotV1(JSON.stringify(options.defaultState)),
       );
       const fingerprint = await hasher.digestUtf8(canonicalStringify(encodeNormalizedLegacyPlannerV1(snapshot)));
       await repository.write(async (transaction) => {
+        assertPlanningFence(await transaction.getDatabaseMetadata(), fence);
         assertInactiveDatabaseMetadata(await transaction.getDatabaseMetadata());
         const [documents, metadataRecords] = await Promise.all([
           transaction.listPlannerDocuments(),
@@ -163,8 +168,10 @@ export async function saveActivePlannerV2(options: Readonly<{
   repository: LocalPersistenceRepository;
   state: NormalizedLegacyPlannerV1;
   hasher?: Sha256Hasher;
-  expectedAuthorityEpoch?: number;
+  expectedAuthorityEpoch: number;
+  expectedDatasetRevision: number;
 }>): Promise<ExecutionBridge> {
+  if (!Number.isSafeInteger(options.expectedDatasetRevision) || !Number.isSafeInteger(options.expectedAuthorityEpoch)) throw new PlanningConflictError();
   const state = normalizeLegacyPlannerSnapshotV1(
     parseLegacyPlannerSnapshotV1(JSON.stringify(options.state)),
   );
@@ -177,7 +184,10 @@ export async function restoreActivePlannerV2(options: Readonly<{
   instant: string;
   hasher?: Sha256Hasher;
   afterWriteForTest?: () => void;
+  expectedAuthorityEpoch?: number;
+  expectedDatasetRevision?: number;
 }>): Promise<NormalizedLegacyPlannerV1> {
+  const fence = await capturePlanningFence(options.repository, options);
   let parsed: unknown;
   try {
     parsed = JSON.parse(options.input) as unknown;
@@ -186,6 +196,7 @@ export async function restoreActivePlannerV2(options: Readonly<{
   }
   if (isDayforgeBackupV2Envelope(parsed)) {
     await restoreDayforgeBackupV2({
+      ...fence,
       backup: parsed,
       repository: options.repository,
       hasher: options.hasher,
@@ -194,6 +205,7 @@ export async function restoreActivePlannerV2(options: Readonly<{
     });
   } else {
     await migrateLegacyPlannerV1({
+      ...fence,
       raw: options.input,
       migratedAt: options.instant,
       repository: options.repository,
@@ -212,6 +224,8 @@ export async function recoverPlannerV2(options: Readonly<{
   input: string;
   instant: string;
   hasher?: Sha256Hasher;
+  expectedAuthorityEpoch?: number;
+  expectedDatasetRevision?: number;
 }>): Promise<PlannerV2BootResult> {
   await options.repository.open();
   const metadata = await options.repository.read((transaction) => transaction.getDatabaseMetadata());
@@ -220,6 +234,8 @@ export async function recoverPlannerV2(options: Readonly<{
     return { state, markerRepaired: repairMarker(options.markerStorage), executionBridge: await ensureExecutionBridge(options.repository, options.hasher) };
   }
   await restoreDayforgeBackup({
+    expectedAuthorityEpoch: options.expectedAuthorityEpoch,
+    expectedDatasetRevision: options.expectedDatasetRevision,
     input: options.input,
     migratedAt: options.instant,
     repository: options.repository,
@@ -240,7 +256,10 @@ export async function resetPlannerV2(options: Readonly<{
   instant: string;
   hasher?: Sha256Hasher;
   afterWriteForTest?: () => void;
+  expectedAuthorityEpoch?: number;
+  expectedDatasetRevision?: number;
 }>): Promise<PlannerV2BootResult> {
+  const fence = await capturePlanningFence(options.repository, options);
   const state = normalizeLegacyPlannerSnapshotV1(
     parseLegacyPlannerSnapshotV1(JSON.stringify(options.defaultState)),
   );
@@ -251,6 +270,7 @@ export async function resetPlannerV2(options: Readonly<{
   const metadata = await options.repository.read((transaction) => transaction.getDatabaseMetadata());
   await options.repository.write(async (transaction) => {
     const currentMetadata = await transaction.getDatabaseMetadata();
+    assertPlanningFence(currentMetadata, fence);
     if (currentMetadata.activeDocumentId === null) assertInactiveDatabaseMetadata(currentMetadata);
     else assertActiveDatabaseMetadata(currentMetadata);
     const [documents, records] = await Promise.all([

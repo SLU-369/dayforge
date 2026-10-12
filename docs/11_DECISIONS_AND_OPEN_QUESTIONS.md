@@ -161,6 +161,30 @@ Aplicações anteriores à 2C-B que leem bridge 2 preservam a auditoria, porém 
 projetam o horário vigente; use a versão 2C-B para operar dados reagendados.
 D-031 e D-032 permanecem decisões históricas sem reescrita retrospectiva.
 
+### D-034 — Fencing do conjunto editável na 3A-1
+
+`datasetRevision` e `writeFenceVersion: 1` pertencem à metadata local validada.
+A época identifica substituições; a revisão identifica mutações autoritativas
+normais. Ambas são capturadas junto ao snapshot e comparadas na transação.
+Autosave amplo exige a base explícita da edição, sem atualização automática do
+fence. O repositório avança revisão uma vez por mudança líquida transacional;
+leituras/no-op/replay não avançam. Overflow e falhas revertem integralmente.
+
+Metadata anterior sem os dois campos parte de zero e é adotada idempotentemente;
+versões/campos inválidos bloqueiam. Restore/import/reset incrementam época e
+revisão do destino inclusive com conteúdo igual, sem importar contadores locais.
+Conclusão e reagendamento preservam replay exato por prova do fato e da época,
+sem duplicar execução/evento por divergência de revisão causada pelo próprio
+sucesso. Comando ainda não aplicado exige o conjunto esperado.
+
+Invalidação local entre abas apenas sinaliza releitura. Aba limpa pode atualizar;
+rascunho/editor aberto é preservado e exige resolução explícita. Download do
+rascunho é separado do backup, não é um arquivo de recuperação. Sem merge
+automático, sucesso falso ou bloqueio estrutural por conflito normal. Formatos
+planner 1, ponte 2, backup 2, geração 2 e schema 1 permanecem; v1 é somente leitura.
+D-031, D-032 e D-033 permanecem registros históricos. A 3A-2 e funcionalidades
+posteriores continuam sem autorização de implementação.
+
 ## Questões abertas antes das etapas correspondentes
 
 1. Quais limiares e pesos formam a primeira regra de risco de Entregas?

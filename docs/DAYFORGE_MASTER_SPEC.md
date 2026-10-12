@@ -7,7 +7,7 @@
 
 **Status:** Etapas 0.1, 0.2, 1.1 e 1.2A–1.2D implementadas; 2A, fundação da 2B, 2B-A, 2C-A e 2C-B concluídas e integradas; macroetapa 2 encerrada
 **Data:** 11/10/2026
-**Próxima macroetapa prevista:** Etapa 3 — Rotina, Agenda, Semana, Metas e consistência; não iniciada e sem autorização de implementação
+**Etapa atual:** 3A-1 — proteção de escritas contra snapshots obsoletos, implementada na branch de trabalho e ainda não integrada; 3A-2 e funcionalidades posteriores não iniciadas nem autorizadas
 **Objetivo:** transformar as decisões de produto, UX, domínio e arquitetura discutidas até aqui em uma fonte oficial de verdade para o repositório e para o Codex.
 
 ## Como usar esta documentação
@@ -99,6 +99,11 @@ A 2C-A foi integrada pela PR #13 e a 2C-B pela PR #14, cujo merge é
 Os gates humanos de implementação e integração permanecem no histórico.
 A Etapa 3 exige planejamento, subdivisão e aprovação próprios; este encerramento
 documental não inicia seu planejamento detalhado nem autoriza sua implementação.
+
+A 3A-1 implementa revisão persistida local e CAS para o conjunto editável,
+preservando formatos e contratos da Etapa 2. Conflitos mantêm rascunhos e
+formulários; recuperação mantém epoch e revisão do destino. D-034 e os documentos
+09/10/12 registram o contrato e seus limites. A macroetapa 3 não está concluída.
 
 ---
 
@@ -1687,6 +1692,12 @@ reutilizados não legitimam comandos capturados sobre o conjunto anterior.
 Uma restauração é substituição do conjunto recuperável, sem merge de execuções
 ou auditorias. O conteúdo v1 preservado continua somente leitura.
 
+Na 3A-1, `datasetRevision` também é metadata exclusiva da autoridade local e não
+integra backup. Restore/import/reset avançam revisão e época do destino na mesma
+transação. Um rascunho baixado para resolver conflito contém alterações locais
+não confirmadas e é explicitamente separado do backup lógico; não deve ser
+importado como arquivo de recuperação.
+
 Deve preservar:
 
 - dados estruturados;
@@ -2039,6 +2050,48 @@ Nenhuma correção terminal, motor de sobreposição, template, backend ou etapa
 posterior é ativada. A descrição de ausência de produtor na 2C-A acima registra
 o limite histórico daquela etapa; D-033 registra a evolução 2C-B.
 
+### Etapa 3A-1 — Revisão persistida e conflitos de escrita
+
+A 3A-1 protege edições do planner legado contra snapshots obsoletos. Metadata
+local admite `writeFenceVersion: 1` e `datasetRevision`, inteiro seguro não
+negativo. Metadata anterior sem ambos representa revisão zero; adoção validada
+persiste zero idempotentemente. Campo ausente após adoção parcial, valor inválido
+ou versão desconhecida falham fechados. Não mudam planner/current formato 1,
+ponte lógica 2, backup público 2, geração 2, schema Dexie 1, tabelas ou marker.
+
+O snapshot validado captura planner, ponte, authorityEpoch e datasetRevision
+juntos. Autosave exige a época e revisão da base utilizada pela edição. Comandos
+canônicos capturam também a revisão do conjunto ao abrir o diálogo, preservando
+a revisão própria da ocorrência. CAS compara dentro da transação antes de
+qualquer mutação; preparação de hashes não permite adotar uma base mais recente.
+
+O repositório incrementa uma vez a revisão por transação com mudança líquida no
+conjunto autoritativo: planner, ponte, fontes/procedência da migração ou metadata
+de autoridade. Comparação do conteúdo antes/depois evita avanço em leituras,
+no-op, reconciliação equivalente ou replay. Falha/overflow reverte documentos,
+metadata e revisão. Restore/import/reset incrementam a época e a revisão local
+do destino, inclusive para conteúdo idêntico; nenhum contador vem do backup.
+Bootstrap e adoção podem avançar revisão quando realmente mudam o conjunto,
+mas não incrementam a época. Reabertura íntegra é estável.
+
+Conclusão/reagendamento novos não se rebaseiam automaticamente sobre outra
+revisão. Replay comprovadamente igual ao fato persistido continua idempotente:
+valida conteúdo e snapshot numa transação readonly, conserva instante/história
+e verifica a época, sem exigir que a revisão original ainda seja atual.
+
+PlannerContext conserva base validada e rascunho separadamente. Invalidação entre
+abas por BroadcastChannel, foco/visibilidade e releitura periódica atualiza uma
+aba sem alterações/formulários; com rascunho ou editor aberto preserva conteúdo
+e apresenta conflito acessível. Mensagens não garantem consistência: CAS no banco
+é a garantia. O usuário pode baixar um rascunho separado, carregar explicitamente
+a versão salva com confirmação e reaplicar a alteração. Não existe merge
+automático. Rascunho não é backup de recuperação; export público inclui somente
+fatos persistidos. Conflito íntegro não bloqueia storage; falha de integridade
+continua fail-closed. Falha isolada de escrita preserva rascunho e oferece retry.
+
+Limites: sem migração estrutural 3A-2, novos produtores, Agenda/Metas/Rotina
+canônicas, Semana, Consistência, correção terminal, cloud ou avanço automático.
+
 ## 5. Motor de planejamento
 
 A primeira versão local usa TypeScript puro, determinístico e independente da UI. Os contratos e vetores de teste devem permitir reprodução fora do navegador.
@@ -2089,7 +2142,7 @@ Camadas futuras devem possuir testes unitários de domínio e planner, testes de
 - Etapa 2C-A — contrato/recuperação do planejamento auditado: concluída e integrada pela PR #13.
 - Etapa 2C-B — reagendamento explícito e auditável em Hoje: concluída e integrada pela PR #14.
 - Macroetapa 2 encerrada; os escopos, validações e gates de suas unidades permanecem registrados abaixo.
-- Próxima macroetapa prevista: Etapa 3 — Rotina, Agenda, Semana, Metas e consistência; não iniciada e sem autorização de implementação. Exige planejamento, subdivisão e aprovação próprios.
+- Etapa 3 em andamento exclusivamente na 3A-1 — proteção de escritas: implementada na branch de trabalho, ainda sem integração. A 3A-2 e funcionalidades posteriores não foram iniciadas nem autorizadas.
 - Plano da Etapa 1.2 aprovado; cada subetapa exige branch, validação, revisão e autorização próprias.
 - Nenhuma etapa funcional pode começar por consequência automática desta documentação.
 
@@ -2480,6 +2533,38 @@ oficial realizados neste encerramento e sem autorização de implementação.
 Planejamento, subdivisão e aprovação próprios são necessários antes de iniciar
 seu desenvolvimento. O motor determinístico permanece na Etapa 5 do roadmap.
 
+### Etapa 3A-1 — Proteção contra snapshots obsoletos
+
+Implementada em `fix/planning-write-fences` sobre
+`c4d3557711e987cf0748fbc6b7c378ca7194ab72`. Ainda não integrada: abertura de PR,
+merge e próxima unidade exigem autorização própria. O planejamento global foi
+realizado em conversa; a autorização desta entrega é exclusiva da 3A-1.
+
+Escopo: datasetRevision local validada, CAS transacional com authorityEpoch,
+cobertura de autosave/comandos/recovery/adopção, replay idempotente, invalidação
+entre abas, preservação de rascunho/formulários e resolução explícita. D-034
+registra a decisão; a seção 3A-1 da arquitetura descreve o contrato.
+
+Validação desta entrega: lint e typecheck aprovados; `npm.cmd test` executou
+build de produção e 325/325 testes Node, incluindo 28 novos cenários de revisão,
+duas conexões, hash em preparação, rollback/quota, versões, recuperação,
+replays e rascunhos. Edge sobre build final: 42/42 cenários aplicáveis, incluindo
+oito novos, regressões 2A/2B/2B-A/2C-A/2C-B, audit guard e cutover. Revisão visual
+desktop/390 px, master check, diff check e varredura de segredos aprovados.
+
+Falhas iniciais de lançamento/conexão do Edge foram de ambiente. A primeira
+rodada funcional revelou um seletor que tratava Adicionar como botão em vez de
+link. Na rodada ampla, a expectativa de revisão após conclusão/restore foi
+atualizada; a regressão de autosave passou a exigir preservação do rascunho, e
+a mensagem existente de backup inválido foi restaurada. Assertions mantêm a
+cobertura integral, com retries desabilitados. Rascunhos permanecem na sessão;
+download separado permite guardá-los antes do descarte explícito. Não existe
+merge automático nem restauração desse rascunho como backup lógico.
+
+Fora de escopo: 3A-2, mudanças dos formatos atuais, novos produtores, Agenda,
+Metas estruturadas, Rotina canônica, Semana, Consistência e motor. A macroetapa 3
+não está concluída. O encerramento da macroetapa 2 acima permanece histórico.
+
 ## 5. Ordem de dependências
 
 - Hoje depende do núcleo temporal e não deve defini-lo dentro de componentes.
@@ -2688,6 +2773,30 @@ Aplicações anteriores à 2C-B que leem bridge 2 preservam a auditoria, porém 
 projetam o horário vigente; use a versão 2C-B para operar dados reagendados.
 D-031 e D-032 permanecem decisões históricas sem reescrita retrospectiva.
 
+### D-034 — Fencing do conjunto editável na 3A-1
+
+`datasetRevision` e `writeFenceVersion: 1` pertencem à metadata local validada.
+A época identifica substituições; a revisão identifica mutações autoritativas
+normais. Ambas são capturadas junto ao snapshot e comparadas na transação.
+Autosave amplo exige a base explícita da edição, sem atualização automática do
+fence. O repositório avança revisão uma vez por mudança líquida transacional;
+leituras/no-op/replay não avançam. Overflow e falhas revertem integralmente.
+
+Metadata anterior sem os dois campos parte de zero e é adotada idempotentemente;
+versões/campos inválidos bloqueiam. Restore/import/reset incrementam época e
+revisão do destino inclusive com conteúdo igual, sem importar contadores locais.
+Conclusão e reagendamento preservam replay exato por prova do fato e da época,
+sem duplicar execução/evento por divergência de revisão causada pelo próprio
+sucesso. Comando ainda não aplicado exige o conjunto esperado.
+
+Invalidação local entre abas apenas sinaliza releitura. Aba limpa pode atualizar;
+rascunho/editor aberto é preservado e exige resolução explícita. Download do
+rascunho é separado do backup, não é um arquivo de recuperação. Sem merge
+automático, sucesso falso ou bloqueio estrutural por conflito normal. Formatos
+planner 1, ponte 2, backup 2, geração 2 e schema 1 permanecem; v1 é somente leitura.
+D-031, D-032 e D-033 permanecem registros históricos. A 3A-2 e funcionalidades
+posteriores continuam sem autorização de implementação.
+
 ## Questões abertas antes das etapas correspondentes
 
 1. Quais limiares e pesos formam a primeira regra de risco de Entregas?
@@ -2885,6 +2994,26 @@ itens continuam válidas; ambiguidades falham fechadas. Histórico fica disponí
 após conclusão. Dialog cobre confirmação inicial, inputs preservados, loading,
 Tab pelos segmentos nativos, Enter, Escape/Cancelar, foco restaurado e 390 px
 sem scroll horizontal; fechamento é impedido durante escrita.
+
+## Cenário 31 — Escritas protegidas por revisão persistida — 3A-1
+
+Duas abas partem da mesma época/revisão. A edita Rotina e salva; B edita meta
+mensal sobre a base antiga. CAS rejeita B antes de alterar documentos. A permanece
+persistida; B conserva rascunho, recebe conflito acessível e mantém armazenamento
+íntegro. Após baixar o rascunho, carregar explicitamente a versão salva e reaplicar
+sua meta, ambas as alterações sobrevivem a reload. Não há merge automático.
+
+Notas, energia e itens diários usam o mesmo fence. Conclusão e reagendamento
+incrementam revisão atomicamente e impedem autosave antigo de descartar fatos.
+Replay exato preserva identidade, execução, histórico e instante sem incrementar
+novamente. Comando aberto antes de outra mutação rejeita estado obsoleto,
+preservando campos. Restore com editor aberto invalida época/revisão sem apagar
+o formulário. Aba limpa atualiza a partir de snapshot validado; mensagens não
+substituem CAS. Hash em preparação, quota, rollback, overflow, metadata inválida,
+backup antigo, reabertura e v1 somente leitura possuem provas próprias.
+
+Mensagem, resolução por teclado, foco e 390 px são verificadas no Edge, sem
+retries automáticos. Conflito é recuperável; corrupção mantém fail-closed.
 
 ---
 
@@ -3373,6 +3502,15 @@ temporais continuam sujeitos a autorização própria; nenhuma etapa posterior f
 iniciada. A 2C-A foi integrada pela PR #13 e a 2C-B pela PR #14, encerrando a
 macroetapa 2. A próxima macroetapa prevista é a Etapa 3, com planejamento,
 subdivisão e aprovação próprios ainda necessários.
+
+## 14. Escritas concorrentes — 3A-1
+
+A 3A-1 está implementada na branch de trabalho, ainda sem integração. Corrige
+perda silenciosa de edições comuns entre abas com datasetRevision na metadata,
+CAS conjunto com authorityEpoch e revisão capturada na UI. Rascunhos/formulários
+sobrevivem a invalidações; resolução é explícita. Comandos e recuperação
+participam da revisão; replay equivalente não duplica fatos. Formatos e tabelas
+atuais permanecem. A 3A-2 e novos módulos não foram implementados.
 
 ---
 

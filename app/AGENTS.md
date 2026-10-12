@@ -9,6 +9,7 @@
 - `layout.tsx` owns global providers and the shell boundary.
 - The layout mounts the photographic `AppearanceBackdrop` once across route changes. Old `?scene=3d` URLs must also show this approved background; the castle model is no longer activated.
 - `planner-context.tsx` owns shared client state and persistence lifecycle.
+- `planner-draft-session.ts` owns local draft/base separation and form retention; `planning-conflict.module.css` styles only the editing conflict notice.
 - `planner-repository.ts` retains the v1 parsing and guard compatibility helpers plus JSON download; `persistence/` owns active IndexedDB storage and backup.
 - `planner-data.ts` owns only the versioned legacy v1 planner payload types, defaults, and its existing date/duration helpers. New product-domain contracts live in root `domain/`.
 - `today-context.ts` owns the pure effective planning projection with an ephemeral interval index per validated bridge snapshot; Today, full day and monthly compatibility reuse it. `today-context-view.tsx` owns Hoje presentation. Neither writes derived context.
@@ -41,6 +42,8 @@
 - Backup, import, and reset controls belong under `/configuracoes/dados-e-backup`, never in primary navigation.
 - Keep backend, D1, Worker, and API changes outside frontend-only stages.
 - The delivered shell and visual stage are approved and closed. Stage 2A owns the initial Hoje projection; 2B-A adds canonical completion and 2C-B explicit rescheduling. Terminal corrections remain gated, and reserved product routes do not authorize unrelated work.
+
+- Stage 3A-1 separates the validated persisted base from local drafts in planner-draft-session. Autosave and dialogs capture datasetRevision/epoch; open legacy editors retain the base through invalidations. Refresh idle tabs only; conflict resolution explicitly downloads a separate draft or loads saved data with confirmation. Never silently discard drafts or announce persistence before commit. BroadcastChannel/focus/polling only invalidate; transactional CAS remains authoritative.
 
 ## Work Guidance
 

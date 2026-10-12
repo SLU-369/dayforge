@@ -53,6 +53,12 @@ reutilizados não legitimam comandos capturados sobre o conjunto anterior.
 Uma restauração é substituição do conjunto recuperável, sem merge de execuções
 ou auditorias. O conteúdo v1 preservado continua somente leitura.
 
+Na 3A-1, `datasetRevision` também é metadata exclusiva da autoridade local e não
+integra backup. Restore/import/reset avançam revisão e época do destino na mesma
+transação. Um rascunho baixado para resolver conflito contém alterações locais
+não confirmadas e é explicitamente separado do backup lógico; não deve ser
+importado como arquivo de recuperação.
+
 Deve preservar:
 
 - dados estruturados;

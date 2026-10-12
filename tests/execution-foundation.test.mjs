@@ -1,3 +1,4 @@
+import { capturePlanningFence } from "../persistence/contracts/dataset-revision.ts";
 import "fake-indexeddb/auto";
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -90,7 +91,7 @@ test("bridge can be decoded; original planning remains independent of unique-ID 
   const edited = structuredClone(result.state);
   edited.records[date].items[0].title = "Alterado";
   edited.records[date].items.reverse();
-  const changed = await saveActivePlannerV2({ repository, state: edited });
+  const changed = await saveActivePlannerV2({ ...await capturePlanningFence(repository), repository, state: edited });
   assert.equal(changed.entries[1].occurrenceId, result.executionBridge.entries[0].occurrenceId);
   assert.equal(changed.entries[1].originalItem.title, "Fictício");
 });
@@ -100,7 +101,7 @@ test("ambiguous edits to duplicate IDs fail closed without mutations", async (t)
   const before = await physical(database);
   const edited = structuredClone(result.state);
   edited.records[date].items[0].title = "Ambíguo";
-  await assert.rejects(saveActivePlannerV2({ repository, state: edited }));
+  await assert.rejects(saveActivePlannerV2({ ...await capturePlanningFence(repository), repository, state: edited }));
   assert.deepEqual(await physical(database), before);
 });
 
@@ -186,6 +187,7 @@ test("new backup restores complete identity, execution and audit snapshot; resto
   second.repository.close();
   assert.deepEqual((await second.boot()).executionBridge, data.payload.executionBridge.bridge);
   once.metadata.find((record) => record.key === "database").authorityEpoch += 1;
+  once.metadata.find((record) => record.key === "database").datasetRevision += 1;
   assert.deepEqual(await physical(second.database), once);
   assert.deepEqual((await backup(second.repository)).payload, data.payload);
   assert.equal(data.formatVersion, 2);
@@ -205,6 +207,7 @@ test("old backup replaces existing executions with fresh bindings and preserves 
   const once = await physical(database);
   await restoreDayforgeBackupV2({ repository, backup: data, active: true });
   once.metadata.find((record) => record.key === "database").authorityEpoch += 1;
+  once.metadata.find((record) => record.key === "database").datasetRevision += 1;
   assert.deepEqual(await physical(database), once);
 });
 
@@ -257,10 +260,10 @@ test("terminal audit bindings cannot be removed or silently reopened by legacy c
   const data = (await backup(repository)).payload.planner;
   const reopened = structuredClone(data);
   reopened.records[date].items[0].completed = false;
-  await assert.rejects(saveActivePlannerV2({ repository, state: reopened }));
+  await assert.rejects(saveActivePlannerV2({ ...await capturePlanningFence(repository), repository, state: reopened }));
   const removed = structuredClone(data);
   removed.records[date].items = [];
-  await assert.rejects(saveActivePlannerV2({ repository, state: removed }));
+  await assert.rejects(saveActivePlannerV2({ ...await capturePlanningFence(repository), repository, state: removed }));
   assert.deepEqual(await physical(database), before);
 });
 
@@ -358,7 +361,7 @@ test("stale autosave cannot overwrite a concurrent canonical completion", async 
     if (text.includes("Edição concorrente")) { reached(); await gate; }
     return real.digestUtf8(text);
   } };
-  const pending = saveActivePlannerV2({ repository, state: edited, hasher });
+  const pending = saveActivePlannerV2({ ...await capturePlanningFence(repository), repository, state: edited, hasher });
   await ready;
   await complete(repository, result.executionBridge.entries[0].occurrenceId);
   const completed = await physical(database);
@@ -434,7 +437,7 @@ test("adopted autosave rejects a new unaudited completion before any write", asy
   let writes = 0;
   const originalWrite = repository.write.bind(repository);
   repository.write = (...args) => { writes++; return originalWrite(...args); };
-  await assert.rejects(saveActivePlannerV2({ repository, state: edited }));
+  await assert.rejects(saveActivePlannerV2({ ...await capturePlanningFence(repository), repository, state: edited }));
   assert.equal(writes, 0);
   assert.deepEqual(await physical(database), before);
   assert.equal(legacy.getItem("rotina-369:data:v1"), raw);
@@ -446,7 +449,7 @@ test("new completed items cannot bypass the guard by allocating a fresh binding"
   const before = await physical(database);
   const edited = structuredClone(result.state);
   edited.records[date].items.push({ ...item("new"), completed: true });
-  await assert.rejects(saveActivePlannerV2({ repository, state: edited }));
+  await assert.rejects(saveActivePlannerV2({ ...await capturePlanningFence(repository), repository, state: edited }));
   assert.deepEqual(await physical(database), before);
 });
 
@@ -454,7 +457,7 @@ test("historical completion remains valid through autosave, reload and Today wit
   const { repository, result, boot } = await setup(t, state([{ ...item("history"), completed: true }]));
   const edited = structuredClone(result.state);
   edited.records[date].note = "Histórico preservado";
-  await saveActivePlannerV2({ repository, state: edited });
+  await saveActivePlannerV2({ ...await capturePlanningFence(repository), repository, state: edited });
   const loaded = await boot();
   assert.equal(loaded.executionBridge.entries[0].execution, null);
   assert.equal(loaded.state.records[date].items[0].completed, true);
@@ -470,7 +473,7 @@ test("normal planner and actual-minute edits do not imply completion or executio
   edited.records[date].items[0].title = "Edição normal";
   edited.records[date].items[0].actualMinutes = 45;
   edited.records[date].energy = 4;
-  const bridge = await saveActivePlannerV2({ repository, state: edited });
+  const bridge = await saveActivePlannerV2({ ...await capturePlanningFence(repository), repository, state: edited });
   const data = await backup(repository);
   assert.equal(data.payload.planner.records[date].items[0].actualMinutes, 45);
   assert.equal(data.payload.planner.records[date].energy, 4);
@@ -485,9 +488,9 @@ test("the completion guard compares the persisted state instead of the original 
   const { repository, database, result } = await setup(t, state([{ ...item("history"), completed: true }]));
   const reopened = structuredClone(result.state);
   reopened.records[date].items[0].completed = false;
-  await saveActivePlannerV2({ repository, state: reopened });
+  await saveActivePlannerV2({ ...await capturePlanningFence(repository), repository, state: reopened });
   const before = await physical(database);
-  await assert.rejects(saveActivePlannerV2({ repository, state: result.state }));
+  await assert.rejects(saveActivePlannerV2({ ...await capturePlanningFence(repository), repository, state: result.state }));
   assert.deepEqual(await physical(database), before);
 });
 

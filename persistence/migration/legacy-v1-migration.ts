@@ -1,3 +1,4 @@
+import { capturePlanningFence, assertPlanningFence } from "../contracts/dataset-revision.ts";
 import {
   CURRENT_PLANNER_DOCUMENT_ID,
   LEGACY_V1_MIGRATION_KEY_PREFIX,
@@ -172,7 +173,10 @@ export async function migrateLegacyPlannerV1(options: Readonly<{
   origin?: LegacyImportOrigin;
   active?: boolean;
   afterWriteForTest?: () => void;
+  expectedAuthorityEpoch?: number;
+  expectedDatasetRevision?: number;
 }>): Promise<LegacyV1MigrationResult> {
+  const fence = await capturePlanningFence(options.repository, options);
   assertCanonicalUtcInstant(options.migratedAt);
   const snapshot = parseLegacyPlannerSnapshotV1(options.raw);
   const normalized = normalizeLegacyPlannerSnapshotV1(snapshot);
@@ -195,6 +199,7 @@ export async function migrateLegacyPlannerV1(options: Readonly<{
     `${LEGACY_V1_MIGRATION_KEY_PREFIX}${contentFingerprint}`;
 
   return options.repository.write(async (transaction) => {
+    assertPlanningFence(await transaction.getDatabaseMetadata(), fence);
     let replacement: Readonly<{ authorityEpoch: number; executionDocument: PlannerDocumentRecord | null }> | undefined;
     const existingDocuments = await transaction.listPlannerDocuments();
     if (existingDocuments.some((document) => document.id.startsWith("execution/") && document.id !== EXECUTION_BRIDGE_DOCUMENT_ID)) {

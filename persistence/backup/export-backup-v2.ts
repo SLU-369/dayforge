@@ -1,6 +1,7 @@
 import {
   type LocalPersistenceRepository,
   authorityEpoch,
+  datasetRevision,
 } from "../contracts/index.ts";
 import { WebCryptoSha256Hasher, type Sha256Hasher } from "../migration/index.ts";
 import type { DayforgeBackupV2 } from "./contracts.ts";
@@ -33,5 +34,5 @@ export async function readPlannerAuthoritySnapshot(options: Readonly<{
     payload: snapshot.payload,
   });
   return { backup: (await validateAndMaterializeBackupV2(backup, hasher)).backup,
-    authorityEpoch: authorityEpoch(snapshot.databaseMetadata) };
+    authorityEpoch: authorityEpoch(snapshot.databaseMetadata), datasetRevision: datasetRevision(snapshot.databaseMetadata) };
 }

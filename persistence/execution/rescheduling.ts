@@ -1,14 +1,15 @@
 import { appendRescheduleEvent, createTimedSchedule, createTemporalReason, parseUtcInstant, rescheduleEventId,
   type OccurrenceSchedule, type TemporalReason, type DomainResult } from "../../domain/temporal/index.ts";
-import { assertAuthorityEpoch, type LocalPersistenceRepository } from "../contracts/index.ts";
+import { PlanningConflictError, type LocalPersistenceRepository } from "../contracts/index.ts";
 import { readPlannerAuthoritySnapshot } from "../backup/export-backup-v2.ts";
 import { canonicalStringify, type Sha256Hasher } from "../migration/index.ts";
 import { canRescheduleBinding, occurrenceRevision, ExecutionBridgeError, type ExecutionBridge } from "./bridge.ts";
-import { OccurrenceConflictError, savePlannerWithBridge } from "./repository.ts";
+import { OccurrenceConflictError, savePlannerWithBridge, verifyPlanningReplay } from "./repository.ts";
 
 export type ReschedulingIntent = Readonly<{
   occurrenceId: string; expectedAuthorityEpoch: number; expectedRevision: string; expectedHistoryLength: number;
   previousSchedule?: OccurrenceSchedule; schedule: OccurrenceSchedule; changedAt: string; reason?: TemporalReason;
+  expectedDatasetRevision?: number;
 }>;
 function value<T>(result: DomainResult<T>): T {
   if (!result.ok) throw new OccurrenceConflictError("Planejamento inválido: confira horários, fuso e histórico.");
@@ -49,7 +50,7 @@ export async function rescheduleOccurrencePlanning(options: ReschedulingIntent &
       || !same(existing.reason ?? null, reason ?? null)
       || options.expectedHistoryLength === 0 && (unconfirmedBaseline && !options.previousSchedule
         || options.previousSchedule && !same(binding.planningAudit!.baselineSchedule, options.previousSchedule))) throw new OccurrenceConflictError();
-    await options.repository.read(async (tx) => assertAuthorityEpoch(await tx.getDatabaseMetadata(), options.expectedAuthorityEpoch));
+    await verifyPlanningReplay(options.repository, snapshot, options.expectedAuthorityEpoch);
     return bridge;
   }
   if (!canRescheduleBinding(binding, bridge) || occurrenceRevision(binding) !== options.expectedRevision
@@ -62,18 +63,18 @@ export async function rescheduleOccurrencePlanning(options: ReschedulingIntent &
   const history = value(appendRescheduleEvent(prior, { id, from, to: schedule, changedAt, ...(reason ? { reason } : {}) }));
   const audit = { ...prior, rescheduleHistory: history.rescheduleHistory };
   try {
-    return await savePlannerWithBridge({ ...options, state: snapshot.backup.payload.planner, expectedSnapshot: snapshot.backup,
+    return await savePlannerWithBridge({ ...options, expectedDatasetRevision: options.expectedDatasetRevision ?? snapshot.datasetRevision, state: snapshot.backup.payload.planner, expectedSnapshot: snapshot.backup,
       rescheduling: { occurrenceId: options.occurrenceId, audit } });
   } catch (error) {
     // Independent equivalent writers can lose CAS after the winner commits. Never retry a conflicting append.
-    if (!(error instanceof ExecutionBridgeError)) throw error;
+    if (!(error instanceof ExecutionBridgeError) && !(error instanceof PlanningConflictError)) throw error;
     const latest = await readPlannerAuthoritySnapshot({ repository: options.repository, active: true, exportedAt: changedAt, hasher: options.hasher });
     const saved = latest.backup.payload.executionBridge?.bridge;
     const event = saved?.entries.find((entry) => entry.occurrenceId === options.occurrenceId)?.planningAudit?.rescheduleHistory[options.expectedHistoryLength];
     if (latest.authorityEpoch === options.expectedAuthorityEpoch && saved && event && same(event, history.rescheduleHistory.at(-1))) {
-      await options.repository.read(async (tx) => assertAuthorityEpoch(await tx.getDatabaseMetadata(), options.expectedAuthorityEpoch));
+      await verifyPlanningReplay(options.repository, latest, options.expectedAuthorityEpoch);
       return saved;
     }
-    throw new OccurrenceConflictError();
+    throw error;
   }
 }

@@ -1,3 +1,4 @@
+import { capturePlanningFence } from "../persistence/contracts/dataset-revision.ts";
 import "fake-indexeddb/auto";
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -134,13 +135,13 @@ test("pending autosave completes first; obsolete React snapshot queued after com
   const { repository, result } = await setup(t); const id = result.executionBridge.entries[0].occurrenceId;
   const queue = new PlannerWriteQueue(); const edited = structuredClone(result.state); edited.records[date].note = "Saved before completion";
   let release; const barrier = new Promise((resolve) => { release = resolve; }); let obsoleteWrites = 0, snapshot;
-  const autosave = queue.autosave(0, async () => { await barrier; await saveActivePlannerV2({ repository, state: edited }); });
+  const autosave = queue.autosave(0, async () => { await barrier; await saveActivePlannerV2({ ...await capturePlanningFence(repository), repository, state: edited }); });
   const command = queue.complete(id, execution(id), () => persistCompletion({ repository, occurrenceId: id, execution: execution(id), publish(value) { snapshot = value; queue.revision++; } }));
-  const stale = queue.autosave(0, async () => { obsoleteWrites++; await saveActivePlannerV2({ repository, state: edited }); });
+  const stale = queue.autosave(0, async () => { obsoleteWrites++; await saveActivePlannerV2({ ...await capturePlanningFence(repository), repository, state: edited }); });
   release(); await Promise.all([autosave, command, stale]);
   assert.equal(obsoleteWrites, 0); assert.equal(snapshot.state.records[date].note, "Saved before completion");
   assert.equal(snapshot.state.records[date].items[0].completed, true);
-  await queue.autosave(queue.revision, () => saveActivePlannerV2({ repository, state: snapshot.state }));
+  await queue.autosave(queue.revision, async () => saveActivePlannerV2({ ...await capturePlanningFence(repository), repository, state: snapshot.state }));
   assert.deepEqual((await exported(repository)).payload.executionBridge.bridge, snapshot.executionBridge);
 });
 

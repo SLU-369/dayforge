@@ -254,6 +254,48 @@ Nenhuma correção terminal, motor de sobreposição, template, backend ou etapa
 posterior é ativada. A descrição de ausência de produtor na 2C-A acima registra
 o limite histórico daquela etapa; D-033 registra a evolução 2C-B.
 
+### Etapa 3A-1 — Revisão persistida e conflitos de escrita
+
+A 3A-1 protege edições do planner legado contra snapshots obsoletos. Metadata
+local admite `writeFenceVersion: 1` e `datasetRevision`, inteiro seguro não
+negativo. Metadata anterior sem ambos representa revisão zero; adoção validada
+persiste zero idempotentemente. Campo ausente após adoção parcial, valor inválido
+ou versão desconhecida falham fechados. Não mudam planner/current formato 1,
+ponte lógica 2, backup público 2, geração 2, schema Dexie 1, tabelas ou marker.
+
+O snapshot validado captura planner, ponte, authorityEpoch e datasetRevision
+juntos. Autosave exige a época e revisão da base utilizada pela edição. Comandos
+canônicos capturam também a revisão do conjunto ao abrir o diálogo, preservando
+a revisão própria da ocorrência. CAS compara dentro da transação antes de
+qualquer mutação; preparação de hashes não permite adotar uma base mais recente.
+
+O repositório incrementa uma vez a revisão por transação com mudança líquida no
+conjunto autoritativo: planner, ponte, fontes/procedência da migração ou metadata
+de autoridade. Comparação do conteúdo antes/depois evita avanço em leituras,
+no-op, reconciliação equivalente ou replay. Falha/overflow reverte documentos,
+metadata e revisão. Restore/import/reset incrementam a época e a revisão local
+do destino, inclusive para conteúdo idêntico; nenhum contador vem do backup.
+Bootstrap e adoção podem avançar revisão quando realmente mudam o conjunto,
+mas não incrementam a época. Reabertura íntegra é estável.
+
+Conclusão/reagendamento novos não se rebaseiam automaticamente sobre outra
+revisão. Replay comprovadamente igual ao fato persistido continua idempotente:
+valida conteúdo e snapshot numa transação readonly, conserva instante/história
+e verifica a época, sem exigir que a revisão original ainda seja atual.
+
+PlannerContext conserva base validada e rascunho separadamente. Invalidação entre
+abas por BroadcastChannel, foco/visibilidade e releitura periódica atualiza uma
+aba sem alterações/formulários; com rascunho ou editor aberto preserva conteúdo
+e apresenta conflito acessível. Mensagens não garantem consistência: CAS no banco
+é a garantia. O usuário pode baixar um rascunho separado, carregar explicitamente
+a versão salva com confirmação e reaplicar a alteração. Não existe merge
+automático. Rascunho não é backup de recuperação; export público inclui somente
+fatos persistidos. Conflito íntegro não bloqueia storage; falha de integridade
+continua fail-closed. Falha isolada de escrita preserva rascunho e oferece retry.
+
+Limites: sem migração estrutural 3A-2, novos produtores, Agenda/Metas/Rotina
+canônicas, Semana, Consistência, correção terminal, cloud ou avanço automático.
+
 ## 5. Motor de planejamento
 
 A primeira versão local usa TypeScript puro, determinístico e independente da UI. Os contratos e vetores de teste devem permitir reprodução fora do navegador.

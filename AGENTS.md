@@ -31,6 +31,8 @@ When the user requests a durable behavior change, record it here or in the relev
 - Migration preserves a typed legacy snapshot instead of inventing missing temporal semantics. Raw SHA-256 identifies byte-specific sources; canonical content SHA-256 controls operational idempotency. Before cutover, v1 remains authoritative and migration failures roll back v2. After cutover there is no dual-write or lossless rollback promise to v1; IndexedDB metadata is authoritative when valid, while `dayforge:persistence:v2` is a fail-safe sentinel that prevents fallback to stale v1 data.
 - Go remains the desired future backend language and starts as a modular monolith only when API, authentication, multi-user, cloud, sync, remote storage, or server-side security creates a concrete need.
 
+- Stage 3A-1 fences every authoritative planning write with local datasetRevision plus authorityEpoch. Preserve legacy formats; intact editing conflicts retain drafts/forms and require explicit resolution. Stage 3A-2 remains separately gated.
+
 ## Child DOX Index
 
 - `app/AGENTS.md`: frontend routes, shell, client-state boundary, local persistence, and UI architecture.

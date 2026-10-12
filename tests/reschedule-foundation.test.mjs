@@ -1,3 +1,4 @@
+import { capturePlanningFence } from "../persistence/contracts/dataset-revision.ts";
 import "fake-indexeddb/auto";
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -201,7 +202,7 @@ test("codec rejects execution predating history and v1 carrying planningAudit", 
 
 test("epoch is stable on bootstrap/autosave/completion, advances on each explicit replacement, and rejects stale commands", async (t) => {
   const f = await setup(t); assert.equal(await epoch(f.repository), 0);
-  await f.boot(); await saveActivePlannerV2({ repository: f.repository, state: f.result.state });
+  await f.boot(); await saveActivePlannerV2({ ...await capturePlanningFence(f.repository), repository: f.repository, state: f.result.state });
   await recordOccurrenceExecution({ repository: f.repository, occurrenceId: "occ:1", execution: execution() });
   assert.equal(await epoch(f.repository), 0);
   const backup = await exported(f.repository);
@@ -316,11 +317,11 @@ test("audited bindings cannot be erased or edited by autosave and history surviv
   await restoreDayforgeBackupV2({ repository: f.repository, backup, active: true });
   const before = await physical(f.database), edited = structuredClone(backup.payload.planner);
   edited.records[date].items[0].start = "07:00";
-  await assert.rejects(saveActivePlannerV2({ repository: f.repository, state: edited }));
+  await assert.rejects(saveActivePlannerV2({ ...await capturePlanningFence(f.repository), repository: f.repository, state: edited }));
   edited.records[date].items = [];
-  await assert.rejects(saveActivePlannerV2({ repository: f.repository, state: edited }));
+  await assert.rejects(saveActivePlannerV2({ ...await capturePlanningFence(f.repository), repository: f.repository, state: edited }));
   assert.deepEqual(await physical(f.database), before);
   const safe = structuredClone(backup.payload.planner); safe.records[date].note = "Nota fictícia";
-  await saveActivePlannerV2({ repository: f.repository, state: safe });
+  await saveActivePlannerV2({ ...await capturePlanningFence(f.repository), repository: f.repository, state: safe });
   assert.deepEqual((await exported(f.repository)).payload.executionBridge.bridge.entries[0].planningAudit, backup.payload.executionBridge.bridge.entries[0].planningAudit);
 });

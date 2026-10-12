@@ -1,3 +1,4 @@
+import { capturePlanningFence } from "../persistence/contracts/dataset-revision.ts";
 import "fake-indexeddb/auto";
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -127,7 +128,7 @@ for (const kind of ["no-op", "past", "missing confirmation", "stale revision", "
 test("equivalent inflight intents share one queue operation; conflict rejects; obsolete autosave and export serialize", async (t) => {
   const { repository } = await setup(t), before = await snapshot(repository), request = intent(before), queue = new PlannerWriteQueue();
   const state = structuredClone(before.backup.payload.planner); state.records[date].note = "Independent note";
-  const save = queue.autosave(0, () => saveActivePlannerV2({ repository, state }));
+  const save = queue.autosave(0, async () => saveActivePlannerV2({ ...await capturePlanningFence(repository), repository, state }));
   const work = () => persistRescheduling({ ...request, repository, publish() { queue.revision++; } });
   const a = queue.command("occ:1", request, work), b = queue.command("occ:1", request, work); assert.equal(a, b);
   await assert.rejects(queue.command("occ:1", { ...request, changedAt: `${date}T13:00:00.000Z` }, work));
@@ -214,7 +215,7 @@ for (const mutation of ["clock", "minutes", "toggle", "delete item", "delete rec
   if (mutation === "delete item") row.items = [];
   if (mutation === "delete record") delete state.records[date];
   if (mutation === "identity") row.items[0].id = "new";
-  const before = await physical(database); await assert.rejects(saveActivePlannerV2({ repository, state })); assert.deepEqual(await physical(database), before);
+  const before = await physical(database); await assert.rejects(saveActivePlannerV2({ ...await capturePlanningFence(repository), repository, state })); assert.deepEqual(await physical(database), before);
 });
 
 test("unrelated notes/energy, other-item edits and unequivocal reorder retain audited identity and planning", async (t) => {
@@ -222,7 +223,7 @@ test("unrelated notes/energy, other-item edits and unequivocal reorder retain au
   await rescheduleOccurrencePlanning({ repository, ...intent(await snapshot(repository)) });
   const before = await snapshot(repository), edited = structuredClone(before.backup.payload.planner);
   edited.records[date].note = "Allowed"; edited.records[date].energy = 5; edited.records[date].items[1].title = "Edited other"; edited.records[date].items.reverse();
-  await saveActivePlannerV2({ repository, state: edited }); const bridge = (await snapshot(repository)).backup.payload.executionBridge.bridge;
+  await saveActivePlannerV2({ ...await capturePlanningFence(repository), repository, state: edited }); const bridge = (await snapshot(repository)).backup.payload.executionBridge.bridge;
   const audited = bridge.entries.find((entry) => entry.occurrenceId === "occ:1"); assert.equal(audited.itemIndex, 1);
   assert.deepEqual(audited.planningAudit, before.backup.payload.executionBridge.bridge.entries[0].planningAudit);
 });
@@ -231,10 +232,10 @@ test("an old independent autosave retains new planning facts; it cannot undo com
   const { repository, name } = await setup(t), other = new IndexedDbPersistenceRepository(new DayforgeDatabase(name)); t.after(() => other.close());
   const stale = await snapshot(other); await rescheduleOccurrencePlanning({ repository, ...intent(stale) });
   const edited = structuredClone(stale.backup.payload.planner); edited.records[date].note = "Other tab note";
-  await saveActivePlannerV2({ repository: other, state: edited, expectedAuthorityEpoch: stale.authorityEpoch });
+  await saveActivePlannerV2({ ...await capturePlanningFence(other), repository: other, state: edited, expectedAuthorityEpoch: stale.authorityEpoch });
   const saved = await snapshot(repository); assert.equal(context(saved).proximo.start, "20:00");
   await recordOccurrenceExecution({ repository, occurrenceId: "occ:1", execution: execution() });
-  await assert.rejects(saveActivePlannerV2({ repository: other, state: edited, expectedAuthorityEpoch: stale.authorityEpoch }));
+  await assert.rejects(saveActivePlannerV2({ ...await capturePlanningFence(other), repository: other, state: edited, expectedAuthorityEpoch: stale.authorityEpoch }));
   assert.equal((await snapshot(repository)).backup.payload.executionBridge.bridge.entries[0].execution.id, "execution:occ:1");
 });
 

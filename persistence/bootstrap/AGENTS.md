@@ -19,6 +19,8 @@
 - Old absent authorityEpoch means zero and is persisted on adoption; bootstrap and normal saves never increment. Each explicit restore/import/reset increments the destination epoch atomically, including inactive recovery and identical content. Epoch is absent from logical backup. Reject overflow and stale commands; preserve rollback across all metadata and documents.
 - Explicit import or reset may recover a compatible inactive database. Active v1 import reuses the idempotent migration and preserves valid origins; never repair inaccessible storage or invalid database metadata silently.
 
+- Stage 3A-1 active autosave requires expectedAuthorityEpoch and expectedDatasetRevision from the editing base. Recovery captures/checks the same fence before preparation and inside writes. Revision is adopted deterministically and incremented at the repository transaction boundary. Normal conflicts preserve local drafts, not a storageBlocked session; invalid stores stay fail-closed.
+
 ## Work Guidance
 
 - Keep errors shown to users sanitized. Inject storage, repository, audit instant, and optional hasher for tests.

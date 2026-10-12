@@ -157,14 +157,29 @@ test("ambiguous legacy IDs and historical completion have no Reagendar", async (
   expect((await read(page)).bridge.entries).toHaveLength(3); await healthy(page);
 });
 
-test("stale React autosave after external restore refreshes authority without overwriting the replacement", async ({ page, context }) => {
-  await open(page); const other = await context.newPage(); await other.clock.setFixedTime(new Date(now)); await other.goto("/configuracoes/dados-e-backup");
+test("stale React autosave after external restore preserves its draft without overwriting the replacement", async ({ page, context }) => {
+  await open(page);
+  await page.getByText("Ver dia completo", { exact: true }).click();
+  // Hold a real old editing base through hash preparation; invalidations cannot rebase it.
+  await page.evaluate(() => {
+    const digest = crypto.subtle.digest.bind(crypto.subtle); let first = true;
+    window.staleSaveEntered = false; window.releaseStaleSave = null;
+    crypto.subtle.digest = async (...args) => {
+      if (first) { first = false; window.staleSaveEntered = true; await new Promise((resolve) => { window.releaseStaleSave = resolve; }); }
+      return digest(...args);
+    };
+  });
+  await page.locator(".daily-note textarea").fill("Obsolete note");
+  await expect.poll(() => page.evaluate(() => window.staleSaveEntered)).toBe(true);
+  const other = await context.newPage(); await other.clock.setFixedTime(new Date(now)); await other.goto("/configuracoes/dados-e-backup");
   await expect(other.getByRole("button", { name: "Selecionar arquivo", exact: true })).toBeEnabled();
   const replacement = state(); replacement.records[date].note = "Replacement note";
   await other.locator('input[type="file"]').setInputFiles({ name: "fictional-replacement.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(replacement)) });
   await expect(other.getByRole("status")).toContainText("Backup importado com sucesso");
-  await page.getByText("Ver dia completo", { exact: true }).click(); await page.locator(".daily-note textarea").fill("Obsolete note");
-  await expect(page.locator(".daily-note textarea")).toHaveValue("Replacement note"); expect((await read(page)).planner.records[date].note).toBe("Replacement note");
+  const saved = await read(other); await page.evaluate(() => window.releaseStaleSave());
+  await expect(page.getByRole("alert", { name: "Alterações locais preservadas", exact: true })).toContainText("outra sessão");
+  await expect(page.locator(".daily-note textarea")).toHaveValue("Obsolete note");
+  expect((await read(page)).planner.records[date].note).toBe("Replacement note"); expect(await read(page)).toEqual(saved);
   await healthy(page); await other.close();
 });
 
