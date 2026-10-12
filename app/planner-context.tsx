@@ -1,6 +1,7 @@
 "use client";
 
 import { legacyPlanner } from "../persistence/contracts/planning-envelope.ts";
+import { historicalOffsetOccurrenceIds } from "../persistence/execution/bridge.ts";
 
 
 import {
@@ -220,6 +221,9 @@ export function PlannerProvider({ children }: Readonly<{ children: ReactNode }>)
   }, [renderRevision, session, setState, beginEditing, endEditing, completeOccurrence, rescheduleOccurrence, completingIds, exportBackup, importBackup, resetData, ready, storageBlocked, storageWarning, toast, notify]);
   return <PlannerContext.Provider value={value}>
     {storageWarning && <div role="alert" className="storage-warning">{storageWarning}</div>}
+    {historicalOffsetOccurrenceIds(session.persisted.executionBridge).length > 0 && <section className="panel" style={{ padding: "1rem", margin: "1rem" }} role="note" aria-label="Compatibilidade de fusos históricos">
+      <p>Há fusos históricos registrados como offsets numéricos. Os valores originais foram preservados, sem inferir uma localização ou regras de horário de verão. Novos registros exigem um fuso IANA nomeado.</p>
+    </section>}
     {(session.remote || saveError) && <section role="alert" aria-label="Alterações locais preservadas" className={conflictStyles.notice}>
       <p>{session.remote ? "O planejamento mudou em outra sessão. Suas alterações locais foram preservadas e não serão salvas sobre a versão atual. Feche o editor, baixe seu rascunho e carregue a versão salva para revisar e reaplicar as alterações." : saveError}</p>
       <div className={conflictStyles.actions}><Button variant="secondary" onClick={downloadDraft} disabled={session.openEditors > 0}>Baixar rascunho local</Button>

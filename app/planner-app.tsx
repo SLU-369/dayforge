@@ -25,7 +25,7 @@ import {
   RoutineItem,
 } from "./planner-data";
 import { usePlanner } from "./planner-context";
-import { deriveTodayContext } from "./today-context";
+import { deriveTodayContext, deriveMonthlyDayContext } from "./today-context";
 import { TodayContextView } from "./today-context-view";
 import { PlanningHistoryView } from "./planning-history-view";
 import type { TodayContextItem } from "./today-context";
@@ -386,20 +386,24 @@ function MonthView({ state, executionBridge, monthDate, todayISO, onMonth, onOpe
   for (let day = 1; day <= daysInMonth; day++) cells.push(localISO(new Date(monthDate.getFullYear(), monthDate.getMonth(), day)));
   while (cells.length % 7) cells.push(null);
 
-  const effectiveDays = useMemo(() => {
+  const monthlyProjection = useMemo(() => {
     if (!(legacyBindings(executionBridge).some((entry) => entry.planningAudit) || executionBridge?.entries.some(entry => entry.kind === "canonical"))) return null;
     const days = new Map<string, readonly TodayContextItem[]>();
+    const unrepresented = new Set<string>();
     const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     for (let day = 1; day <= daysInMonth; day++) {
       const date = localISO(new Date(monthDate.getFullYear(), monthDate.getMonth(), day));
       // Monthly totals attribute an interval once to its effective start day; Today shows every intersecting day.
-      days.set(date, deriveTodayContext(state, new Date(), zone, date, executionBridge ?? undefined).items.filter((item) => {
+      const projection = deriveMonthlyDayContext(state, new Date(), zone, date, executionBridge ?? undefined);
+      projection.unrepresentedOccurrenceIds.forEach(id => unrepresented.add(id));
+      days.set(date, projection.context.items.filter((item) => {
         const start = localPlanningTime(item.startsAt, zone).slice(0, 10);
         return start === date;
       }));
     }
-    return days;
+    return { days, unrepresentedCount: unrepresented.size };
   }, [state, executionBridge, monthDate, daysInMonth]);
+  const effectiveDays = monthlyProjection?.days;
 
   const monthMetrics = useMemo(() => {
     let planned = 0, completed = 0, activities = 0, done = 0;
@@ -454,7 +458,10 @@ function MonthView({ state, executionBridge, monthDate, todayISO, onMonth, onOpe
 
   return (
     <div className="page-wrap">
-      <div className="page-topline"><div><span className="eyebrow">{"// VISÃO MENSAL"}</span><h1>Seu ritmo ao longo do mês</h1><p>Resultados reais, sem culpa e sem maquiagem.</p></div><div className="month-control"><button onClick={() => onMonth(new Date(monthDate.getFullYear(), monthDate.getMonth() - 1, 1))}>‹</button><strong>{monthTitle(monthDate)}</strong><button onClick={() => onMonth(new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 1))}>›</button></div></div>
+      <div className="page-topline"><div><span className="eyebrow">{"// VISÃO MENSAL"}</span><h1>Seu ritmo ao longo do mês</h1><p>Resultados reais, sem culpa e sem maquiagem.</p></div><div className="month-control"><button aria-label="Mês anterior" onClick={() => onMonth(new Date(monthDate.getFullYear(), monthDate.getMonth() - 1, 1))}>‹</button><strong>{monthTitle(monthDate)}</strong><button aria-label="Próximo mês" onClick={() => onMonth(new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 1))}>›</button></div></div>
+      {!!monthlyProjection?.unrepresentedCount && <section className="panel" style={{ padding: "1rem", marginBottom: "1rem" }} role="note" aria-label="Limitação da projeção mensal">
+        <p>Ocorrências sem horário preservadas: {monthlyProjection.unrepresentedCount}. Esses registros não participam da projeção horária nem dos indicadores deste mês. As demais atividades continuam sendo calculadas.</p>
+      </section>}
       <section className="metric-grid month-metrics">
         <MetricCard label="Aproveitamento" value={`${safePercent(monthMetrics.completed, monthMetrics.planned)}%`} helper={`${hoursLabel(monthMetrics.completed)} de ${hoursLabel(monthMetrics.planned)}`} accent="var(--accent)" />
         <MetricCard label="Atividades" value={`${monthMetrics.done}`} helper={`de ${monthMetrics.activities} planejadas`} accent="var(--success)" />

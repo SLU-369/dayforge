@@ -1,6 +1,6 @@
 import { legacyPlanner } from "../contracts/planning-envelope.ts";
 import { legacyBindings } from "./bridge.ts";
-import { appendRescheduleEvent, createTimedSchedule, createTemporalReason, parseUtcInstant, rescheduleEventId,
+import { appendRescheduleEvent, createTimedSchedule, createTemporalReason, parseUtcInstant, rescheduleEventId, parseStoredTimeZone,
   type OccurrenceSchedule, type TemporalReason, type DomainResult } from "../../domain/temporal/index.ts";
 import { PlanningConflictError, type LocalPersistenceRepository } from "../contracts/index.ts";
 import { readPlannerAuthoritySnapshot } from "../backup/export-backup-v2.ts";
@@ -62,7 +62,7 @@ export async function rescheduleOccurrencePlanning(options: ReschedulingIntent &
     return { baselineItem: { ...binding.item }, baselineSchedule: value(createTimedSchedule(options.previousSchedule)), confirmedAt: changedAt, rescheduleHistory: [] };
   })();
   const from = prior.rescheduleHistory.at(-1)?.to ?? prior.baselineSchedule;
-  const history = value(appendRescheduleEvent(prior, { id, from, to: schedule, changedAt, ...(reason ? { reason } : {}) }));
+  const history = value(appendRescheduleEvent(prior, { id, from, to: schedule, changedAt, ...(reason ? { reason } : {}) }, parseStoredTimeZone));
   const audit = { ...prior, rescheduleHistory: history.rescheduleHistory };
   try {
     return await savePlannerWithBridge({ ...options, expectedDatasetRevision: options.expectedDatasetRevision ?? snapshot.datasetRevision, state: legacyPlanner(snapshot.backup.payload.planner), expectedSnapshot: snapshot.backup,

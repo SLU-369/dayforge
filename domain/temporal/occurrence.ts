@@ -17,7 +17,7 @@ import {
   type AbsoluteInterval,
   type AllDaySchedule,
   type DateOnlySchedule,
-  type IanaTimeZone,
+  type StoredTimeZone, type TimeZoneParser,
   type OccurrenceSchedule,
   type UtcInstant,
 } from "./time.ts";
@@ -37,19 +37,19 @@ export type ExecutionTiming =
   | Readonly<{
       kind: "timed";
       interval: AbsoluteInterval;
-      timeZone: IanaTimeZone;
+      timeZone: StoredTimeZone;
     }>
   | Readonly<{
       kind: "date_only";
       date: DateOnlySchedule["date"];
-      timeZone: IanaTimeZone;
+      timeZone: StoredTimeZone;
       durationMinutes?: DateOnlySchedule["estimatedDurationMinutes"];
     }>
   | Readonly<{
       kind: "all_day";
       startsOn: AllDaySchedule["startsOn"];
       endsBefore: AllDaySchedule["endsBefore"];
-      timeZone: IanaTimeZone;
+      timeZone: StoredTimeZone;
     }>;
 
 export type ExecutionRecord = Readonly<{
@@ -210,10 +210,10 @@ export function createTimedExecutionTiming(input: Readonly<{
   start: string;
   end: string;
   timeZone: string;
-}>): DomainResult<ExecutionTiming> {
+}>, parseTimeZone: TimeZoneParser = parseIanaTimeZone): DomainResult<ExecutionTiming> {
   const interval = createAbsoluteInterval({ start: input.start, end: input.end });
   if (!interval.ok) return interval;
-  const timeZone = parseIanaTimeZone(input.timeZone);
+  const timeZone = parseTimeZone(input.timeZone);
   if (!timeZone.ok) return timeZone;
   return success({ kind: "timed", interval: interval.value, timeZone: timeZone.value });
 }
@@ -222,12 +222,12 @@ export function createDateOnlyExecutionTiming(input: Readonly<{
   date: string;
   timeZone: string;
   durationMinutes?: number;
-}>): DomainResult<ExecutionTiming> {
+}>, parseTimeZone: TimeZoneParser = parseIanaTimeZone): DomainResult<ExecutionTiming> {
   const schedule = createDateOnlySchedule({
     date: input.date,
     timeZone: input.timeZone,
     ...(input.durationMinutes === undefined ? {} : { estimatedDurationMinutes: input.durationMinutes }),
-  });
+  }, parseTimeZone);
   if (!schedule.ok) return schedule;
   return success({
     kind: "date_only",
@@ -243,8 +243,8 @@ export function createAllDayExecutionTiming(input: Readonly<{
   startsOn: string;
   endsBefore: string;
   timeZone: string;
-}>): DomainResult<ExecutionTiming> {
-  const schedule = createAllDaySchedule(input);
+}>, parseTimeZone: TimeZoneParser = parseIanaTimeZone): DomainResult<ExecutionTiming> {
+  const schedule = createAllDaySchedule(input, parseTimeZone);
   if (!schedule.ok) return schedule;
   return success({ ...schedule.value });
 }
@@ -254,7 +254,9 @@ export function createExecutionRecord(input: Readonly<{
   timing: ExecutionTiming;
   recordedAt: string;
   note?: string;
-}>): DomainResult<ExecutionRecord> {
+}>, parseTimeZone: TimeZoneParser = parseIanaTimeZone): DomainResult<ExecutionRecord> {
+  const timeZone = parseTimeZone(input.timing.timeZone);
+  if (!timeZone.ok) return timeZone;
   const recordedAt = parseUtcInstant(input.recordedAt);
   if (!recordedAt.ok) return recordedAt;
   const note = validateNote(input.note, "execution.note");
@@ -262,8 +264,8 @@ export function createExecutionRecord(input: Readonly<{
   return success({
     id: input.id,
     timing: input.timing.kind === "timed"
-      ? { ...input.timing, interval: { ...input.timing.interval } }
-      : { ...input.timing },
+      ? { ...input.timing, interval: { ...input.timing.interval }, timeZone: timeZone.value }
+      : { ...input.timing, timeZone: timeZone.value },
     recordedAt: recordedAt.value,
     ...(note.value ? { note: note.value } : {}),
   });
@@ -274,7 +276,9 @@ export function createOccurrence(input: Readonly<{
   source: OccurrenceSource;
   schedule: OccurrenceSchedule;
   createdAt: string;
-}>): DomainResult<PlannedOccurrence> {
+}>, parseTimeZone: TimeZoneParser = parseIanaTimeZone): DomainResult<PlannedOccurrence> {
+  const timeZone = parseTimeZone(input.schedule.timeZone);
+  if (!timeZone.ok) return timeZone;
   const createdAt = parseUtcInstant(input.createdAt);
   if (!createdAt.ok) return createdAt;
 
@@ -306,8 +310,8 @@ export function createOccurrence(input: Readonly<{
     flexibility,
     origin: copyOrigin(validatedOrigin.value),
     status: "planned",
-    originalSchedule: copyOccurrenceSchedule(input.schedule),
-    currentSchedule: copyOccurrenceSchedule(input.schedule),
+    originalSchedule: copyOccurrenceSchedule({ ...input.schedule, timeZone: timeZone.value }),
+    currentSchedule: copyOccurrenceSchedule({ ...input.schedule, timeZone: timeZone.value }),
     rescheduleHistory: [],
     execution: null,
     resolution: null,
@@ -324,6 +328,7 @@ export function rescheduleOccurrence(
     changedAt: string;
     reason?: TemporalReason;
   }>,
+  parseTimeZone: TimeZoneParser = parseIanaTimeZone,
 ): DomainResult<PlannedOccurrence> {
   const planned = ensurePlanned(occurrence);
   if (!planned.ok) return planned;
@@ -342,7 +347,7 @@ export function rescheduleOccurrence(
   };
 
   const history = appendRescheduleEvent({ baselineSchedule: planned.value.originalSchedule,
-    confirmedAt: planned.value.createdAt, rescheduleHistory: planned.value.rescheduleHistory }, event);
+    confirmedAt: planned.value.createdAt, rescheduleHistory: planned.value.rescheduleHistory }, event, parseTimeZone);
   if (!history.ok) return history;
 
   return success({
@@ -358,14 +363,17 @@ export function rescheduleOccurrence(
 export function completeOccurrence(
   occurrence: ScheduleOccurrence,
   execution: ExecutionRecord,
+  parseTimeZone: TimeZoneParser = parseIanaTimeZone,
 ): DomainResult<CompletedOccurrence | CompletedRescheduledOccurrence> {
   const planned = ensurePlanned(occurrence);
   if (!planned.ok) return planned;
+  const validatedExecution = createExecutionRecord(execution, parseTimeZone);
+  if (!validatedExecution.ok) return validatedExecution;
   if (execution.recordedAt < planned.value.updatedAt) {
     return failure("invalid_transition", "Execution record cannot precede the occurrence history.", "execution.recordedAt");
   }
   const history = validatePlanningHistory({ baselineSchedule: planned.value.originalSchedule,
-    confirmedAt: planned.value.createdAt, rescheduleHistory: planned.value.rescheduleHistory }, execution);
+    confirmedAt: planned.value.createdAt, rescheduleHistory: planned.value.rescheduleHistory }, execution, parseTimeZone);
   if (!history.ok) return history;
 
   const base = {
@@ -373,7 +381,7 @@ export function completeOccurrence(
     origin: copyOrigin(planned.value.origin),
     originalSchedule: copyOccurrenceSchedule(planned.value.originalSchedule),
     currentSchedule: copyOccurrenceSchedule(planned.value.currentSchedule),
-    execution: copyExecution(execution),
+    execution: copyExecution(validatedExecution.value),
     resolution: null,
     updatedAt: execution.recordedAt,
   };

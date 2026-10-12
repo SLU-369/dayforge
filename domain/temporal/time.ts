@@ -4,6 +4,7 @@ declare const localDateBrand: unique symbol;
 declare const localTimeBrand: unique symbol;
 declare const utcInstantBrand: unique symbol;
 declare const timeZoneBrand: unique symbol;
+declare const historicalOffsetBrand: unique symbol;
 declare const positiveMinutesBrand: unique symbol;
 declare const positiveIntegerBrand: unique symbol;
 
@@ -11,20 +12,24 @@ export type LocalDate = string & { readonly [localDateBrand]: true };
 export type LocalTime = string & { readonly [localTimeBrand]: true };
 export type UtcInstant = string & { readonly [utcInstantBrand]: true };
 export type IanaTimeZone = string & { readonly [timeZoneBrand]: true };
+/** Read-only compatibility with offsets accepted by earlier runtimes. Never an inferred IANA zone. */
+export type HistoricalUtcOffset = string & { readonly [historicalOffsetBrand]: true };
+export type StoredTimeZone = IanaTimeZone | HistoricalUtcOffset;
+export type TimeZoneParser = (value: string) => DomainResult<StoredTimeZone>;
 export type PositiveMinutes = number & { readonly [positiveMinutesBrand]: true };
 export type PositiveInteger = number & { readonly [positiveIntegerBrand]: true };
 
 export type TimedSchedule = Readonly<{
   kind: "timed";
   startsAt: UtcInstant;
-  timeZone: IanaTimeZone;
+  timeZone: StoredTimeZone;
   durationMinutes: PositiveMinutes;
 }>;
 
 export type DateOnlySchedule = Readonly<{
   kind: "date_only";
   date: LocalDate;
-  timeZone: IanaTimeZone;
+  timeZone: StoredTimeZone;
   estimatedDurationMinutes?: PositiveMinutes;
 }>;
 
@@ -32,7 +37,7 @@ export type AllDaySchedule = Readonly<{
   kind: "all_day";
   startsOn: LocalDate;
   endsBefore: LocalDate;
-  timeZone: IanaTimeZone;
+  timeZone: StoredTimeZone;
 }>;
 
 export type OccurrenceSchedule = TimedSchedule | DateOnlySchedule | AllDaySchedule;
@@ -90,7 +95,7 @@ export function parseUtcInstant(value: string): DomainResult<UtcInstant> {
 }
 
 export function parseIanaTimeZone(value: string): DomainResult<IanaTimeZone> {
-  if (!value || value.trim() !== value) {
+  if (!value || value.trim() !== value || /^[+-]/.test(value)) {
     return failure("invalid_time_zone", "Time zone must be an explicit IANA identifier.", "timeZone");
   }
 
@@ -102,6 +107,12 @@ export function parseIanaTimeZone(value: string): DomainResult<IanaTimeZone> {
   } catch {
     return failure("invalid_time_zone", "Time zone must be an explicit IANA identifier.", "timeZone");
   }
+}
+
+/** Decode existing facts only. Canonical historical offsets retain their exact value. */
+export function parseStoredTimeZone(value: string): DomainResult<StoredTimeZone> {
+  if (/^[+-](?:[01]\d|2[0-3]):[0-5]\d$/.test(value) && value !== "-00:00") return success(value as HistoricalUtcOffset);
+  return parseIanaTimeZone(value);
 }
 
 export function parsePositiveMinutes(value: number): DomainResult<PositiveMinutes> {
@@ -122,10 +133,10 @@ export function createTimedSchedule(input: Readonly<{
   startsAt: string;
   timeZone: string;
   durationMinutes: number;
-}>): DomainResult<TimedSchedule> {
+}>, parseTimeZone: TimeZoneParser = parseIanaTimeZone): DomainResult<TimedSchedule> {
   const startsAt = parseUtcInstant(input.startsAt);
   if (!startsAt.ok) return startsAt;
-  const timeZone = parseIanaTimeZone(input.timeZone);
+  const timeZone = parseTimeZone(input.timeZone);
   if (!timeZone.ok) return timeZone;
   const durationMinutes = parsePositiveMinutes(input.durationMinutes);
   if (!durationMinutes.ok) return durationMinutes;
@@ -140,10 +151,10 @@ export function createDateOnlySchedule(input: Readonly<{
   date: string;
   timeZone: string;
   estimatedDurationMinutes?: number;
-}>): DomainResult<DateOnlySchedule> {
+}>, parseTimeZone: TimeZoneParser = parseIanaTimeZone): DomainResult<DateOnlySchedule> {
   const date = parseLocalDate(input.date);
   if (!date.ok) return date;
-  const timeZone = parseIanaTimeZone(input.timeZone);
+  const timeZone = parseTimeZone(input.timeZone);
   if (!timeZone.ok) return timeZone;
 
   if (input.estimatedDurationMinutes === undefined) {
@@ -164,12 +175,12 @@ export function createAllDaySchedule(input: Readonly<{
   startsOn: string;
   endsBefore: string;
   timeZone: string;
-}>): DomainResult<AllDaySchedule> {
+}>, parseTimeZone: TimeZoneParser = parseIanaTimeZone): DomainResult<AllDaySchedule> {
   const startsOn = parseLocalDate(input.startsOn);
   if (!startsOn.ok) return startsOn;
   const endsBefore = parseLocalDate(input.endsBefore);
   if (!endsBefore.ok) return endsBefore;
-  const timeZone = parseIanaTimeZone(input.timeZone);
+  const timeZone = parseTimeZone(input.timeZone);
   if (!timeZone.ok) return timeZone;
   if (startsOn.value >= endsBefore.value) {
     return failure("invalid_interval", "All-day range must have an exclusive end after its start.", "endsBefore");

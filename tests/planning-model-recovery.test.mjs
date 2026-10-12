@@ -13,7 +13,7 @@ import { createOccurrence, createTimedSchedule, createDateOnlySchedule, createAl
   createExecutionRecord, executionRecordId, createTimedExecutionTiming, completeOccurrence, rescheduleOccurrence,
   rescheduleEventId, cancelOccurrence, markOccurrenceNotCompleted } from "../domain/temporal/index.ts";
 import { backupV2, legacyOf, bridgeV2, assertUpgradedBackup } from "./planning-model-compat.mjs";
-import { deriveTodayContext } from "../app/today-context.ts";
+import { deriveTodayContext, deriveMonthlyDayContext } from "../app/today-context.ts";
 import { createDateOnlyExecutionTiming } from "../domain/temporal/index.ts";
 const date = "2026-10-12", instant = `${date}T12:00:00.000Z`;
 const val = result => { assert.equal(result.ok, true); return result.value; };
@@ -207,4 +207,47 @@ test("DST timed occurrence preserves real elapsed duration across a repeated hou
 });
 test("adopted registry 3 cannot silently lose the local write fence pair",async t=>{
  const f=await mixed(t),metadata=await f.db.metadata.get("database");delete metadata.writeFenceVersion;delete metadata.datasetRevision;await f.db.metadata.put(metadata);const before=await physical(f.db);await assert.rejects(f.boot());assert.deepEqual(await physical(f.db),before);
+});
+
+test("rescheduling semantic revision excludes only the representation discriminator",async t=>{
+ const f=await setup(t),binding=(await read(f.repo)).backup.payload.executionBridge.bridge.entries[0];
+ assert.equal(occurrenceRevision(binding),occurrenceRevision({...binding,kind:"legacy_partial"}));
+ assert.notEqual(occurrenceRevision(binding),occurrenceRevision({...binding,item:{...binding.item,title:"Changed fact"}}));
+});
+test("bridge 2 replay crosses upgrade and later events without changing any historical fact or revision",async t=>{
+ const f=await setup(t),s=await read(f.repo),binding=s.backup.payload.executionBridge.bridge.entries[0];
+ const intent={repository:f.repo,...fence(s),occurrenceId:"occ:1",expectedRevision:occurrenceRevision(binding),expectedHistoryLength:0,
+  previousSchedule:timed(`${date}T08:00:00.000Z`),schedule:timed("2026-10-13T20:00:00.000Z"),changedAt:instant,reason:{code:"user_note",note:"Fictício"}};
+ await rescheduleOccurrencePlanning(intent);let once=await physical(f.db);await rescheduleOccurrencePlanning(intent);assert.deepEqual(await physical(f.db),once);
+ await upgradePlanningModel({repository:f.repo,active:true});once=await physical(f.db);await rescheduleOccurrencePlanning(intent);assert.deepEqual(await physical(f.db),once);
+ for(let count=1;count<=2;count++){const now=await read(f.repo),b=now.backup.payload.executionBridge.bridge.entries[0];
+  await rescheduleOccurrencePlanning({...intent,...fence(now),expectedRevision:occurrenceRevision(b),expectedHistoryLength:count,
+   schedule:timed(`2026-10-${13+count}T20:00:00.000Z`),changedAt:`${date}T${12+count}:00:00.000Z`});}
+ once=await physical(f.db);await rescheduleOccurrencePlanning(intent);assert.deepEqual(await physical(f.db),once);
+ for(const change of [{schedule:timed("2026-10-20T20:00:00.000Z")},{reason:{code:"user_note",note:"Different"}},{changedAt:`${date}T11:00:00.000Z`}]){
+  await assert.rejects(rescheduleOccurrencePlanning({...intent,...change}),{name:"OccurrenceConflictError"});assert.deepEqual(await physical(f.db),once);}
+ await recordOccurrenceExecution({repository:f.repo,occurrenceId:"occ:1",execution:{...execution(),recordedAt:`${date}T15:00:00.000Z`}});
+ once=await physical(f.db);await rescheduleOccurrencePlanning(intent);assert.deepEqual(await physical(f.db),once);
+ f.repo.close();await f.boot();assert.deepEqual(await physical(f.db),once);
+ const current=await read(f.repo);await restoreDayforgeBackupV2({repository:f.repo,backup:current.backup,active:true,...fence(current)});
+ once=await physical(f.db);await assert.rejects(rescheduleOccurrencePlanning(intent),{name:"OccurrenceConflictError"});assert.deepEqual(await physical(f.db),once);
+});
+test("excluding kind does not authorize a new command from a stale pre-upgrade dataset",async t=>{
+ const f=await setup(t),s=await read(f.repo),b=s.backup.payload.executionBridge.bridge.entries[0];
+ await upgradePlanningModel({repository:f.repo,active:true});const once=await physical(f.db);
+ await assert.rejects(rescheduleOccurrencePlanning({repository:f.repo,...fence(s),occurrenceId:"occ:1",expectedRevision:occurrenceRevision(b),expectedHistoryLength:0,
+  previousSchedule:timed(`${date}T08:00:00.000Z`),schedule:timed("2026-10-13T20:00:00.000Z"),changedAt:instant}),PlanningConflictError);
+ assert.deepEqual(await physical(f.db),once);
+});
+for(const kind of ["date_only","all_day"])test(`monthly projection reports ${kind}, retains timed metrics and propagates unrelated errors`,async t=>{
+ const f=await mixed(t),s=await read(f.repo),registry=structuredClone(s.backup.payload.executionBridge.bridge);
+ const schedule=kind==="date_only"?val(createDateOnlySchedule({date,timeZone:"UTC"})):val(createAllDaySchedule({startsOn:date,endsBefore:"2026-10-14",timeZone:"UTC"}));
+ registry.entries.push(completeFixture(schedule,"planned","occ:3"));registry.nextSequence=4;
+ const before=await physical(f.db),projection=deriveMonthlyDayContext(f.state,new Date(instant),"UTC",date,registry);
+ assert.deepEqual(projection.unrepresentedOccurrenceIds,["occ:3"]);assert.deepEqual(projection.context.items.map(i=>i.id),["occ:1","occ:2"]);
+ assert.equal(projection.context.items.reduce((n,i)=>n+Date.parse(i.endsAt)-Date.parse(i.startsAt),0),120*60000);
+ assert.throws(()=>deriveTodayContext(f.state,new Date(instant),"UTC",date,registry),/sem intervalo horário/);
+ assert.throws(()=>deriveMonthlyDayContext(f.state,new Date(instant),"Invalid/Zone",date,registry));
+ const bad=structuredClone(f.state);bad.records[date].items[0].start="25:00";
+ assert.throws(()=>deriveMonthlyDayContext(bad,new Date(instant),"UTC",date,registry));assert.deepEqual(await physical(f.db),before);
 });

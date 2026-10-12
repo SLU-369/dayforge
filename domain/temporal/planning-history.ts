@@ -3,7 +3,7 @@ import { rescheduleEventId } from "./ids.ts";
 import { createTemporalReason, type ExecutionRecord, type RescheduleEvent } from "./occurrence.ts";
 import {
   createAllDaySchedule, createDateOnlySchedule, createTimedSchedule,
-  occurrenceSchedulesEqual, parseUtcInstant, type OccurrenceSchedule,
+  occurrenceSchedulesEqual, parseUtcInstant, parseIanaTimeZone, type OccurrenceSchedule, type TimeZoneParser,
 } from "./time.ts";
 
 export type PlanningHistory = Readonly<{
@@ -13,19 +13,19 @@ export type PlanningHistory = Readonly<{
 }>;
 
 /** Validates runtime values too: callers cannot bypass factories with a type assertion. */
-function validatedSchedule(schedule: OccurrenceSchedule): DomainResult<OccurrenceSchedule> {
+function validatedSchedule(schedule: OccurrenceSchedule, parseTimeZone: TimeZoneParser): DomainResult<OccurrenceSchedule> {
   if (!schedule || typeof schedule !== "object") return failure("invalid_reschedule", "Planning must contain a schedule.");
   switch (schedule.kind) {
-    case "timed": return createTimedSchedule(schedule);
-    case "date_only": return createDateOnlySchedule(schedule);
-    case "all_day": return createAllDaySchedule(schedule);
+    case "timed": return createTimedSchedule(schedule, parseTimeZone);
+    case "date_only": return createDateOnlySchedule(schedule, parseTimeZone);
+    case "all_day": return createAllDaySchedule(schedule, parseTimeZone);
     default: return failure("invalid_reschedule", "Unsupported planning schedule.");
   }
 }
 
 /** One chain contract for full occurrences and the partial legacy identity bridge. */
-export function validatePlanningHistory(input: PlanningHistory, execution?: ExecutionRecord | null) {
-  const baseline = validatedSchedule(input.baselineSchedule);
+export function validatePlanningHistory(input: PlanningHistory, execution?: ExecutionRecord | null, parseTimeZone: TimeZoneParser = parseIanaTimeZone) {
+  const baseline = validatedSchedule(input.baselineSchedule, parseTimeZone);
   if (!baseline.ok) return baseline;
   const confirmed = parseUtcInstant(input.confirmedAt);
   if (!confirmed.ok) return confirmed;
@@ -40,9 +40,9 @@ export function validatePlanningHistory(input: PlanningHistory, execution?: Exec
     if (!id.ok) return id;
     if (ids.has(id.value)) return failure("invalid_reschedule", "Reschedule IDs must be unique.", "id");
     ids.add(id.value);
-    const from = validatedSchedule(event.from);
+    const from = validatedSchedule(event.from, parseTimeZone);
     if (!from.ok) return from;
-    const to = validatedSchedule(event.to);
+    const to = validatedSchedule(event.to, parseTimeZone);
     if (!to.ok) return to;
     if (!occurrenceSchedulesEqual(currentSchedule, from.value)) return failure("invalid_reschedule", "Reschedule chain is discontinuous.", "from");
     if (occurrenceSchedulesEqual(from.value, to.value)) return failure("invalid_reschedule", "A reschedule must change the current planning.", "to");
@@ -64,8 +64,8 @@ export function validatePlanningHistory(input: PlanningHistory, execution?: Exec
   return success({ baselineSchedule: baseline.value, currentSchedule, updatedAt, rescheduleHistory });
 }
 
-export function appendRescheduleEvent(input: PlanningHistory, event: RescheduleEvent) {
-  return validatePlanningHistory({ ...input, rescheduleHistory: [...input.rescheduleHistory, event] });
+export function appendRescheduleEvent(input: PlanningHistory, event: RescheduleEvent, parseTimeZone: TimeZoneParser = parseIanaTimeZone) {
+  return validatePlanningHistory({ ...input, rescheduleHistory: [...input.rescheduleHistory, event] }, undefined, parseTimeZone);
 }
 
 /** Consumers never choose completed_rescheduled independently of the audited history. */

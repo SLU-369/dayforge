@@ -11,7 +11,7 @@ import {
   exportDayforgeBackup, restoreDayforgeBackupV2, restoreActivePlannerV2, recoverPlannerV2,
   saveActivePlannerV2, savePlannerWithBridge, recordOccurrenceExecution, decodeExecutionBridge,
   EXECUTION_BRIDGE_DOCUMENT_ID, reconcileExecutionBridge, migrateLegacyPlannerV1,
-  resetPlannerV2, canonicalStringify, WebCryptoSha256Hasher,
+  resetPlannerV2, canonicalStringify, WebCryptoSha256Hasher, decodeDayforgeBackupV2, ExecutionBridgeError,
 } from "../persistence/index.ts";
 import { createDateOnlyExecutionTiming, createTimedExecutionTiming, createAllDayExecutionTiming, createExecutionRecord, executionRecordId } from "../domain/temporal/index.ts";
 
@@ -373,14 +373,18 @@ test("stale autosave cannot overwrite a concurrent canonical completion", async 
 
 test("old backup with malformed daily binding fails before replacing active facts", async (t) => {
   const { repository, database } = await setup(t);
-  const data = await backup(repository);
+  const data = backupV2(await backup(repository));
   delete data.payload.executionBridge;
+  assert.equal(decodeDayforgeBackupV2(data).formatVersion, 2);
   legacyOf(data.payload.planner).records[date].date = "2026-10-07";
   data.payload.provenance.origins = [];
   data.payload.legacySources = [];
   data.payload.provenance.contentFingerprint = await new WebCryptoSha256Hasher().digestUtf8(canonicalStringify(legacyOf(data.payload.planner)));
   const before = await physical(database);
-  await assert.rejects(restoreDayforgeBackupV2({ repository, backup: data, active: true }));
+  await assert.rejects(restoreDayforgeBackupV2({ repository, backup: data, active: true }),
+    error => error instanceof ExecutionBridgeError && error.code === "invalid_execution_bridge");
+  assert.deepEqual(await physical(database), before);
+  repository.close(); await repository.open();
   assert.deepEqual(await physical(database), before);
 });
 

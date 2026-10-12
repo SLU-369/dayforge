@@ -1,6 +1,6 @@
 import { legacyPlanner, createPlanningDocument, planningEnvelope, planningJson, PLANNING_DOCUMENT_FORMAT } from "../contracts/planning-envelope.ts";
 import { legacyBindings } from "./bridge.ts";
-import { parseLocalTime, type ExecutionRecord } from "../../domain/temporal/index.ts";
+import { parseLocalTime, parseStoredTimeZone, type ExecutionRecord } from "../../domain/temporal/index.ts";
 import { CURRENT_PLANNER_DOCUMENT_ID, LEGACY_V1_MIGRATION_KEY_PREFIX, assertAuthorityEpoch,
   type LocalPersistenceRepository, type PlannerDocumentRecord } from "../contracts/index.ts";
 import { exportDayforgeBackup } from "../backup/export-backup-v2.ts";
@@ -197,7 +197,7 @@ export async function recordOccurrenceExecution(options: Readonly<{
   const binding = legacyBindings(bridge).find((entry) => entry.occurrenceId === options.occurrenceId);
   if (!binding || (binding.item.completed && !binding.execution) || !binding.item.title.trim() || !parseLocalTime(binding.item.start).ok
     || !parseLocalTime(binding.item.end).ok) throw new ExecutionBridgeError();
-  const execution = decodeBridgeExecution(options.execution, options.occurrenceId);
+  const execution = decodeBridgeExecution(options.execution, options.occurrenceId, binding.execution ? parseStoredTimeZone : undefined);
   if (binding.execution && canonicalStringify(JSON.parse(JSON.stringify(binding.execution))) === canonicalStringify(JSON.parse(JSON.stringify(execution)))) {
     await verifyPlanningReplay(options.repository, snapshot, expectedAuthorityEpoch);
     return bridge!;
