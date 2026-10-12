@@ -272,3 +272,14 @@ A UI deve oferecer, quando aplicável:
 - editar esta e futuras ocorrências;
 - reagendar;
 - pular somente hoje.
+
+## 12. Registro comum recuperável — 3A-2
+
+O envelope planner 2 preserva o snapshot legado e referencia execution/bridge 3.
+Entradas legacy_partial conservam vínculo/execução/auditoria sem reivindicar todos
+os campos de ScheduleOccurrence. Entradas canonical contêm ScheduleOccurrence
+completo validado, independente dos records. A união tem ID único occ:n e contador
+compartilhado; o próprio registro é fonte única de plano, execução e cadeia.
+Templates e entidades de outros módulos ainda não são persistidos; referências
+externas sem entidade recuperável falham fechadas. Não se converte rotina ou
+monthlyGoals automaticamente. D-035 e documento 09 definem o contrato técnico.

@@ -59,6 +59,14 @@ transação. Um rascunho baixado para resolver conflito contém alterações loc
 não confirmadas e é explicitamente separado do backup lógico; não deve ser
 importado como arquivo de recuperação.
 
+Na 3A-2, o backup público principal passa a 3 após o upgrade: inclui envelope
+planner 2, registro temporal 3, completas/parciais, execução, auditoria, cadeias,
+contador e fontes/procedência. Recuperação aceita 3/2/1; aplicações antigas
+rejeitam o novo formato. Não há export de compatibilidade com perda de entidades.
+Contadores locais, aparência e stores alheios continuam excluídos. Restore/import/
+reset substituem integralmente o conjunto, com CAS/readback/rollback; import v1
+não mantém procedência do conjunto anterior. D-035 detalha os limites atuais.
+
 Deve preservar:
 
 - dados estruturados;

@@ -159,3 +159,8 @@ If a future OpenAI API integration is added, use the environment name `OPENAI_AP
 - Preserve os padrões do `.gitignore`; não bloqueie novos formatos ou reconfigure CI/hooks sem uma necessidade da tarefa. Mantenha arquivos de exemplo sem dados reais explicitamente identificados.
 - Antes de commitar, confira o diff e arquivos adicionados para evitar segredos e dados pessoais. Relate achados concretos e corrija os que pertencem ao escopo.
 - Não reescreva histórico, rotacione credenciais ou altere infraestrutura sem autorização específica.
+
+## Stage 3A-2 current contract
+
+- Stage 3A-1 is integrated via PR #16. The authorized 3A-2 foundation uses planner envelope 2, temporal registry 3 and backup 3; generation 2/schema 1/tables/read-only v1 remain. Earlier format limits are historical. See persistence/AGENTS.md and D-035 for current CAS, upgrade, identity and recovery invariants.
+- No complete producer, templates, structured goals, 3B-1, PR or merge is authorized by this unit. Preserve the shell and drafts; validate Node/Edge recovery and prior regressions before publishing the authorized branch.

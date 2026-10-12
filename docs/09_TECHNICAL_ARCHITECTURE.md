@@ -296,6 +296,91 @@ continua fail-closed. Falha isolada de escrita preserva rascunho e oferece retry
 Limites: sem migração estrutural 3A-2, novos produtores, Agenda/Metas/Rotina
 canônicas, Semana, Consistência, correção terminal, cloud ou avanço automático.
 
+### Etapa 3A-2 — Envelope lógico e registro temporal comum
+
+`planner/current` passa a formato `dayforge/planning-state`, versão lógica 2,
+payload estrito `{version:2,legacy,temporalRegistry:{documentId:"execution/bridge",version:3}}`.
+`legacy` é o snapshot v1 normalizado integralmente preservado; a referência liga
+o envelope ao único registro de identidade/plano/execução/história. Não existem
+templates ou metas estruturadas derivados automaticamente do legado.
+
+`execution/bridge` mantém formato `dayforge/execution-bridge` e usa versão
+lógica 3 no documento e payload `{version:3,nextSequence,entries}`. Entradas:
+
+- `legacy_partial`: os campos anteriores de vínculo, data física, posição,
+  originalItem, item, execution e planningAudit opcional, sem origem/fuso/
+  flexibilidade/criação inferidos. `itemIndex` localiza, não identifica.
+- `canonical`: `{kind:"canonical",occurrence:ScheduleOccurrence}`, independente
+  de planner.records; somente a ocorrência guarda plano, execução e história.
+
+IDs `occ:n` são únicos na união e menores que nextSequence. O contador é
+compartilhado, monotônico por linhagem; exclusões legadas não o reduzem. Vínculos
+parciais ficam ordenados por data/posição; completas vêm depois, por sequência.
+Referências de template ou entidade de domínio ainda inexistentes são rejeitadas,
+inclusive em backup: esta unidade não inventa cadastros futuros. OriginReference
+sem referência externa pode carregar kind/label explícitos. Factories e transições
+puras existentes reconstruem e validam ocorrência, estados terminais, resolução,
+ExecutionRecord e cadeia com IDs owner-bound e posições append-only. Schedules
+timed/date_only/all_day seguem o domínio; campos extras e conteúdo não canônico
+falham fechados. Comandos existentes continuam restritos aos vínculos parciais.
+
+Backup público 3 mantém o envelope público, mas payload.planner é o envelope 2,
+payload.plannerFingerprint cobre esse envelope, executionBridge é obrigatório
+com registro 3 e hash próprio. provenance.contentFingerprint continua sendo o
+hash semântico do legado, separado do hash do envelope; legacySources/provenance
+preservam bytes/fontes/relações anteriores. exportedAt não identifica conteúdo;
+epoch/revisão são exclusivamente locais e não aparecem no backup. Aparência e
+dados de outros stores não fazem parte deste conjunto recuperável.
+
+Export principal usa o formato correspondente ao snapshot instalado: após upgrade
+exporta 3. A API explícita exportDayforgeBackupV2 rejeita conjunto novo, inclusive
+sem completas; não oferece downgrade. Codec 2 permanece como entrada compatível.
+Ponte 1/hash original é validada antes da conversão. Backup 2 sem ponte e v1
+geram somente vínculos parciais, sem backfill. Versões desconhecidas bloqueiam.
+Aplicações antigas rejeitam envelope/metadata/ponte/backup novos, sem fallback
+ao v1 e sem promessa de downgrade ou retorno à aplicação antiga sem perda.
+
+Upgrade captura metadata/planner/ponte/fontes numa transação consistente, valida
+hashes e referências e prepara envelope/registro/fingerprints fora da transação.
+CAS compara época/revisão e documentos de base dentro da transação que grava
+planner, ponte e metadata, com readback. Época não muda; revisão avança uma vez.
+Metadata antiga sem revisão começa em zero; adoção 3 persiste par validado e
+exige-o nas leituras seguintes. Bootstrap repetido é no-op. Uma migração concorrente
+somente reconhece replay se o vencedor for exatamente a transformação esperada,
+na mesma época e com um incremento; não rebaseia uma operação conflitante.
+Falha/overflow/quota/readback abortam tudo. Não há hash Web Crypto dentro do commit.
+
+Restore/import/reset preparam entrada convertida antes da escrita e substituem
+planner/current, execution/bridge, legacy-v1/source/* e migration/v1/* juntos.
+Namespaces planner/ e execution/ desconhecidos falham fechados; registros alheios
+preservados. Import v1 substitui também fontes/procedência anteriores pelo input
+recuperável apresentado; não faz merge de procedência de conjuntos diferentes.
+V1 local permanece intacto. Época e revisão do destino avançam atomicamente,
+mesmo em conteúdo idêntico; IDs coincidentes não legitimam diálogos antigos.
+Releitura compara documentos, fontes, metadata e referências; rollback integral.
+
+`legacyPlanner` e `legacyBindings` são adapters explícitos de leitura;
+autosave reconcilia parciais e retém completas sem alteração. A consulta pura
+`queryTemporalSnapshot` recebe envelope/registro validados, janela UTC semiaberta,
+referência e fuso de exibição. Retorna identidade/natureza/procedência/schedule,
+execução/história/capacidades. Sem schedule confirmado, o legado retorna
+`legacy_candidate` (inclui data anterior para madrugada); a projeção horária
+existente interpreta esses candidatos em memória. Nunca confirma plano ou
+materializa rotina ao navegar. `temporalPlanning` centraliza vigente para Hoje
+e consulta comum. Date-only/all-day usam datas no próprio fuso, sem horas inventadas.
+
+Hoje admite completas timed como leitura, sem novos botões de comando/edição;
+categoria é desconhecida, apresentada genericamente e não atribuída às métricas
+legadas. Execução sem duração conhecida não usa duração planejada como realizado.
+Cancelada/não realizada continuam terminais, fora das pendências. A visão horária
+continua rejeitando schedules sem horário quando intersectam o dia, em vez de
+inventar um intervalo; consulta comum/backup os preservam integralmente. UI própria
+de Agenda/Semana e produtores são etapas futuras. Não há novo read model persistido.
+
+Geração 2, schema Dexie 1, tabelas metadata/plannerDocuments e marker não mudam.
+Conflito com armazenamento validável não é corrupção; rascunhos/formulários e
+fila única da 3A-1 permanecem. Migração interrompida não sobrescreve defaults.
+
 ## 5. Motor de planejamento
 
 A primeira versão local usa TypeScript puro, determinístico e independente da UI. Os contratos e vetores de teste devem permitir reprodução fora do navegador.

@@ -204,3 +204,25 @@ backup antigo, reabertura e v1 somente leitura possuem provas próprias.
 
 Mensagem, resolução por teclado, foco e 390 px são verificadas no Edge, sem
 retries automáticos. Conflito é recuperável; corrupção mantém fail-closed.
+
+## Cenário 32 — Fundação temporal versionada e recuperação — 3A-2
+
+Instalação antiga com planner 1 e ponte 1/2 válida migra atomicamente para
+envelope 2 e registro 3, mantendo legado, IDs/contador, execução, auditoria e
+eventos. Não atribui origem, fuso, flexibilidade, criação ou execução ausentes.
+Reabertura/no-op não avançam revisão; upgrade avança uma vez sem mudar época.
+Completas e parciais coexistem em fixtures e usam identidade compartilhada;
+autosave mantém completas e nunca duplica execução/história.
+
+Backup 3 round-trip integral; 2 com ponte 2/1 (hash antigo primeiro), 2 sem ponte
+e v1 são convertidos sem inferências. Restore de conjunto com completas remove
+entidades antigas e troca época/revisão do destino, invalidando formulários mesmo
+com IDs iguais. Fontes/ref/hashes/campos desconhecidos inválidos falham antes da
+mutação. Falha em cada escrita/readback/quota aborta tudo e permite retry explícito.
+Namespaces autoritativos desconhecidos não escapam do recovery; alheios preservados.
+
+Duas conexões/abas migrando convergem uma vez. Autosave, conclusão, reagendamento
+e restore concorrentes não são sobrescritos por migração antiga. CAS permanece
+no banco. Consultas e Hoje não materializam virtuais, inferem execução nem inventam
+horas em date_only/all_day. UI mantém shell, teclado/foco e layout 390px.
+Sem novos produtores funcionais, PR/merge automático ou avanço para 3B-1.

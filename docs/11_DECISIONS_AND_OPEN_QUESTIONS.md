@@ -185,6 +185,30 @@ planner 1, ponte 2, backup 2, geração 2 e schema 1 permanecem; v1 é somente l
 D-031, D-032 e D-033 permanecem registros históricos. A 3A-2 e funcionalidades
 posteriores continuam sem autorização de implementação.
 
+### D-035 — Evolução lógica temporal e recuperação na 3A-2
+
+Após integração da 3A-1 pela PR #16, autoriza-se envelope planner lógico 2,
+ponte/registro discriminado 3 e backup público 3, preservando geração 2/schema 1.
+Legado parcial continua parcial; completas independem de records e usam o domínio
+existente, com uma única execução/história autoritativa e alocador compartilhado.
+Não existem novos produtores nem comandos públicos para completas nesta unidade.
+Referências a templates/domínios sem entidade recuperável são rejeitadas até sua
+evolução autorizada, sem inventar contratos ou procedência histórica.
+
+Upgrade valida snapshot/hash antigo antes de transformar, prepara hashes fora do
+commit e faz CAS época/revisão/base, escrita e readback numa única transação.
+Época preservada; uma revisão por mutação; no-op/replay estáveis. Ponte 3 exige
+metadata de revisão adotada. Recuperação aceita 3/2/1 e substitui conjunto completo,
+incluindo fontes/procedência, usando contadores locais do destino. Não há downgrade
+silencioso, export 2 de conjunto novo ou sobrevivência de entidades temporais órfãs.
+
+Consulta comum não cria fatos; capacidades distinguem parciais/completas. Hoje
+preserva leitura legada e admite completas timed sem comandos, categoria inferida
+ou tempo realizado fabricado. Schedules sem horário permanecem na consulta/backup;
+uma UX horária não os transforma em intervalos. Agenda, Rotina canônica, Semana,
+Metas, Consistência e 3B-1 continuam sujeitos a aprovação própria.
+D-031, D-032, D-033 e D-034 permanecem históricos sem reescrita.
+
 ## Questões abertas antes das etapas correspondentes
 
 1. Quais limiares e pesos formam a primeira regra de risco de Entregas?
