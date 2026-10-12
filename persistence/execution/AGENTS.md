@@ -26,6 +26,8 @@
 - Validate v1 including its original hash before deterministic upgrade to v2. Preserve all IDs, counter, snapshots and executions without inferring planningAudit or changing planner/current, marker or v1. Adoption writes bridge/version metadata and epoch zero (or existing epoch) atomically; valid v2 bootstrap stays stable.
 - Compare expectedAuthorityEpoch inside command writes in addition to snapshot CAS, including equivalent recovery. Dialogs capture the epoch when opened; do not treat it as backup content or a persistence generation. ReadPlannerAuthoritySnapshot exposes validated planner/bridge/local epoch from one readonly transaction.
 
+- Stage 3A-1 commands also capture datasetRevision; new commands compare the dataset fence inside writes and never rebase automatically. Exact persisted execution/event replay verifies the current validated snapshot and original authority in a readonly transaction, preserving idempotency despite newer revisions. Every net authoritative transaction advances local revision once; replay does not.
+
 ## Work Guidance
 
 - Keep pure domain code independent of this legacy adapter. A binding is not a fabricated full ScheduleOccurrence.

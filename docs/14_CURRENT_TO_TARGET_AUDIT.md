@@ -206,3 +206,12 @@ temporais continuam sujeitos a autorização própria; nenhuma etapa posterior f
 iniciada. A 2C-A foi integrada pela PR #13 e a 2C-B pela PR #14, encerrando a
 macroetapa 2. A próxima macroetapa prevista é a Etapa 3, com planejamento,
 subdivisão e aprovação próprios ainda necessários.
+
+## 14. Escritas concorrentes — 3A-1
+
+A 3A-1 está implementada na branch de trabalho, ainda sem integração. Corrige
+perda silenciosa de edições comuns entre abas com datasetRevision na metadata,
+CAS conjunto com authorityEpoch e revisão capturada na UI. Rascunhos/formulários
+sobrevivem a invalidações; resolução é explícita. Comandos e recuperação
+participam da revisão; replay equivalente não duplica fatos. Formatos e tabelas
+atuais permanecem. A 3A-2 e novos módulos não foram implementados.

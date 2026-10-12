@@ -184,3 +184,23 @@ itens continuam válidas; ambiguidades falham fechadas. Histórico fica disponí
 após conclusão. Dialog cobre confirmação inicial, inputs preservados, loading,
 Tab pelos segmentos nativos, Enter, Escape/Cancelar, foco restaurado e 390 px
 sem scroll horizontal; fechamento é impedido durante escrita.
+
+## Cenário 31 — Escritas protegidas por revisão persistida — 3A-1
+
+Duas abas partem da mesma época/revisão. A edita Rotina e salva; B edita meta
+mensal sobre a base antiga. CAS rejeita B antes de alterar documentos. A permanece
+persistida; B conserva rascunho, recebe conflito acessível e mantém armazenamento
+íntegro. Após baixar o rascunho, carregar explicitamente a versão salva e reaplicar
+sua meta, ambas as alterações sobrevivem a reload. Não há merge automático.
+
+Notas, energia e itens diários usam o mesmo fence. Conclusão e reagendamento
+incrementam revisão atomicamente e impedem autosave antigo de descartar fatos.
+Replay exato preserva identidade, execução, histórico e instante sem incrementar
+novamente. Comando aberto antes de outra mutação rejeita estado obsoleto,
+preservando campos. Restore com editor aberto invalida época/revisão sem apagar
+o formulário. Aba limpa atualiza a partir de snapshot validado; mensagens não
+substituem CAS. Hash em preparação, quota, rollback, overflow, metadata inválida,
+backup antigo, reabertura e v1 somente leitura possuem provas próprias.
+
+Mensagem, resolução por teclado, foco e 390 px são verificadas no Edge, sem
+retries automáticos. Conflito é recuperável; corrupção mantém fail-closed.

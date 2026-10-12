@@ -2,7 +2,7 @@
 
 **Status:** Etapas 0.1, 0.2, 1.1 e 1.2A–1.2D implementadas; 2A, fundação da 2B, 2B-A, 2C-A e 2C-B concluídas e integradas; macroetapa 2 encerrada
 **Data:** 11/10/2026
-**Próxima macroetapa prevista:** Etapa 3 — Rotina, Agenda, Semana, Metas e consistência; não iniciada e sem autorização de implementação
+**Etapa atual:** 3A-1 — proteção de escritas contra snapshots obsoletos, implementada na branch de trabalho e ainda não integrada; 3A-2 e funcionalidades posteriores não iniciadas nem autorizadas
 **Objetivo:** transformar as decisões de produto, UX, domínio e arquitetura discutidas até aqui em uma fonte oficial de verdade para o repositório e para o Codex.
 
 ## Como usar esta documentação
@@ -94,3 +94,8 @@ A 2C-A foi integrada pela PR #13 e a 2C-B pela PR #14, cujo merge é
 Os gates humanos de implementação e integração permanecem no histórico.
 A Etapa 3 exige planejamento, subdivisão e aprovação próprios; este encerramento
 documental não inicia seu planejamento detalhado nem autoriza sua implementação.
+
+A 3A-1 implementa revisão persistida local e CAS para o conjunto editável,
+preservando formatos e contratos da Etapa 2. Conflitos mantêm rascunhos e
+formulários; recuperação mantém epoch e revisão do destino. D-034 e os documentos
+09/10/12 registram o contrato e seus limites. A macroetapa 3 não está concluída.

@@ -34,6 +34,8 @@
 - Keep backup format 2, persistence generation 2 and Dexie schema 1. Execution bridge logical version 2 is an optional backup extension; accept validated bridge 1 and convert without inferred planningAudit. Backups without a bridge contain no canonical execution/planning facts. Active old restore prepares fresh bindings before writes; inactive old restore adopts at cutover.
 - Stage 2C-A owns recovery of optional planningAudit without a rescheduling producer. authorityEpoch is local metadata: absent legacy value means zero, bridge 2 requires it, and explicit restore/import/reset increments atomically. Never export/restore the epoch from logical backup or increment during ordinary bootstrap/saves.
 
+- Stage 3A-1 adds optional paired writeFenceVersion 1/datasetRevision to local metadata. Missing old pair means zero; validated adoption persists it idempotently. readPlannerAuthoritySnapshot captures epoch/revision together. The IndexedDB write boundary advances revision once per net authoritative mutation; no-op and reads remain stable. Both counters are excluded from backup; replacements increment destination epoch/revision. Preserve all logical/physical formats.
+
 ## Work Guidance
 
 - Keep transactions explicit and expose them through repository interfaces instead of UI code.
