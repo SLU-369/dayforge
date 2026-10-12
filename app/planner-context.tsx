@@ -1,5 +1,9 @@
 "use client";
 
+import { legacyPlanner } from "../persistence/contracts/planning-envelope.ts";
+import { historicalOffsetOccurrenceIds } from "../persistence/execution/bridge.ts";
+
+
 import {
   createContext,
   useCallback,
@@ -23,7 +27,7 @@ import { decodePlannerState, downloadJsonBackup } from "./planner-repository";
 import {
   IndexedDbPersistenceRepository,
   bootstrapPlannerV2,
-  exportDayforgeBackupV2,
+  exportDayforgeBackup,
   recoverPlannerV2,
   resetPlannerV2,
   saveActivePlannerV2,
@@ -53,7 +57,7 @@ const browserStorage = {
 };
 function toPlannerState(snapshot: NormalizedLegacyPlannerV1): PlannerState { return decodePlannerState(JSON.parse(JSON.stringify(snapshot))); }
 function fromAuthority(current: Awaited<ReturnType<typeof readPlannerAuthoritySnapshot>>): PlannerSnapshot {
-  return { state: toPlannerState(current.backup.payload.planner), executionBridge: current.backup.payload.executionBridge!.bridge,
+  return { state: toPlannerState(legacyPlanner(current.backup.payload.planner)), executionBridge: current.backup.payload.executionBridge!.bridge,
     authorityEpoch: current.authorityEpoch, datasetRevision: current.datasetRevision };
 }
 export function PlannerProvider({ children }: Readonly<{ children: ReactNode }>) {
@@ -89,7 +93,14 @@ export function PlannerProvider({ children }: Readonly<{ children: ReactNode }>)
     bootPromise.current.then(async (result) => {
       const current = await read(); if (cancelled) return;
       session.load(current); update(); if (!result.markerRepaired) setStorageWarning(MARKER_WARNING); setReady(true);
-    }).catch(() => { if (!cancelled) { block(); setReady(true); } });
+    }).catch(async (error: unknown) => {
+      if (cancelled) return;
+      if (error instanceof PlanningConflictError) {
+        try { const current = await read(); if (cancelled) return; session.load(current); session.conflict(current); update(); }
+        catch { block(); }
+      } else block();
+      setReady(true);
+    });
     return () => { cancelled = true; };
   }, [repository, read, session, update, block]);
 
@@ -167,7 +178,7 @@ export function PlannerProvider({ children }: Readonly<{ children: ReactNode }>)
   const exportBackup = useCallback(async () => {
     try { return await saveQueue.current.enqueue(async () => {
       if (writesBlocked.current) throw new Error("Planner persistence is blocked");
-      downloadJsonBackup(await exportDayforgeBackupV2({ repository, exportedAt: new Date().toISOString(), active: true }));
+      downloadJsonBackup(await exportDayforgeBackup({ repository, exportedAt: new Date().toISOString(), active: true }));
       if (session.dirty || session.remote) notify("Backup exportado com os dados salvos. O rascunho local não faz parte deste backup.");
       return true;
     }); } catch { notify("Não foi possível exportar o backup. Os dados locais foram preservados."); return false; }
@@ -210,6 +221,9 @@ export function PlannerProvider({ children }: Readonly<{ children: ReactNode }>)
   }, [renderRevision, session, setState, beginEditing, endEditing, completeOccurrence, rescheduleOccurrence, completingIds, exportBackup, importBackup, resetData, ready, storageBlocked, storageWarning, toast, notify]);
   return <PlannerContext.Provider value={value}>
     {storageWarning && <div role="alert" className="storage-warning">{storageWarning}</div>}
+    {historicalOffsetOccurrenceIds(session.persisted.executionBridge).length > 0 && <section className="panel" style={{ padding: "1rem", margin: "1rem" }} role="note" aria-label="Compatibilidade de fusos históricos">
+      <p>Há fusos históricos registrados como offsets numéricos. Os valores originais foram preservados, sem inferir uma localização ou regras de horário de verão. Novos registros exigem um fuso IANA nomeado.</p>
+    </section>}
     {(session.remote || saveError) && <section role="alert" aria-label="Alterações locais preservadas" className={conflictStyles.notice}>
       <p>{session.remote ? "O planejamento mudou em outra sessão. Suas alterações locais foram preservadas e não serão salvas sobre a versão atual. Feche o editor, baixe seu rascunho e carregue a versão salva para revisar e reaplicar as alterações." : saveError}</p>
       <div className={conflictStyles.actions}><Button variant="secondary" onClick={downloadDraft} disabled={session.openEditors > 0}>Baixar rascunho local</Button>

@@ -209,9 +209,19 @@ subdivisão e aprovação próprios ainda necessários.
 
 ## 14. Escritas concorrentes — 3A-1
 
-A 3A-1 está implementada na branch de trabalho, ainda sem integração. Corrige
+A 3A-1 foi integrada pela PR #16, merge 733bc3037e5143a1f67adfec8909268d9f736702. Corrige
 perda silenciosa de edições comuns entre abas com datasetRevision na metadata,
 CAS conjunto com authorityEpoch e revisão capturada na UI. Rascunhos/formulários
 sobrevivem a invalidações; resolução é explícita. Comandos e recuperação
 participam da revisão; replay equivalente não duplica fatos. Formatos e tabelas
 atuais permanecem. A 3A-2 e novos módulos não foram implementados.
+
+## 15. Fundação temporal — 3A-2
+
+Implementada e validada na branch feat/planning-model-recovery, ainda não integrada:
+planner/current envelope 2, execution/bridge 3 discriminada, backup público 3,
+upgrade atômico com CAS e recuperação 3/2/1. Geração 2/schema 1/tabelas e v1 somente
+leitura permanecem. Complete occurrences são suportadas por fixtures e consultas;
+Hoje admite leitura timed, sem comandos completos ou categoria inferida.
+Sem produtores de Agenda/Rotina/Metas, Semana, Consistência ou motor. A macroetapa 3
+não está concluída. Descrições anteriores de formatos/escopo são históricas.

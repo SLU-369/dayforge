@@ -59,7 +59,7 @@ export default function DataBackupPage() {
 
         <section className={styles.actionCard}>
           <Upload size={22} aria-hidden="true" />
-          <div><h2>Importar backup</h2><p>Restaure um backup v2 ou importe um arquivo legado v1 compatível.</p></div>
+          <div><h2>Importar backup</h2><p>Restaure um backup v3, v2 ou um arquivo legado v1 compatível.</p></div>
           <Button variant="secondary" loading={importing} onClick={() => inputRef.current?.click()} disabled={!ready}>Selecionar arquivo</Button>
           <input ref={inputRef} hidden type="file" accept="application/json" onChange={importBackup} />
         </section>

@@ -1,3 +1,4 @@
+import { legacyPlanner } from "../persistence/contracts/planning-envelope.ts";
 import type { LocalPersistenceRepository } from "../persistence/contracts/index.ts";
 import { readPlannerAuthoritySnapshot } from "../persistence/backup/export-backup-v2.ts";
 import { rescheduleOccurrencePlanning, type ReschedulingIntent } from "../persistence/execution/rescheduling.ts";
@@ -13,7 +14,7 @@ export async function persistRescheduling(options: ReschedulingIntent & Readonly
   try {
     const { backup, authorityEpoch, datasetRevision } = await readPlannerAuthoritySnapshot({ repository: options.repository, exportedAt: "1970-01-01T00:00:00.000Z", active: true });
     if (!backup.payload.executionBridge) throw new Error();
-    snapshot = { state: backup.payload.planner, executionBridge: backup.payload.executionBridge.bridge, authorityEpoch, datasetRevision };
+    snapshot = { state: legacyPlanner(backup.payload.planner), executionBridge: backup.payload.executionBridge.bridge, authorityEpoch, datasetRevision };
   } catch { throw new CompletionPersistenceError(true); }
   options.publish(snapshot);
   if (snapshot.authorityEpoch !== options.expectedAuthorityEpoch) throw new Error("Os dados foram substituídos. Cancele e abra uma nova ação.");

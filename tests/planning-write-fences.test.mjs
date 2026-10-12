@@ -1,12 +1,13 @@
+import { legacyOf, backupV2 } from "./planning-model-compat.mjs";
 import "fake-indexeddb/auto";
 import test from "node:test";
 import assert from "node:assert/strict";
 import Dexie from "dexie";
 import { DayforgeDatabase, IndexedDbPersistenceRepository, bootstrapPlannerV2, readPlannerAuthoritySnapshot,
-  saveActivePlannerV2, restoreActivePlannerV2, resetPlannerV2, exportDayforgeBackupV2, recordOccurrenceExecution,
+  saveActivePlannerV2, restoreActivePlannerV2, resetPlannerV2, exportDayforgeBackup, recordOccurrenceExecution,
   rescheduleOccurrencePlanning, occurrenceRevision, datasetRevision, nextDatasetRevision,
   assertPlanningFence, PlanningConflictError, PersistenceValidationError, createDatabaseMetadata, decodeDatabaseMetadata,
-  WebCryptoSha256Hasher } from "../persistence/index.ts";
+  WebCryptoSha256Hasher, createLegacyPlannerDocument, createBridgeDocument } from "../persistence/index.ts";
 import { buildCompletionRecord } from "../app/completion-input.ts";
 import { buildPlanningSchedule } from "../app/rescheduling-input.ts";
 import { PlannerDraftSession } from "../app/planner-draft-session.ts";
@@ -27,8 +28,8 @@ async function setup(t) {
 const read = (repo) => readPlannerAuthoritySnapshot({ repository: repo, exportedAt: instant, active: true });
 const fence = (s) => ({ expectedAuthorityEpoch: s.authorityEpoch, expectedDatasetRevision: s.datasetRevision });
 const physical = async (db) => ({ docs: await db.plannerDocuments.toArray(), metadata: await db.metadata.toArray() });
-const view = (s) => ({ state: s.backup.payload.planner, executionBridge: s.backup.payload.executionBridge.bridge, authorityEpoch: s.authorityEpoch, datasetRevision: s.datasetRevision });
-const edit = (s) => structuredClone(s.backup.payload.planner);
+const view = (s) => ({ state: legacyOf(s.backup.payload.planner), executionBridge: s.backup.payload.executionBridge.bridge, authorityEpoch: s.authorityEpoch, datasetRevision: s.datasetRevision });
+const edit = (s) => structuredClone(legacyOf(s.backup.payload.planner));
 const save = (repo,state,s) => saveActivePlannerV2({ repository: repo, state, ...fence(s) });
 function execution(s) { return buildCompletionRecord(s.backup.payload.executionBridge.bridge.entries[0].occurrenceId,
   { start: `${date}T08:10`, end: `${date}T08:50`, timeZone: "UTC", note: "" }, instant); }
@@ -48,8 +49,11 @@ test("initial revision is deterministic; validation separates invalid metadata f
 });
 test("old metadata adoption starts at zero and is idempotent without modifying logical facts", async (t) => {
   const f = await setup(t), s = await read(f.repo); const m = await f.db.metadata.get("database"); delete m.datasetRevision; delete m.writeFenceVersion;
+  const old = backupV2(s.backup); m.executionBridgeVersion = 2;
+  await f.db.plannerDocuments.put(createLegacyPlannerDocument(old.payload.provenance.contentFingerprint, old.payload.planner));
+  await f.db.plannerDocuments.put(await createBridgeDocument(old.payload.executionBridge.bridge));
   await f.db.metadata.put(m); await f.boot(); const a = await read(f.repo);
-  assert.equal(a.datasetRevision,0); assert.deepEqual(a.backup.payload,s.backup.payload);
+  assert.equal(a.datasetRevision,1); assert.deepEqual(a.backup.payload,s.backup.payload);
   const once = await physical(f.db); await f.boot(); await read(f.repo); assert.deepEqual(await physical(f.db),once);
 });
 for (const kind of ["routine","note","energy","monthlyGoal","newItem","itemEdit"]) test(`one atomic increment for ${kind}; unchanged saves and reads stay stable`, async (t) => {
@@ -72,10 +76,10 @@ test("mandatory A routine / B monthly goal conflict preserves winner and draft; 
   await save(f.repo,sa,a); const before = await physical(f.db);
   await assert.rejects(save(f.other,sb,b), PlanningConflictError); assert.deepEqual(await physical(f.db),before);
   const latest = await read(f.other); session.observe(view(latest)); assert.equal(session.state.monthlyGoals["2026-10"],"Meta local B");
-  assert.equal(latest.backup.payload.planner.routine.seg[0].title,"Rotina vencedora"); assert.equal(latest.backup.payload.planner.monthlyGoals["2026-10"],undefined);
+  assert.equal(legacyOf(latest.backup.payload.planner).routine.seg[0].title,"Rotina vencedora"); assert.equal(legacyOf(latest.backup.payload.planner).monthlyGoals["2026-10"],undefined);
   const savedDraft = session.state.monthlyGoals["2026-10"]; session.load(view(latest)); session.edit((state) => ({ ...state, monthlyGoals: { "2026-10":savedDraft } }));
   await save(f.other,session.state,latest); const done = await read(f.repo);
-  assert.equal(done.backup.payload.planner.routine.seg[0].title,"Rotina vencedora"); assert.equal(done.backup.payload.planner.monthlyGoals["2026-10"],"Meta local B");
+  assert.equal(legacyOf(done.backup.payload.planner).routine.seg[0].title,"Rotina vencedora"); assert.equal(legacyOf(done.backup.payload.planner).monthlyGoals["2026-10"],"Meta local B");
 });
 test("two concurrent independent writers have one winner and a recoverable loser", async (t) => {
   const f = await setup(t), s = await read(f.repo), a = edit(s), b = edit(s); a.monthlyGoals.a="A"; b.monthlyGoals.b="B";
@@ -115,7 +119,7 @@ for(const kind of ["restore","import","reset"]) test(`${kind} advances destinati
  await assert.rejects(save(f.other,edit(s),s),PlanningConflictError); const stable=await physical(f.db);await f.boot();assert.deepEqual(await physical(f.db),stable);
  f.repo.close();const reopened=await read(f.repo);assert.equal(reopened.datasetRevision,a.datasetRevision);
  assert.equal(Object.hasOwn(reopened.backup,"datasetRevision"),false);assert.equal(JSON.stringify(reopened.backup).includes('"datasetRevision":'),false);
- assert.equal(JSON.stringify(reopened.backup).includes('"authorityEpoch":'),false);assert.equal(reopened.backup.formatVersion,2);
+ assert.equal(JSON.stringify(reopened.backup).includes('"authorityEpoch":'),false);assert.equal(reopened.backup.formatVersion,3);
 });
 for(const kind of ["completion","rescheduling"]) test(`${kind} advances once and exact replay survives an unrelated newer revision`,async(t)=>{
  const f=await setup(t),s=await read(f.repo),b=s.backup.payload.executionBridge.bridge.entries[0],intent=rescheduling(s),record=execution(s);
@@ -138,10 +142,10 @@ test("a draft changed during its own save remains pending on the new validated b
  const f=await setup(t),s=await read(f.repo),a=edit(s),b=edit(s);a.monthlyGoals.a="A";b.monthlyGoals.a="A";b.monthlyGoals.b="B";
  const session=new PlannerDraftSession(view(s));session.edit(a);await save(f.repo,a,s);session.edit(b);
  assert.equal(session.saved(a,fence(s),view(await read(f.repo))),true);assert.equal(session.dirty,true);assert.equal(session.state.monthlyGoals.b,"B");
- await saveActivePlannerV2({repository:f.repo,state:session.state,...session.fence});assert.equal((await read(f.repo)).backup.payload.planner.monthlyGoals.b,"B");
+ await saveActivePlannerV2({repository:f.repo,state:session.state,...session.fence});assert.equal(legacyOf((await read(f.repo)).backup.payload.planner).monthlyGoals.b,"B");
 });
 test("export sees a complete consistent snapshot while another write is prepared",async(t)=>{
- const f=await setup(t),s=await read(f.repo),state=edit(s);state.monthlyGoals.a="A";const data=await exportDayforgeBackupV2({repository:f.other,exportedAt:instant,active:true});
+ const f=await setup(t),s=await read(f.repo),state=edit(s);state.monthlyGoals.a="A";const data=await exportDayforgeBackup({repository:f.other,exportedAt:instant,active:true});
  await save(f.repo,state,s);assert.deepEqual(data.payload,s.backup.payload);assert.equal(data.exportedFrom.schemaVersion,1);
 });
 

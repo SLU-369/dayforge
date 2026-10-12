@@ -19,6 +19,8 @@
 
 ## Work Guidance
 
+- New facts require named IANA zones. Historical reconstruction explicitly injects parseStoredTimeZone (D-036); StoredTimeZone retains a separately branded historical offset without geographic inference. Never use this compatibility parser in a new producer.
+
 - Prefer readonly discriminated unions, small pure functions, explicit validation, and stable error codes.
 - Keep intervals semi-open `[start, end)` and distinguish timed, date-only, and all-day schedules.
 - Avoid framework-style abstractions and external dependencies unless a later stage proves them necessary.

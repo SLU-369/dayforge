@@ -1,5 +1,8 @@
 "use client";
 
+import { legacyBindings } from "../persistence/execution/bridge.ts";
+
+
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Plus } from "lucide-react";
@@ -22,7 +25,7 @@ import {
   RoutineItem,
 } from "./planner-data";
 import { usePlanner } from "./planner-context";
-import { deriveTodayContext } from "./today-context";
+import { deriveTodayContext, deriveMonthlyDayContext } from "./today-context";
 import { TodayContextView } from "./today-context-view";
 import { PlanningHistoryView } from "./planning-history-view";
 import type { TodayContextItem } from "./today-context";
@@ -129,9 +132,9 @@ export default function PlannerApp({ view = "hoje", initialDate }: { view?: Plan
 
   const metrics = useMemo(() => {
     if (!record) return { planned: 0, completed: 0, focus: 0, count: 0, done: 0 };
-    if (todayContext.context && executionBridge?.entries.some((entry) => entry.planningAudit)) {
+    if (todayContext.context && (legacyBindings(executionBridge).some((entry) => entry.planningAudit) || executionBridge?.entries.some(entry => entry.kind === "canonical"))) {
       const items = todayContext.context.items;
-      const minutes = (item: TodayContextItem) => item.completed ? item.actualMinutes ?? item.binding?.item.actualMinutes ?? (Date.parse(item.endsAt) - Date.parse(item.startsAt)) / 60_000 : 0;
+      const minutes = (item: TodayContextItem) => item.completed ? item.canonicalOccurrence ? item.actualMinutes ?? 0 : item.actualMinutes ?? item.binding?.item.actualMinutes ?? (Date.parse(item.endsAt) - Date.parse(item.startsAt)) / 60_000 : 0;
       return { planned: items.reduce((sum, item) => sum + (Date.parse(item.endsAt) - Date.parse(item.startsAt)) / 60_000, 0),
         completed: items.reduce((sum, item) => sum + minutes(item), 0), focus: items.filter((item) => item.category === "foco").reduce((sum, item) => sum + minutes(item), 0),
         count: items.length, done: items.filter((item) => item.completed).length };
@@ -164,7 +167,7 @@ export default function PlannerApp({ view = "hoje", initialDate }: { view?: Plan
 
   function deleteItem(index: number, target: "day" | "routine") {
     if (target === "day") {
-      if (executionBridge?.entries.some((entry) => entry.sourceDate === selectedDate && entry.itemIndex === index && (entry.execution || entry.planningAudit))) return;
+      if (legacyBindings(executionBridge).some((entry) => entry.sourceDate === selectedDate && entry.itemIndex === index && (entry.execution || entry.planningAudit))) return;
       updateRecord((current) => ({ ...current, items: current.items.filter((_, itemIndex) => itemIndex !== index) }));
     } else {
       setState((current) => ({
@@ -230,9 +233,9 @@ export default function PlannerApp({ view = "hoje", initialDate }: { view?: Plan
                 onDate={selectDate}
                 onToggle={toggleItem}
                 completionLocked={executionBridge !== null}
-                terminalIndexes={executionBridge?.entries.filter((entry) => entry.sourceDate === selectedDate && (entry.execution || entry.planningAudit)).map((entry) => entry.itemIndex) ?? []}
+                terminalIndexes={legacyBindings(executionBridge).filter((entry) => entry.sourceDate === selectedDate && (entry.execution || entry.planningAudit)).map((entry) => entry.itemIndex) ?? []}
                 effectiveItems={todayContext.context?.items}
-                effectivePlanning={executionBridge?.entries.some((entry) => entry.planningAudit) ?? false}
+                effectivePlanning={(legacyBindings(executionBridge).some((entry) => entry.planningAudit) || executionBridge?.entries.some(entry => entry.kind === "canonical")) ?? false}
                 onEdit={(item, index) => openEditor({ type: "day", item, index })}
                 onDelete={(index) => deleteItem(index, "day")}
                 onAdd={() => openEditor({ type: "day" })}
@@ -269,13 +272,15 @@ export default function PlannerApp({ view = "hoje", initialDate }: { view?: Plan
 }
 
 function EffectiveTimelineItem({ item, current, onEdit, onDelete }: { item: TodayContextItem; current: boolean; onEdit?: () => void; onDelete?: () => void }) {
-  const category = CATEGORIES[item.category];
+  const category = item.category ? CATEGORIES[item.category] : { label: "Ocorrência", color: "var(--accent)", soft: "var(--surface)" };
   const duration = (Date.parse(item.endsAt) - Date.parse(item.startsAt)) / 60_000;
-  const actual = item.actualMinutes ?? item.binding?.item.actualMinutes ?? duration;
+  const actual = item.canonicalOccurrence ? item.actualMinutes : item.actualMinutes ?? item.binding?.item.actualMinutes ?? duration;
+  const resolutionLabel = item.canonicalOccurrence?.status === "cancelled" ? "Cancelada"
+    : item.canonicalOccurrence?.status === "not_completed" ? "Não realizada" : null;
   return <article className={`timeline-item ${item.completed ? "completed" : ""} ${current ? "current" : ""}`} style={{ "--item-color": category.color, "--item-soft": category.soft } as React.CSSProperties}>
-    <button className="check-button" disabled aria-label={item.completed ? "Atividade concluída" : "Atividade pendente"}>{item.completed ? "✓" : ""}</button>
+    <button className="check-button" disabled aria-label={resolutionLabel ?? (item.completed ? "Atividade concluída" : "Atividade pendente")}>{item.completed ? "✓" : ""}</button>
     <div className="time-column"><strong>{item.start}</strong><span>{item.end}</span></div>
-    <div className="item-body"><span className="category-tag">{category.label}</span>{current && <span className="now-tag">agora</span>}<h3>{item.title}</h3>{item.notes && <p>{item.notes}</p>}<small>{item.completed ? `${actual} min realizados` : `${duration} min planejados`}</small>{item.binding && <PlanningHistoryView binding={item.binding} />}</div>
+    <div className="item-body"><span className="category-tag">{category.label}</span>{current && <span className="now-tag">agora</span>}<h3>{item.title}</h3>{item.notes && <p>{item.notes}</p>}<small>{resolutionLabel ?? (item.completed ? actual === undefined ? "Concluída · duração não informada" : `${actual} min realizados` : `${duration} min planejados`)}</small>{item.binding && <PlanningHistoryView binding={item.binding} />}</div>
     <div className="item-actions"><button disabled={!onEdit} aria-label="Editar atividade" onClick={onEdit}>Editar</button><button disabled={!onDelete} aria-label="Excluir atividade" onClick={onDelete}>×</button></div>
   </article>;
 }
@@ -322,8 +327,8 @@ function TodayView({ record, selectedDate, todayISO, metrics, onDate, onToggle, 
           <div className="panel-heading"><div><span className="eyebrow">LINHA DO TEMPO</span><h2>Planejado x realizado</h2>{completionLocked && <small>Conclua ocorrências na visão contextual acima. Registros concluídos não podem ser reabertos nesta etapa.</small>}</div><span className="progress-chip">{percentage}% concluído</span></div>
           <div className="timeline-list">
             {effectivePlanning ? effectiveItems?.map((item) => {
-              const editable = item.sourceDate === record.date && !item.binding?.execution && !item.binding?.planningAudit;
-              const current = isToday && !item.completed && item.startsAt <= now.toISOString() && now.toISOString() < item.endsAt;
+              const editable = !item.canonicalOccurrence && item.sourceDate === record.date && !item.binding?.execution && !item.binding?.planningAudit;
+              const current = isToday && !item.completed && !item.terminal && item.startsAt <= now.toISOString() && now.toISOString() < item.endsAt;
               return <EffectiveTimelineItem key={item.id} item={item} current={current} onEdit={editable ? () => onEdit(record.items[item.sourceIndex], item.sourceIndex) : undefined} onDelete={editable ? () => onDelete(item.sourceIndex) : undefined} />;
             }) : record.items.map((entry, index) => {
               const category = CATEGORIES[entry.category];
@@ -381,20 +386,24 @@ function MonthView({ state, executionBridge, monthDate, todayISO, onMonth, onOpe
   for (let day = 1; day <= daysInMonth; day++) cells.push(localISO(new Date(monthDate.getFullYear(), monthDate.getMonth(), day)));
   while (cells.length % 7) cells.push(null);
 
-  const effectiveDays = useMemo(() => {
-    if (!executionBridge?.entries.some((entry) => entry.planningAudit)) return null;
+  const monthlyProjection = useMemo(() => {
+    if (!(legacyBindings(executionBridge).some((entry) => entry.planningAudit) || executionBridge?.entries.some(entry => entry.kind === "canonical"))) return null;
     const days = new Map<string, readonly TodayContextItem[]>();
+    const unrepresented = new Set<string>();
     const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     for (let day = 1; day <= daysInMonth; day++) {
       const date = localISO(new Date(monthDate.getFullYear(), monthDate.getMonth(), day));
       // Monthly totals attribute an interval once to its effective start day; Today shows every intersecting day.
-      days.set(date, deriveTodayContext(state, new Date(), zone, date, executionBridge).items.filter((item) => {
+      const projection = deriveMonthlyDayContext(state, new Date(), zone, date, executionBridge ?? undefined);
+      projection.unrepresentedOccurrenceIds.forEach(id => unrepresented.add(id));
+      days.set(date, projection.context.items.filter((item) => {
         const start = localPlanningTime(item.startsAt, zone).slice(0, 10);
         return start === date;
       }));
     }
-    return days;
+    return { days, unrepresentedCount: unrepresented.size };
   }, [state, executionBridge, monthDate, daysInMonth]);
+  const effectiveDays = monthlyProjection?.days;
 
   const monthMetrics = useMemo(() => {
     let planned = 0, completed = 0, activities = 0, done = 0;
@@ -408,8 +417,8 @@ function MonthView({ state, executionBridge, monthDate, todayISO, onMonth, onOpe
         activities += entries.length;
         for (const entry of entries) {
           if (!entry.completed) continue;
-          const minutes = entry.actualMinutes ?? entry.binding?.item.actualMinutes ?? (Date.parse(entry.endsAt) - Date.parse(entry.startsAt)) / 60_000;
-          completed += minutes; done++; byCategory[entry.category] += minutes;
+          const minutes = entry.canonicalOccurrence ? entry.actualMinutes ?? 0 : entry.actualMinutes ?? entry.binding?.item.actualMinutes ?? (Date.parse(entry.endsAt) - Date.parse(entry.startsAt)) / 60_000;
+          completed += minutes; done++; if (entry.category) byCategory[entry.category] += minutes;
         }
         continue;
       }
@@ -449,7 +458,10 @@ function MonthView({ state, executionBridge, monthDate, todayISO, onMonth, onOpe
 
   return (
     <div className="page-wrap">
-      <div className="page-topline"><div><span className="eyebrow">{"// VISÃO MENSAL"}</span><h1>Seu ritmo ao longo do mês</h1><p>Resultados reais, sem culpa e sem maquiagem.</p></div><div className="month-control"><button onClick={() => onMonth(new Date(monthDate.getFullYear(), monthDate.getMonth() - 1, 1))}>‹</button><strong>{monthTitle(monthDate)}</strong><button onClick={() => onMonth(new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 1))}>›</button></div></div>
+      <div className="page-topline"><div><span className="eyebrow">{"// VISÃO MENSAL"}</span><h1>Seu ritmo ao longo do mês</h1><p>Resultados reais, sem culpa e sem maquiagem.</p></div><div className="month-control"><button aria-label="Mês anterior" onClick={() => onMonth(new Date(monthDate.getFullYear(), monthDate.getMonth() - 1, 1))}>‹</button><strong>{monthTitle(monthDate)}</strong><button aria-label="Próximo mês" onClick={() => onMonth(new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 1))}>›</button></div></div>
+      {!!monthlyProjection?.unrepresentedCount && <section className="panel" style={{ padding: "1rem", marginBottom: "1rem" }} role="note" aria-label="Limitação da projeção mensal">
+        <p>Ocorrências sem horário preservadas: {monthlyProjection.unrepresentedCount}. Esses registros não participam da projeção horária nem dos indicadores deste mês. As demais atividades continuam sendo calculadas.</p>
+      </section>}
       <section className="metric-grid month-metrics">
         <MetricCard label="Aproveitamento" value={`${safePercent(monthMetrics.completed, monthMetrics.planned)}%`} helper={`${hoursLabel(monthMetrics.completed)} de ${hoursLabel(monthMetrics.planned)}`} accent="var(--accent)" />
         <MetricCard label="Atividades" value={`${monthMetrics.done}`} helper={`de ${monthMetrics.activities} planejadas`} accent="var(--success)" />

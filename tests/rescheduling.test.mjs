@@ -1,3 +1,4 @@
+import { legacyOf } from "./planning-model-compat.mjs";
 import { capturePlanningFence } from "../persistence/contracts/dataset-revision.ts";
 import "fake-indexeddb/auto";
 import assert from "node:assert/strict";
@@ -17,7 +18,7 @@ import { deriveCompletedStatus as completedStatus } from "../domain/temporal/ind
 
 const compiled = ts.transpileModule(readFileSync(new URL("../app/today-context.ts", import.meta.url), "utf8"),
   { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText;
-const { deriveTodayContext } = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString("base64")}`);
+const { deriveTodayContext } = await import(`data:text/javascript;base64,${Buffer.from(compiled.replaceAll("../persistence/execution/bridge.ts", new URL("../persistence/execution/bridge.ts", import.meta.url).href).replaceAll("../persistence/execution/query.ts", new URL("../persistence/execution/query.ts", import.meta.url).href)).toString("base64")}`);
 const date = "2026-10-10", instant = `${date}T12:00:00.000Z`;
 const schedule = (start = `${date}T20:00`, end = `${date}T21:00`, timeZone = "UTC") => buildPlanningSchedule({ start, end, timeZone });
 const baseline = schedule(`${date}T06:30`, `${date}T07:30`);
@@ -42,7 +43,7 @@ function intent(snap, overrides = {}) {
     expectedHistoryLength: binding.planningAudit?.rescheduleHistory.length ?? 0,
     ...(!binding.planningAudit ? { previousSchedule: baseline } : {}), schedule: schedule(), changedAt: instant, ...overrides };
 }
-const context = (snap, day = date, now = instant) => deriveTodayContext(snap.backup.payload.planner, new Date(now), "UTC", day, snap.backup.payload.executionBridge.bridge);
+const context = (snap, day = date, now = instant) => deriveTodayContext(legacyOf(snap.backup.payload.planner), new Date(now), "UTC", day, snap.backup.payload.executionBridge.bridge);
 const execution = (id = "occ:1", recordedAt = `${date}T22:00:00.000Z`) => buildCompletionRecord(id, { start: `${date}T20:05`, end: `${date}T20:55`, timeZone: "UTC", note: "" }, recordedAt);
 
 for (const [label, start, end, zone, minutes] of [
@@ -69,7 +70,7 @@ test("06:30 → 20:00 → real execution preserves identity, physical planner, o
   const before = await snapshot(repository), request = intent(before); let published;
   await persistRescheduling({ ...request, repository, publish: (value) => { published = value; } });
   const after = await snapshot(repository), binding = after.backup.payload.executionBridge.bridge.entries[0];
-  assert.deepEqual(after.backup.payload.planner, before.backup.payload.planner);
+  assert.deepEqual(legacyOf(after.backup.payload.planner), legacyOf(before.backup.payload.planner));
   assert.equal(published.authorityEpoch, before.authorityEpoch);
   assert.equal(binding.occurrenceId, request.occurrenceId); assert.deepEqual(binding.originalItem, item()); assert.equal(binding.execution, null);
   assert.deepEqual(binding.planningAudit.baselineSchedule, baseline); assert.equal(binding.planningAudit.confirmedAt, instant);
@@ -127,7 +128,7 @@ for (const kind of ["no-op", "past", "missing confirmation", "stale revision", "
 
 test("equivalent inflight intents share one queue operation; conflict rejects; obsolete autosave and export serialize", async (t) => {
   const { repository } = await setup(t), before = await snapshot(repository), request = intent(before), queue = new PlannerWriteQueue();
-  const state = structuredClone(before.backup.payload.planner); state.records[date].note = "Independent note";
+  const state = structuredClone(legacyOf(before.backup.payload.planner)); state.records[date].note = "Independent note";
   const save = queue.autosave(0, async () => saveActivePlannerV2({ ...await capturePlanningFence(repository), repository, state }));
   const work = () => persistRescheduling({ ...request, repository, publish() { queue.revision++; } });
   const a = queue.command("occ:1", request, work), b = queue.command("occ:1", request, work); assert.equal(a, b);
@@ -135,7 +136,7 @@ test("equivalent inflight intents share one queue operation; conflict rejects; o
   let staleCalls = 0; const stale = queue.autosave(0, async () => { staleCalls++; });
   const exportAfter = queue.enqueue(() => snapshot(repository));
   await Promise.all([save, a, b, stale]); assert.equal(staleCalls, 0);
-  const saved = await exportAfter; assert.equal(saved.backup.payload.planner.records[date].note, "Independent note");
+  const saved = await exportAfter; assert.equal(legacyOf(saved.backup.payload.planner).records[date].note, "Independent note");
   assert.equal(saved.backup.payload.executionBridge.bridge.entries[0].planningAudit.rescheduleHistory.length, 1);
 });
 
@@ -208,7 +209,7 @@ test("distant historical origin, explicit midnight, stable ties and virtual coex
 
 for (const mutation of ["clock", "minutes", "toggle", "delete item", "delete record", "identity"]) test(`legacy guard blocks ${mutation} of audited occurrence`, async (t) => {
   const { repository, database } = await setup(t); await rescheduleOccurrencePlanning({ repository, ...intent(await snapshot(repository)) });
-  const state = structuredClone((await snapshot(repository)).backup.payload.planner), row = state.records[date];
+  const state = structuredClone(legacyOf((await snapshot(repository)).backup.payload.planner)), row = state.records[date];
   if (mutation === "clock") row.items[0].start = "05:30";
   if (mutation === "minutes") row.items[0].actualMinutes = 40;
   if (mutation === "toggle") row.items[0].completed = true;
@@ -221,7 +222,7 @@ for (const mutation of ["clock", "minutes", "toggle", "delete item", "delete rec
 test("unrelated notes/energy, other-item edits and unequivocal reorder retain audited identity and planning", async (t) => {
   const state = initial(); state.records[date].items.push(item("Other")); const { repository } = await setup(t, state);
   await rescheduleOccurrencePlanning({ repository, ...intent(await snapshot(repository)) });
-  const before = await snapshot(repository), edited = structuredClone(before.backup.payload.planner);
+  const before = await snapshot(repository), edited = structuredClone(legacyOf(before.backup.payload.planner));
   edited.records[date].note = "Allowed"; edited.records[date].energy = 5; edited.records[date].items[1].title = "Edited other"; edited.records[date].items.reverse();
   await saveActivePlannerV2({ ...await capturePlanningFence(repository), repository, state: edited }); const bridge = (await snapshot(repository)).backup.payload.executionBridge.bridge;
   const audited = bridge.entries.find((entry) => entry.occurrenceId === "occ:1"); assert.equal(audited.itemIndex, 1);
@@ -231,7 +232,7 @@ test("unrelated notes/energy, other-item edits and unequivocal reorder retain au
 test("an old independent autosave retains new planning facts; it cannot undo completion", async (t) => {
   const { repository, name } = await setup(t), other = new IndexedDbPersistenceRepository(new DayforgeDatabase(name)); t.after(() => other.close());
   const stale = await snapshot(other); await rescheduleOccurrencePlanning({ repository, ...intent(stale) });
-  const edited = structuredClone(stale.backup.payload.planner); edited.records[date].note = "Other tab note";
+  const edited = structuredClone(legacyOf(stale.backup.payload.planner)); edited.records[date].note = "Other tab note";
   await saveActivePlannerV2({ ...await capturePlanningFence(other), repository: other, state: edited, expectedAuthorityEpoch: stale.authorityEpoch });
   const saved = await snapshot(repository); assert.equal(context(saved).proximo.start, "20:00");
   await recordOccurrenceExecution({ repository, occurrenceId: "occ:1", execution: execution() });

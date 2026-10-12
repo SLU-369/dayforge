@@ -140,10 +140,11 @@ export function decodeDatabaseMetadata(value: unknown): DatabaseMetadataRecord {
     || (Object.hasOwn(value, "datasetRevision") && (typeof value.datasetRevision !== "number"
       || !Number.isSafeInteger(value.datasetRevision) || value.datasetRevision < 0))
     || (Object.hasOwn(value, "writeFenceVersion") !== Object.hasOwn(value, "datasetRevision"))
-    || (Object.hasOwn(value, "executionBridgeVersion") && value.executionBridgeVersion !== 1 && value.executionBridgeVersion !== 2)
+    || (Object.hasOwn(value, "executionBridgeVersion") && value.executionBridgeVersion !== 1 && value.executionBridgeVersion !== 2 && value.executionBridgeVersion !== 3)
     || (Object.hasOwn(value, "authorityEpoch") && (!Number.isSafeInteger(value.authorityEpoch)
       || typeof value.authorityEpoch !== "number" || value.authorityEpoch < 0))
-    || (value.executionBridgeVersion === 2 && !Object.hasOwn(value, "authorityEpoch"))
+    || ((value.executionBridgeVersion === 2 || value.executionBridgeVersion === 3) && !Object.hasOwn(value, "authorityEpoch"))
+    || (value.executionBridgeVersion === 3 && !Object.hasOwn(value, "writeFenceVersion"))
     || value.key !== DATABASE_METADATA_KEY
     || value.kind !== "database"
     || value.persistenceGeneration !== PERSISTENCE_GENERATION
@@ -161,7 +162,7 @@ export function decodeDatabaseMetadata(value: unknown): DatabaseMetadataRecord {
     persistenceGeneration: value.persistenceGeneration,
     schemaVersion: value.schemaVersion,
     activeDocumentId: value.activeDocumentId,
-    ...(value.executionBridgeVersion === 1 || value.executionBridgeVersion === 2 ? { executionBridgeVersion: value.executionBridgeVersion } : {}),
+    ...(value.executionBridgeVersion === 1 || value.executionBridgeVersion === 2 || value.executionBridgeVersion === 3 ? { executionBridgeVersion: value.executionBridgeVersion } : {}),
     ...(typeof value.authorityEpoch === "number" ? { authorityEpoch: value.authorityEpoch } : {}),
     ...(value.writeFenceVersion === 1 ? { writeFenceVersion: 1 as const, datasetRevision: value.datasetRevision as number } : {}),
   };

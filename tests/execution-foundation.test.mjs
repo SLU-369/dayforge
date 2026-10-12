@@ -1,3 +1,4 @@
+import { legacyOf, backupV2 } from "./planning-model-compat.mjs";
 import { capturePlanningFence } from "../persistence/contracts/dataset-revision.ts";
 import "fake-indexeddb/auto";
 import assert from "node:assert/strict";
@@ -7,16 +8,16 @@ import ts from "typescript";
 import { readFileSync } from "node:fs";
 import {
   DayforgeDatabase, IndexedDbPersistenceRepository, bootstrapPlannerV2, ensureExecutionBridge,
-  exportDayforgeBackupV2, restoreDayforgeBackupV2, restoreActivePlannerV2, recoverPlannerV2,
+  exportDayforgeBackup, restoreDayforgeBackupV2, restoreActivePlannerV2, recoverPlannerV2,
   saveActivePlannerV2, savePlannerWithBridge, recordOccurrenceExecution, decodeExecutionBridge,
   EXECUTION_BRIDGE_DOCUMENT_ID, reconcileExecutionBridge, migrateLegacyPlannerV1,
-  resetPlannerV2, canonicalStringify, WebCryptoSha256Hasher,
+  resetPlannerV2, canonicalStringify, WebCryptoSha256Hasher, decodeDayforgeBackupV2, ExecutionBridgeError,
 } from "../persistence/index.ts";
 import { createDateOnlyExecutionTiming, createTimedExecutionTiming, createAllDayExecutionTiming, createExecutionRecord, executionRecordId } from "../domain/temporal/index.ts";
 
 const compilerOptions = { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext };
 const contextCompiled = ts.transpileModule(readFileSync(new URL("../app/today-context.ts", import.meta.url), "utf8"), { compilerOptions }).outputText;
-const { deriveTodayContext } = await import(`data:text/javascript;base64,${Buffer.from(contextCompiled).toString("base64")}`);
+const { deriveTodayContext } = await import(`data:text/javascript;base64,${Buffer.from(contextCompiled.replaceAll("../persistence/execution/bridge.ts", new URL("../persistence/execution/bridge.ts", import.meta.url).href).replaceAll("../persistence/execution/query.ts", new URL("../persistence/execution/query.ts", import.meta.url).href)).toString("base64")}`);
 const date = "2026-10-06";
 const instant = "2026-10-06T12:00:00.000Z";
 const routine = { seg: [], ter: [], qua: [], qui: [], sex: [], sab: [], dom: [] };
@@ -40,7 +41,7 @@ async function setup(t, initial = state()) {
   const result = await boot();
   return { name, database, repository, legacy, marker, boot, result, raw };
 }
-const backup = (repository) => exportDayforgeBackupV2({ repository, exportedAt: instant, active: true });
+const backup = (repository) => exportDayforgeBackup({ repository, exportedAt: instant, active: true });
 async function physical(database) {
   return { documents: (await database.plannerDocuments.toArray()).sort((a,b) => a.id.localeCompare(b.id)), metadata: (await database.metadata.toArray()).sort((a,b) => a.key.localeCompare(b.key)) };
 }
@@ -63,7 +64,7 @@ test("duplicate legacy IDs receive unique persistent identities without changing
   assert.deepEqual(result.executionBridge.entries.map((entry) => entry.originalItem.id), ["same", "same"]);
   assert.equal(legacy.getItem("rotina-369:data:v1"), raw);
   assert.deepEqual(legacy.writes, []);
-  assert.equal((await repository.read((tx) => tx.getDatabaseMetadata())).executionBridgeVersion, 2);
+  assert.equal((await repository.read((tx) => tx.getDatabaseMetadata())).executionBridgeVersion, 3);
   assert.deepEqual(database.tables.map((table) => table.name).sort(), ["metadata", "plannerDocuments"]);
 });
 
@@ -190,20 +191,20 @@ test("new backup restores complete identity, execution and audit snapshot; resto
   once.metadata.find((record) => record.key === "database").datasetRevision += 1;
   assert.deepEqual(await physical(second.database), once);
   assert.deepEqual((await backup(second.repository)).payload, data.payload);
-  assert.equal(data.formatVersion, 2);
+  assert.equal(data.formatVersion, 3);
   assert.equal(data.exportedFrom.persistenceGeneration, 2);
   assert.equal(data.exportedFrom.schemaVersion, 1);
 });
 
 test("old backup replaces existing executions with fresh bindings and preserves legacy completion only", async (t) => {
   const { repository, result, boot, database } = await setup(t);
-  const data = await backup(repository);
+  const data = backupV2(await backup(repository));
   delete data.payload.executionBridge;
   await complete(repository, result.executionBridge.entries[0].occurrenceId);
   await restoreDayforgeBackupV2({ repository, backup: data, active: true });
   const restored = await boot();
   assert.equal(restored.executionBridge.entries.filter((entry) => entry.execution).length, 0);
-  assert.deepEqual(restored.state, data.payload.planner);
+  assert.deepEqual(restored.state, legacyOf(data.payload.planner));
   const once = await physical(database);
   await restoreDayforgeBackupV2({ repository, backup: data, active: true });
   once.metadata.find((record) => record.key === "database").authorityEpoch += 1;
@@ -257,7 +258,7 @@ test("terminal audit bindings cannot be removed or silently reopened by legacy c
   const { repository, result, database } = await setup(t, state([item("one")]));
   await complete(repository, result.executionBridge.entries[0].occurrenceId);
   const before = await physical(database);
-  const data = (await backup(repository)).payload.planner;
+  const data = legacyOf((await backup(repository)).payload.planner);
   const reopened = structuredClone(data);
   reopened.records[date].items[0].completed = false;
   await assert.rejects(saveActivePlannerV2({ ...await capturePlanningFence(repository), repository, state: reopened }));
@@ -278,7 +279,7 @@ test("Hoje uses persistent identity and recalculates all sections from completio
   assert.equal(context.agora.id, context.agora.occurrenceId);
   for (const binding of result.executionBridge.entries) await complete(repository, binding.occurrenceId);
   const data = await backup(repository);
-  const updated = deriveTodayContext(data.payload.planner, at, "UTC", date, data.payload.executionBridge.bridge);
+  const updated = deriveTodayContext(legacyOf(data.payload.planner), at, "UTC", date, data.payload.executionBridge.bridge);
   assert.equal(updated.agora, null);
   assert.equal(updated.proximo, null);
   assert.deepEqual(updated.depois, []);
@@ -293,7 +294,7 @@ test("midnight continuation keeps the same persisted occurrence identity across 
   assert.equal(context.proximo.occurrenceId, result.executionBridge.entries[1].occurrenceId);
   await complete(repository, context.agora.occurrenceId);
   const data = await backup(repository);
-  assert.equal(deriveTodayContext(data.payload.planner, new Date("2026-10-07T01:30:00.000Z"), "UTC", undefined, data.payload.executionBridge.bridge).atencao.length, 0);
+  assert.equal(deriveTodayContext(legacyOf(data.payload.planner), new Date("2026-10-07T01:30:00.000Z"), "UTC", undefined, data.payload.executionBridge.bridge).atencao.length, 0);
 });
 
 test("new backup rejects a valid-shaped audit record with a tampered fingerprint", async (t) => {
@@ -372,14 +373,18 @@ test("stale autosave cannot overwrite a concurrent canonical completion", async 
 
 test("old backup with malformed daily binding fails before replacing active facts", async (t) => {
   const { repository, database } = await setup(t);
-  const data = await backup(repository);
+  const data = backupV2(await backup(repository));
   delete data.payload.executionBridge;
-  data.payload.planner.records[date].date = "2026-10-07";
+  assert.equal(decodeDayforgeBackupV2(data).formatVersion, 2);
+  legacyOf(data.payload.planner).records[date].date = "2026-10-07";
   data.payload.provenance.origins = [];
   data.payload.legacySources = [];
-  data.payload.provenance.contentFingerprint = await new WebCryptoSha256Hasher().digestUtf8(canonicalStringify(data.payload.planner));
+  data.payload.provenance.contentFingerprint = await new WebCryptoSha256Hasher().digestUtf8(canonicalStringify(legacyOf(data.payload.planner)));
   const before = await physical(database);
-  await assert.rejects(restoreDayforgeBackupV2({ repository, backup: data, active: true }));
+  await assert.rejects(restoreDayforgeBackupV2({ repository, backup: data, active: true }),
+    error => error instanceof ExecutionBridgeError && error.code === "invalid_execution_bridge");
+  assert.deepEqual(await physical(database), before);
+  repository.close(); await repository.open();
   assert.deepEqual(await physical(database), before);
 });
 
@@ -416,7 +421,7 @@ test("an execution bridge without its adoption metadata fails closed without rep
 
 test("inactive old backup remains recoverable through explicit cutover", async (t) => {
   const first = await setup(t);
-  const data = await backup(first.repository);
+  const data = backupV2(await backup(first.repository));
   delete data.payload.executionBridge;
   const name = `execution-old-restore-${++sequence}`;
   const repository = new IndexedDbPersistenceRepository(new DayforgeDatabase(name));
@@ -475,11 +480,11 @@ test("normal planner and actual-minute edits do not imply completion or executio
   edited.records[date].energy = 4;
   const bridge = await saveActivePlannerV2({ ...await capturePlanningFence(repository), repository, state: edited });
   const data = await backup(repository);
-  assert.equal(data.payload.planner.records[date].items[0].actualMinutes, 45);
-  assert.equal(data.payload.planner.records[date].energy, 4);
+  assert.equal(legacyOf(data.payload.planner).records[date].items[0].actualMinutes, 45);
+  assert.equal(legacyOf(data.payload.planner).records[date].energy, 4);
   assert.equal(bridge.entries[0].item.completed, false);
   assert.equal(bridge.entries[0].execution, null);
-  const context = deriveTodayContext(data.payload.planner, new Date("2026-10-06T08:30:00.000Z"), "UTC", date, bridge);
+  const context = deriveTodayContext(legacyOf(data.payload.planner), new Date("2026-10-06T08:30:00.000Z"), "UTC", date, bridge);
   assert.equal(context.agora.title, "Edição normal");
   assert.equal(context.resumo.completed, 0);
 });

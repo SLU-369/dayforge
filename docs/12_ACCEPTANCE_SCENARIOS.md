@@ -204,3 +204,54 @@ backup antigo, reabertura e v1 somente leitura possuem provas próprias.
 
 Mensagem, resolução por teclado, foco e 390 px são verificadas no Edge, sem
 retries automáticos. Conflito é recuperável; corrupção mantém fail-closed.
+
+## Cenário 32 — Fundação temporal versionada e recuperação — 3A-2
+
+Instalação antiga com planner 1 e ponte 1/2 válida migra atomicamente para
+envelope 2 e registro 3, mantendo legado, IDs/contador, execução, auditoria e
+eventos. Não atribui origem, fuso, flexibilidade, criação ou execução ausentes.
+Reabertura/no-op não avançam revisão; upgrade avança uma vez sem mudar época.
+Completas e parciais coexistem em fixtures e usam identidade compartilhada;
+autosave mantém completas e nunca duplica execução/história.
+
+Backup 3 round-trip integral; 2 com ponte 2/1 (hash antigo primeiro), 2 sem ponte
+e v1 são convertidos sem inferências. Restore de conjunto com completas remove
+entidades antigas e troca época/revisão do destino, invalidando formulários mesmo
+com IDs iguais. Fontes/ref/hashes/campos desconhecidos inválidos falham antes da
+mutação. Falha em cada escrita/readback/quota aborta tudo e permite retry explícito.
+Namespaces autoritativos desconhecidos não escapam do recovery; alheios preservados.
+
+Duas conexões/abas migrando convergem uma vez. Autosave, conclusão, reagendamento
+e restore concorrentes não são sobrescritos por migração antiga. CAS permanece
+no banco. Consultas e Hoje não materializam virtuais, inferem execução nem inventam
+horas em date_only/all_day. UI mantém shell, teclado/foco e layout 390px.
+Sem novos produtores funcionais, PR/merge automático ou avanço para 3B-1.
+
+## Cenário 33 — Correções da auditoria pré-merge da 3A-2
+
+Backup 3 válido com date_only, all_day, timed e mistura conserva todas as entradas
+após import/navegação mensal/reload/export, desktop e 390px. Ocorrências sem horário
+são declaradas fora da projeção/indicadores horários; cálculos válidos e edição da
+meta mensal permanecem. Erros inesperados/integridade não são ocultados.
+
+Replay original da ponte 2 funciona antes/depois do upgrade e após eventos
+posteriores, sem duplicação ou incremento da revisão. Divergência de conteúdo,
+época substituída e novo comando com dataset obsoleto continuam rejeitados.
+
+Intenção capturada/aplicada no registro 3 inicial (`a1d379d`), com kind na revisão,
+é repetida sem alterar essa string na implementação corrigida. O conjunto físico,
+IDs, história, época e revisão permanecem idênticos, inclusive após eventos
+posteriores, conclusão e reabertura. Payload, horário, motivo, posição, baseline,
+revisão forjada e autoridade substituída são rejeitados sem mutação. Revisão antiga
+nunca autoriza novo append, mesmo com a revisão de dataset atual; intenção nova
+realmente obsoleta continua rejeitada pelo CAS. A suíte fixa explicitamente o
+algoritmo histórico independente do helper atual, além da reprodução isolada
+entre as implementações reais.
+
+Novos schedules/execuções/ocorrências rejeitam +03:00/-03:00 e zona inexistente;
+UTC e America/Sao_Paulo são aceitos em Node/Edge. Leitura/restore de fatos históricos
+com offsets, em backups 2/3 e instalações antigas, conserva valores e divulga a
+limitação conforme D-036. Não infere localização nem reescreve histórico.
+
+O teste de backup antigo malformado usa envelope 2 válido, exige o erro de vínculo
+esperado e compara o banco integralmente antes/depois da falha e da reabertura.

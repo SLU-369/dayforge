@@ -3,7 +3,9 @@ import {
   createTimedExecutionTiming, executionRecordId, parseLocalDate, scheduleOccurrenceId,
   createTimedSchedule, createDateOnlySchedule, createAllDaySchedule, createTemporalReason,
   parseUtcInstant, rescheduleEventId, validatePlanningHistory,
-  parseLocalTime,
+  parseLocalTime, parseIanaTimeZone, parseStoredTimeZone, type TimeZoneParser,
+  createOccurrence, rescheduleOccurrence, completeOccurrence, cancelOccurrence, markOccurrenceNotCompleted,
+  type ScheduleOccurrence, type OriginReference, type Flexibility,
   type DomainResult, type ExecutionRecord, type ScheduleOccurrenceId, type OccurrenceSchedule,
   type RescheduleEvent, type UtcInstant,
 } from "../../domain/temporal/index.ts";
@@ -22,6 +24,7 @@ export type PlanningAudit = Readonly<{
 }>;
 
 export type OccurrenceBinding = Readonly<{
+  kind?: "legacy_partial";
   occurrenceId: ScheduleOccurrenceId;
   sourceDate: string;
   itemIndex: number;
@@ -31,10 +34,34 @@ export type OccurrenceBinding = Readonly<{
   planningAudit?: PlanningAudit;
 }>;
 export type ExecutionBridge = Readonly<{
-  version: 1 | 2;
+  version: 1 | 2 | 3;
   nextSequence: number;
-  entries: readonly OccurrenceBinding[];
+  entries: readonly (OccurrenceBinding | CanonicalTemporalEntry)[];
 }>;
+export type CanonicalTemporalEntry = Readonly<{ kind: "canonical"; occurrence: ScheduleOccurrence }>;
+export function legacyBindings(bridge?: ExecutionBridge | null): readonly OccurrenceBinding[] {
+  return bridge?.entries.filter((entry): entry is OccurrenceBinding => entry.kind !== "canonical") ?? [];
+}
+export function temporalEntryId(entry: OccurrenceBinding | CanonicalTemporalEntry): string {
+  return entry.kind === "canonical" ? entry.occurrence.id : entry.occurrenceId;
+}
+export function temporalPlanning(entry: OccurrenceBinding | CanonicalTemporalEntry): OccurrenceSchedule | null {
+  return entry.kind === "canonical" ? entry.occurrence.currentSchedule
+    : entry.planningAudit?.rescheduleHistory.at(-1)?.to ?? entry.planningAudit?.baselineSchedule ?? null;
+}
+/** Compatibility disclosure is derived from the validated facts, never persisted as a new authority. */
+export function historicalOffsetOccurrenceIds(bridge?: ExecutionBridge | null): readonly string[] {
+  return (bridge?.entries ?? []).filter(entry => {
+    const complete = entry.kind === "canonical";
+    const audit = complete ? null : entry.planningAudit;
+    const schedules = complete ? [entry.occurrence.originalSchedule, entry.occurrence.currentSchedule]
+      : audit ? [audit.baselineSchedule] : [];
+    const history = complete ? entry.occurrence.rescheduleHistory : audit?.rescheduleHistory ?? [];
+    const execution = complete ? entry.occurrence.execution : entry.execution;
+    return [...schedules, ...history.flatMap(event => [event.from, event.to]), ...(execution ? [execution.timing] : [])]
+      .some(fact => /^[+-]/.test(fact.timeZone));
+  }).map(temporalEntryId);
+}
 export type ExecutionBridgeExport = Readonly<{ bridge: ExecutionBridge; contentFingerprint: string }>;
 
 export class ExecutionBridgeError extends Error {
@@ -68,16 +95,16 @@ function same(left: unknown, right: unknown) {
 
 /** Planning/execution fence. Position and compatibility minute estimates are not planning identity. */
 export function occurrenceRevision(binding: OccurrenceBinding): string {
-  const { itemIndex: _position, item, ...facts } = binding;
+  const { itemIndex: _position, kind: _representation, item, ...facts } = binding;
   const { actualMinutes: _estimate, ...planningItem } = item;
-  void _position; void _estimate;
+  void _position; void _representation; void _estimate;
   return canonicalStringify(JSON.parse(JSON.stringify({ ...facts, item: planningItem })));
 }
 
 export function canRescheduleBinding(binding: OccurrenceBinding, bridge: ExecutionBridge): boolean {
   return !binding.item.completed && !binding.execution && !!binding.item.title.trim()
     && parseLocalTime(binding.item.start).ok && parseLocalTime(binding.item.end).ok
-    && bridge.entries.filter((entry) => entry.sourceDate === binding.sourceDate && entry.item.id === binding.item.id).length === 1;
+    && legacyBindings(bridge).filter((entry) => entry.sourceDate === binding.sourceDate && entry.item.id === binding.item.id).length === 1;
 }
 function plan(item: LegacyDailyItemV1) {
   const { id, start, end, title, notes, category } = item;
@@ -92,7 +119,7 @@ function dailyItem(input: unknown): LegacyDailyItemV1 {
   return snapshot.records.day.items[0];
 }
 
-export function decodeBridgeExecution(input: unknown, occurrenceId: string): ExecutionRecord {
+export function decodeBridgeExecution(input: unknown, occurrenceId: string, parseTimeZone: TimeZoneParser = parseIanaTimeZone): ExecutionRecord {
   const record = object(input);
   fields(record, ["id", "timing", "recordedAt"], ["note"]);
   if (record.id !== `execution:${occurrenceId}`) invalid();
@@ -102,35 +129,35 @@ export function decodeBridgeExecution(input: unknown, occurrenceId: string): Exe
     fields(timing, ["kind", "interval", "timeZone"]);
     const interval = object(timing.interval);
     fields(interval, ["start", "end"]);
-    result = createTimedExecutionTiming({ start: string(interval.start), end: string(interval.end), timeZone: string(timing.timeZone) });
+    result = createTimedExecutionTiming({ start: string(interval.start), end: string(interval.end), timeZone: string(timing.timeZone) }, parseTimeZone);
   } else if (timing.kind === "date_only") {
     fields(timing, ["kind", "date", "timeZone"], ["durationMinutes"]);
     result = createDateOnlyExecutionTiming({ date: string(timing.date), timeZone: string(timing.timeZone),
-      ...(Object.hasOwn(timing, "durationMinutes") ? { durationMinutes: number(timing.durationMinutes) } : {}) });
+      ...(Object.hasOwn(timing, "durationMinutes") ? { durationMinutes: number(timing.durationMinutes) } : {}) }, parseTimeZone);
   } else if (timing.kind === "all_day") {
     fields(timing, ["kind", "startsOn", "endsBefore", "timeZone"]);
-    result = createAllDayExecutionTiming({ startsOn: string(timing.startsOn), endsBefore: string(timing.endsBefore), timeZone: string(timing.timeZone) });
+    result = createAllDayExecutionTiming({ startsOn: string(timing.startsOn), endsBefore: string(timing.endsBefore), timeZone: string(timing.timeZone) }, parseTimeZone);
   } else return invalid();
   const decoded = value(createExecutionRecord({ id: value(executionRecordId(string(record.id))), timing: value(result),
-    recordedAt: string(record.recordedAt), ...(Object.hasOwn(record, "note") ? { note: string(record.note) } : {}) }));
+    recordedAt: string(record.recordedAt), ...(Object.hasOwn(record, "note") ? { note: string(record.note) } : {}) }, parseTimeZone));
   // Reject noncanonical spellings instead of silently normalizing audit facts.
   if (canonicalStringify(JSON.parse(JSON.stringify(decoded))) !== canonicalStringify(JSON.parse(JSON.stringify(input)))) invalid();
   return decoded;
 }
 
-function decodeSchedule(input: unknown): OccurrenceSchedule {
+export function decodeSchedule(input: unknown, parseTimeZone: TimeZoneParser = parseIanaTimeZone): OccurrenceSchedule {
   const schedule = object(input);
   let result: DomainResult<OccurrenceSchedule>;
   if (schedule.kind === "timed") {
     fields(schedule, ["kind", "startsAt", "timeZone", "durationMinutes"]);
-    result = createTimedSchedule({ startsAt: string(schedule.startsAt), timeZone: string(schedule.timeZone), durationMinutes: number(schedule.durationMinutes) });
+    result = createTimedSchedule({ startsAt: string(schedule.startsAt), timeZone: string(schedule.timeZone), durationMinutes: number(schedule.durationMinutes) }, parseTimeZone);
   } else if (schedule.kind === "date_only") {
     fields(schedule, ["kind", "date", "timeZone"], ["estimatedDurationMinutes"]);
     result = createDateOnlySchedule({ date: string(schedule.date), timeZone: string(schedule.timeZone),
-      ...(Object.hasOwn(schedule, "estimatedDurationMinutes") ? { estimatedDurationMinutes: number(schedule.estimatedDurationMinutes) } : {}) });
+      ...(Object.hasOwn(schedule, "estimatedDurationMinutes") ? { estimatedDurationMinutes: number(schedule.estimatedDurationMinutes) } : {}) }, parseTimeZone);
   } else if (schedule.kind === "all_day") {
     fields(schedule, ["kind", "startsOn", "endsBefore", "timeZone"]);
-    result = createAllDaySchedule({ startsOn: string(schedule.startsOn), endsBefore: string(schedule.endsBefore), timeZone: string(schedule.timeZone) });
+    result = createAllDaySchedule({ startsOn: string(schedule.startsOn), endsBefore: string(schedule.endsBefore), timeZone: string(schedule.timeZone) }, parseTimeZone);
   } else return invalid();
   const decoded = value(result);
   if (!same(decoded, input)) invalid();
@@ -143,7 +170,7 @@ function decodePlanningAudit(input: unknown, occurrenceId: string, item: LegacyD
   const baselineItem = dailyItem(audit.baselineItem);
   // The unchanged legacy item remains the physical anchor, never the effective schedule.
   if (baselineItem.completed || !same(plan(baselineItem), plan(item)) || (item.completed && !execution)) invalid();
-  const baselineSchedule = decodeSchedule(audit.baselineSchedule);
+  const baselineSchedule = decodeSchedule(audit.baselineSchedule, parseStoredTimeZone);
   const confirmedAt = value(parseUtcInstant(string(audit.confirmedAt)));
   if (!Array.isArray(audit.rescheduleHistory)) invalid();
   const rescheduleHistory = audit.rescheduleHistory.map((raw, index): RescheduleEvent => {
@@ -158,16 +185,17 @@ function decodePlanningAudit(input: unknown, occurrenceId: string, item: LegacyD
       reason = value(createTemporalReason({ code: string(input.code), ...(Object.hasOwn(input, "note") ? { note: string(input.note) } : {}) }));
       if (!same(reason, input)) invalid();
     }
-    return { id: value(rescheduleEventId(string(event.id))), from: decodeSchedule(event.from), to: decodeSchedule(event.to),
+    return { id: value(rescheduleEventId(string(event.id))), from: decodeSchedule(event.from, parseStoredTimeZone), to: decodeSchedule(event.to, parseStoredTimeZone),
       changedAt: value(parseUtcInstant(string(event.changedAt))), ...(reason ? { reason } : {}) };
   });
-  value(validatePlanningHistory({ baselineSchedule, confirmedAt, rescheduleHistory }, execution));
+  value(validatePlanningHistory({ baselineSchedule, confirmedAt, rescheduleHistory }, execution, parseStoredTimeZone));
   return { baselineItem, baselineSchedule, confirmedAt, rescheduleHistory };
 }
 
 export function decodeExecutionBridge(input: unknown, planner: NormalizedLegacyPlannerV1): ExecutionBridge {
   const bridge = object(input);
   fields(bridge, ["version", "nextSequence", "entries"]);
+  if (bridge.version === 3) return decodeTemporalRegistry(bridge, planner);
   if ((bridge.version !== 1 && bridge.version !== 2) || !Number.isSafeInteger(bridge.nextSequence) || number(bridge.nextSequence) < 1 || !Array.isArray(bridge.entries)) invalid();
   const ids = new Set<string>();
   const bindings = new Set<string>();
@@ -191,7 +219,7 @@ export function decodeExecutionBridge(input: unknown, planner: NormalizedLegacyP
     if (originalItem.id !== item.id) invalid();
     const record = planner.records[sourceDate];
     if (!record || record.date !== sourceDate || !same(record.items[index], item)) invalid();
-    const execution = entry.execution === null ? null : decodeBridgeExecution(entry.execution, id);
+    const execution = entry.execution === null ? null : decodeBridgeExecution(entry.execution, id, parseStoredTimeZone);
     if (execution && !item.completed) invalid();
     const planningAudit = Object.hasOwn(entry, "planningAudit") ? decodePlanningAudit(entry.planningAudit, id, item, execution) : undefined;
     return { occurrenceId: value(scheduleOccurrenceId(id)), sourceDate, itemIndex: index, originalItem, item, execution,
@@ -216,7 +244,7 @@ export function reconcileExecutionBridge(planner: NormalizedLegacyPlannerV1, pri
   const retained = new Set<string>();
   for (const [sourceDate, record] of Object.entries(planner.records).sort(([left], [right]) => left.localeCompare(right))) {
     if (record.date !== sourceDate || !parseLocalDate(sourceDate).ok) invalid();
-    const previous = prior?.entries.filter((entry) => entry.sourceDate === sourceDate) ?? [];
+    const previous = legacyBindings(prior).filter((entry) => entry.sourceDate === sourceDate);
     const unchangedPlan = same(previous.map((entry) => plan(entry.item)), record.items.map(plan));
     const duplicateIds = new Set(record.items.map((item) => item.id)).size !== record.items.length
       || new Set(previous.map((entry) => entry.item.id)).size !== previous.length;
@@ -237,7 +265,9 @@ export function reconcileExecutionBridge(planner: NormalizedLegacyPlannerV1, pri
         ...(old?.planningAudit ? { planningAudit: old.planningAudit } : {}) });
     });
   }
-  if (prior?.entries.some((entry) => (entry.execution || entry.planningAudit) && !retained.has(entry.occurrenceId))) invalid();
+  if (legacyBindings(prior).some((entry) => (entry.execution || entry.planningAudit) && !retained.has(entry.occurrenceId))) invalid();
+  if (prior?.version === 3) return decodeExecutionBridge({ version: 3, nextSequence,
+    entries: [...entries.map(entry => ({ ...entry, kind: "legacy_partial" })), ...prior.entries.filter(entry => entry.kind === "canonical")] }, planner);
   return decodeExecutionBridge({ version: 2, nextSequence, entries }, planner);
 }
 
@@ -249,7 +279,7 @@ export async function createBridgeDocument(bridge: ExecutionBridge, hasher: Sha2
 
 export function decodeBridgeDocument(document: PlannerDocumentRecord, planner: NormalizedLegacyPlannerV1): ExecutionBridge {
   if (document.id !== EXECUTION_BRIDGE_DOCUMENT_ID || document.role !== "active" || document.format !== EXECUTION_BRIDGE_FORMAT
-    || (document.formatVersion !== 1 && document.formatVersion !== 2) || document.payload.version !== document.formatVersion
+    || (document.formatVersion !== 1 && document.formatVersion !== 2 && document.formatVersion !== 3) || document.payload.version !== document.formatVersion
     || !/^[a-f0-9]{64}$/.test(document.sourceContentFingerprint ?? "")) invalid();
   return decodeExecutionBridge(document.payload, planner);
 }
@@ -259,4 +289,73 @@ export async function readBridgeDocument(transaction: PersistenceReadTransaction
   // Reserve the namespace so unknown records cannot silently escape recovery.
   if (documents.some((document) => document.id.startsWith("execution/") && document.id !== EXECUTION_BRIDGE_DOCUMENT_ID)) invalid();
   return documents.find((document) => document.id === EXECUTION_BRIDGE_DOCUMENT_ID) ?? null;
+}
+
+/** Reconstruct through the domain transitions; serialization adds no new state machine. */
+export function decodeCanonicalOccurrence(input: unknown, parseTimeZone: TimeZoneParser = parseIanaTimeZone): ScheduleOccurrence {
+  const raw = object(input);
+  fields(raw, ["id", "templateId", "title", "flexibility", "origin", "status", "originalSchedule", "currentSchedule",
+    "createdAt", "updatedAt", "rescheduleHistory", "execution", "resolution"]);
+  // Templates/domain entities have no recoverable producer yet. Never accept dangling references.
+  if (raw.templateId !== null) invalid();
+  const origin = object(raw.origin);
+  fields(origin, ["kind"], ["label"]);
+  let occurrence: ScheduleOccurrence = value(createOccurrence({ id: value(scheduleOccurrenceId(string(raw.id))),
+    source: { kind: "standalone", title: string(raw.title), flexibility: string(raw.flexibility) as Flexibility,
+      origin: origin as OriginReference }, schedule: decodeSchedule(raw.originalSchedule, parseTimeZone), createdAt: string(raw.createdAt) }, parseTimeZone));
+  if (!Array.isArray(raw.rescheduleHistory)) invalid();
+  raw.rescheduleHistory.forEach((input, index) => {
+    const event = object(input); fields(event, ["id", "from", "to", "changedAt"], ["reason"]);
+    if (event.id !== `reschedule:${raw.id}:${index + 1}` || !same(decodeSchedule(event.from, parseTimeZone), occurrence.currentSchedule)) invalid();
+    let reason;
+    if (Object.hasOwn(event, "reason")) {
+      const r = object(event.reason); fields(r, ["code"], ["note"]);
+      reason = value(createTemporalReason({ code: string(r.code), ...(Object.hasOwn(r, "note") ? { note: string(r.note) } : {}) }));
+    }
+    occurrence = value(rescheduleOccurrence(occurrence, { id: value(rescheduleEventId(string(event.id))),
+      schedule: decodeSchedule(event.to, parseTimeZone), changedAt: string(event.changedAt), ...(reason ? { reason } : {}) }, parseTimeZone));
+  });
+  if (raw.status === "completed" || raw.status === "completed_rescheduled") {
+    occurrence = value(completeOccurrence(occurrence, decodeBridgeExecution(raw.execution, string(raw.id), parseTimeZone), parseTimeZone));
+  } else if (raw.status === "cancelled" || raw.status === "not_completed") {
+    const resolution = object(raw.resolution); fields(resolution, ["kind", "resolvedAt"], ["reason"]);
+    let reason;
+    if (Object.hasOwn(resolution, "reason")) {
+      const r = object(resolution.reason); fields(r, ["code"], ["note"]);
+      reason = value(createTemporalReason({ code: string(r.code), ...(Object.hasOwn(r, "note") ? { note: string(r.note) } : {}) }));
+    }
+    const command = { resolvedAt: string(resolution.resolvedAt), ...(reason ? { reason } : {}) };
+    occurrence = value<ScheduleOccurrence>(raw.status === "cancelled" ? cancelOccurrence(occurrence, command) : markOccurrenceNotCompleted(occurrence, command));
+  } else if (raw.status !== "planned") invalid();
+  if (!same(occurrence, input)) invalid();
+  return occurrence;
+}
+function decodeTemporalRegistry(raw: Record<string, unknown>, planner: NormalizedLegacyPlannerV1): ExecutionBridge {
+  if (!Array.isArray(raw.entries)) invalid();
+  const legacy: unknown[] = [], canonical: CanonicalTemporalEntry[] = [];
+  let completeStarted = false, lastSequence = 0;
+  for (const input of raw.entries) {
+    const entry = object(input);
+    if (entry.kind === "legacy_partial") {
+      if (completeStarted) invalid();
+      const { kind: _kind, ...binding } = entry; void _kind; legacy.push(binding);
+    } else if (entry.kind === "canonical") {
+      completeStarted = true; fields(entry, ["kind", "occurrence"]);
+      const occurrence = decodeCanonicalOccurrence(entry.occurrence, parseStoredTimeZone);
+      const sequence = Number(/^occ:([1-9]\d*)$/.exec(occurrence.id)?.[1]);
+      if (!Number.isSafeInteger(sequence) || sequence <= lastSequence) invalid();
+      lastSequence = sequence; canonical.push({ kind: "canonical", occurrence });
+    } else invalid();
+  }
+  const partial = decodeExecutionBridge({ version: 2, nextSequence: raw.nextSequence, entries: legacy }, planner);
+  const entries = [...legacyBindings(partial).map(entry => ({ ...entry, kind: "legacy_partial" as const })), ...canonical];
+  const ids = entries.map(temporalEntryId);
+  if (new Set(ids).size !== ids.length || lastSequence >= partial.nextSequence) invalid();
+  return { version: 3, nextSequence: partial.nextSequence, entries };
+}
+export function upgradeTemporalRegistry(input: ExecutionBridge, planner: NormalizedLegacyPlannerV1): ExecutionBridge {
+  if (input.version === 3) return decodeExecutionBridge(input, planner);
+  const validated = decodeExecutionBridge(input, planner);
+  return decodeExecutionBridge({ ...validated, version: 3,
+    entries: legacyBindings(validated).map(entry => ({ ...entry, kind: "legacy_partial" })) }, planner);
 }

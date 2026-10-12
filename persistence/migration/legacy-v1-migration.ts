@@ -1,3 +1,4 @@
+import { createPlanningDocument, planningEnvelope, planningJson } from "../contracts/planning-envelope.ts";
 import { capturePlanningFence, assertPlanningFence } from "../contracts/dataset-revision.ts";
 import {
   CURRENT_PLANNER_DOCUMENT_ID,
@@ -17,7 +18,7 @@ import {
 } from "../legacy/index.ts";
 import { canonicalStringify } from "./canonical-json.ts";
 import { WebCryptoSha256Hasher, type Sha256Hasher } from "./sha256.ts";
-import { EXECUTION_BRIDGE_DOCUMENT_ID, createBridgeDocument, reconcileExecutionBridge } from "../execution/bridge.ts";
+import { EXECUTION_BRIDGE_DOCUMENT_ID, createBridgeDocument, reconcileExecutionBridge, upgradeTemporalRegistry } from "../execution/bridge.ts";
 
 export const LEGACY_V1_SOURCE_ID_PREFIX = "legacy-v1/source/" as const;
 export const LEGACY_V1_SOURCE_FORMAT = "dayforge/legacy-v1-source" as const;
@@ -158,7 +159,7 @@ async function assertPersistedMigration(
   if (replacement) {
     const bridge = await transaction.getPlannerDocument(EXECUTION_BRIDGE_DOCUMENT_ID);
     if (databaseMetadata.authorityEpoch !== replacement.authorityEpoch
-      || databaseMetadata.executionBridgeVersion !== (replacement.executionDocument ? 2 : undefined)
+      || databaseMetadata.executionBridgeVersion !== (replacement.executionDocument ? 3 : undefined)
       || (replacement.executionDocument ? !bridge || !plannerDocumentsMatch(bridge, replacement.executionDocument) : bridge !== null)) {
       throw new LegacyV1MigrationIntegrityError();
     }
@@ -192,9 +193,12 @@ export async function migrateLegacyPlannerV1(options: Readonly<{
     contentFingerprint,
     snapshot,
   );
-  const current = createLegacyPlannerDocument(contentFingerprint, normalized);
-  const executionDocument = options.active && origin === "backup-v1"
-    ? await createBridgeDocument(reconcileExecutionBridge(normalized), hasher) : null;
+  const installed = await options.repository.read(tx => tx.getPlannerDocument(CURRENT_PLANNER_DOCUMENT_ID));
+  const current = origin === "backup-v1" || installed?.formatVersion === 2
+    ? createPlanningDocument(await hasher.digestUtf8(canonicalStringify(planningJson(planningEnvelope(normalized)))), normalized)
+    : createLegacyPlannerDocument(contentFingerprint, normalized);
+  const executionDocument = origin === "backup-v1"
+    ? await createBridgeDocument(upgradeTemporalRegistry(reconcileExecutionBridge(normalized), normalized), hasher) : null;
   const metadataKey: `${typeof LEGACY_V1_MIGRATION_KEY_PREFIX}${string}` =
     `${LEGACY_V1_MIGRATION_KEY_PREFIX}${contentFingerprint}`;
 
@@ -210,13 +214,16 @@ export async function migrateLegacyPlannerV1(options: Readonly<{
       throw new LegacyV1MigrationIntegrityError();
     }
     // Explicit v1 import replaces the recoverable set; it never invents executions.
+    if (existingDocuments.some(document => document.id.startsWith("planner/") && document.id !== CURRENT_PLANNER_DOCUMENT_ID)) throw new LegacyV1MigrationIntegrityError();
     if (origin === "backup-v1") {
+      for (const document of existingDocuments) if (document.id.startsWith(LEGACY_V1_SOURCE_ID_PREFIX)) await transaction.deletePlannerDocument(document.id);
+      for (const record of await transaction.listMetadata()) if (record.key.startsWith(LEGACY_V1_MIGRATION_KEY_PREFIX)) await transaction.deleteMetadata(record.key);
       await transaction.deletePlannerDocument(EXECUTION_BRIDGE_DOCUMENT_ID);
       const metadata = { ...await transaction.getDatabaseMetadata() };
       delete metadata.executionBridgeVersion;
       const authorityEpoch = nextAuthorityEpoch(metadata);
       replacement = { authorityEpoch, executionDocument };
-      await transaction.putDatabaseMetadata(executionDocument ? { ...metadata, authorityEpoch, executionBridgeVersion: 2 } : { ...metadata, authorityEpoch });
+      await transaction.putDatabaseMetadata(executionDocument ? { ...metadata, authorityEpoch, executionBridgeVersion: 3, writeFenceVersion: 1, datasetRevision: fence.expectedDatasetRevision } : { ...metadata, authorityEpoch });
       if (executionDocument) await transaction.putPlannerDocument(executionDocument);
     }
     if ((await transaction.getDatabaseMetadata()).activeDocumentId

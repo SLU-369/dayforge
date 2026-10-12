@@ -1,3 +1,5 @@
+import { createLegacyPlannerDocument } from "../persistence/migration/legacy-v1-migration.ts";
+import { legacyOf, backupV2, bridgeV2 } from "./planning-model-compat.mjs";
 import { capturePlanningFence } from "../persistence/contracts/dataset-revision.ts";
 import "fake-indexeddb/auto";
 import assert from "node:assert/strict";
@@ -13,7 +15,7 @@ import {
 import {
   DayforgeDatabase, IndexedDbPersistenceRepository, bootstrapPlannerV2,
   decodeExecutionBridge, upgradeExecutionBridge, createBridgeDocument,
-  exportDayforgeBackupV2, restoreDayforgeBackupV2, restoreActivePlannerV2, resetPlannerV2,
+  exportDayforgeBackup, restoreDayforgeBackupV2, restoreActivePlannerV2, resetPlannerV2,
   recordOccurrenceExecution, saveActivePlannerV2, ensureExecutionBridge,
   decodeDatabaseMetadata, authorityEpoch, assertAuthorityEpoch, canonicalStringify,
   savePlannerWithBridge, WebCryptoSha256Hasher,
@@ -45,7 +47,7 @@ async function setup(t) {
   const result = await boot();
   return { database, repository, raw, writes, storage, boot, result, name };
 }
-const exported = (repository) => exportDayforgeBackupV2({ repository, exportedAt: instant, active: true });
+const exported = (repository) => exportDayforgeBackup({ repository, exportedAt: instant, active: true });
 const physical = async (database) => ({ documents: await database.plannerDocuments.toArray(), metadata: await database.metadata.toArray() });
 const epoch = (repository) => repository.read(async (tx) => authorityEpoch(await tx.getDatabaseMetadata()));
 const fingerprint = (bridge) => createHash("sha256").update(canonicalStringify(bridge)).digest("hex");
@@ -111,11 +113,11 @@ test("strict v1/v2 codecs and deterministic upgrade preserve identities, counter
   const { repository, result } = await setup(t);
   await recordOccurrenceExecution({ repository, occurrenceId: "occ:1", execution: execution() });
   const current = (await exported(repository)).payload.executionBridge.bridge;
-  const old = { ...current, version: 1 }, before = structuredClone(old);
-  assert.deepEqual(decodeExecutionBridge(old, (await exported(repository)).payload.planner), old);
-  const converted = upgradeExecutionBridge(old, (await exported(repository)).payload.planner);
+  const old = { ...bridgeV2(current), version: 1 }, before = structuredClone(old);
+  assert.deepEqual(decodeExecutionBridge(old, legacyOf((await exported(repository)).payload.planner)), old);
+  const converted = upgradeExecutionBridge(old, legacyOf((await exported(repository)).payload.planner));
   assert.deepEqual(converted, { ...old, version: 2 }); assert.deepEqual(old, before);
-  assert.deepEqual(upgradeExecutionBridge(converted, (await exported(repository)).payload.planner), converted);
+  assert.deepEqual(upgradeExecutionBridge(converted, legacyOf((await exported(repository)).payload.planner)), converted);
   assert.ok(converted.entries.every((entry) => !Object.hasOwn(entry, "planningAudit")));
   assert.equal(converted.nextSequence, result.executionBridge.nextSequence);
 });
@@ -123,15 +125,16 @@ test("strict v1/v2 codecs and deterministic upgrade preserve identities, counter
 test("existing v1 installation adopts v2 atomically, epoch zero, without changing planner, marker or audit facts", async (t) => {
   const f = await setup(t);
   await recordOccurrenceExecution({ repository: f.repository, occurrenceId: "occ:1", execution: execution() });
-  const backup = await exported(f.repository), old = { ...backup.payload.executionBridge.bridge, version: 1 };
+  const backup = await exported(f.repository), old = { ...bridgeV2(backup.payload.executionBridge.bridge), version: 1 };
   await f.database.plannerDocuments.put(await createBridgeDocument(old));
+  await f.database.plannerDocuments.put(createLegacyPlannerDocument(fingerprint(legacyOf(backup.payload.planner)), legacyOf(backup.payload.planner)));
   const meta = await f.database.metadata.get("database"); delete meta.authorityEpoch; meta.executionBridgeVersion = 1;
   await f.database.metadata.put(meta);
   const beforePlanner = await f.database.plannerDocuments.get("planner/current"), markerWrites = f.writes.length;
   f.repository.close();
   const result = await f.boot();
-  assert.deepEqual(result.executionBridge, { ...old, version: 2 }); assert.equal(await epoch(f.repository), 0);
-  assert.deepEqual(await f.database.plannerDocuments.get("planner/current"), beforePlanner);
+  assert.deepEqual(bridgeV2(result.executionBridge), { ...old, version: 2 }); assert.equal(await epoch(f.repository), 0);
+  assert.deepEqual((await f.database.plannerDocuments.get("planner/current")).payload.legacy, beforePlanner.payload);
   assert.equal(f.writes.length, markerWrites); assert.equal(f.storage.getItem("rotina-369:data:v1"), f.raw);
   const once = await physical(f.database); f.repository.close(); await f.boot();
   assert.deepEqual(await physical(f.database), once);
@@ -148,17 +151,17 @@ test("new backup round-trips audited planning intact and allows a later canonica
   assert.equal(deriveCompletedStatus(after.payload.executionBridge.bridge.entries[0].planningAudit.rescheduleHistory), "completed_rescheduled");
   assert.equal(await epoch(f.repository), before); f.repository.close();
   assert.deepEqual((await f.boot()).executionBridge, after.payload.executionBridge.bridge);
-  assert.equal(after.formatVersion, 2); assert.deepEqual(after.exportedFrom, { persistenceGeneration: 2, schemaVersion: 1 });
+  assert.equal(after.formatVersion, 3); assert.deepEqual(after.exportedFrom, { persistenceGeneration: 2, schemaVersion: 1 });
   assert.ok(!JSON.stringify(after).includes("authorityEpoch"));
 });
 
 test("v1 bridge fingerprint is validated before conversion; old and absent bridges recover without inferred planning", async (t) => {
   const f = await setup(t); await recordOccurrenceExecution({ repository: f.repository, occurrenceId: "occ:1", execution: execution() });
-  const backup = await exported(f.repository); backup.payload.executionBridge.bridge.version = 1;
+  const backup = backupV2(await exported(f.repository)); backup.payload.executionBridge.bridge.version = 1;
   backup.payload.executionBridge.contentFingerprint = fingerprint(backup.payload.executionBridge.bridge);
   await restoreDayforgeBackupV2({ repository: f.repository, backup, active: true });
   const converted = await exported(f.repository);
-  assert.deepEqual(converted.payload.executionBridge.bridge, { ...backup.payload.executionBridge.bridge, version: 2 });
+  assert.deepEqual(bridgeV2(converted.payload.executionBridge.bridge), { ...backup.payload.executionBridge.bridge, version: 2 });
   assert.notEqual(converted.payload.executionBridge.contentFingerprint, backup.payload.executionBridge.contentFingerprint);
   const before = await physical(f.database); backup.payload.executionBridge.contentFingerprint = "0".repeat(64);
   await assert.rejects(restoreDayforgeBackupV2({ repository: f.repository, backup, active: true }));
@@ -183,7 +186,7 @@ const corruptions = [
   ["unknown schedule field", (b) => b.entries[0].planningAudit.baselineSchedule.secret = true],
   ["invalid baseline reference", (b) => b.entries[0].planningAudit.baselineItem.id = "other"],
   ["historical baseline completion", (b) => b.entries[0].planningAudit.baselineItem.completed = true],
-  ["future version", (b) => b.version = 3],
+  ["future version", (b) => b.version = 4],
 ];
 for (const [label, corrupt] of corruptions) test(`restore rejects ${label} even with a recomputed hash, before mutation`, async (t) => {
   const f = await setup(t), backup = await auditedBackup(f.repository), before = await physical(f.database);
@@ -239,7 +242,8 @@ test("v2 adoption metadata cannot lose its epoch; legacy metadata deterministica
 for (const kind of ["restore", "import", "reset", "upgrade"]) test(`${kind} rolls back every critical mutation including epoch and bridge`, async (t) => {
   const f = await setup(t), backup = await auditedBackup(f.repository);
   if (kind === "upgrade") {
-    await f.database.plannerDocuments.put(await createBridgeDocument({ ...f.result.executionBridge, version: 1 }));
+    await f.database.plannerDocuments.put(await createBridgeDocument({ ...bridgeV2(f.result.executionBridge), version: 1 }));
+    await f.database.plannerDocuments.put(createLegacyPlannerDocument(fingerprint(f.state ?? state()), f.state ?? state()));
     const meta = await f.database.metadata.get("database"); delete meta.authorityEpoch; meta.executionBridgeVersion = 1;
     await f.database.metadata.put(meta);
   }
@@ -315,13 +319,13 @@ for (const kind of ["import", "reset"]) for (const target of ["metadata", "bridg
 test("audited bindings cannot be erased or edited by autosave and history survives unrelated saves", async (t) => {
   const f = await setup(t), backup = await auditedBackup(f.repository);
   await restoreDayforgeBackupV2({ repository: f.repository, backup, active: true });
-  const before = await physical(f.database), edited = structuredClone(backup.payload.planner);
+  const before = await physical(f.database), edited = structuredClone(legacyOf(backup.payload.planner));
   edited.records[date].items[0].start = "07:00";
   await assert.rejects(saveActivePlannerV2({ ...await capturePlanningFence(f.repository), repository: f.repository, state: edited }));
   edited.records[date].items = [];
   await assert.rejects(saveActivePlannerV2({ ...await capturePlanningFence(f.repository), repository: f.repository, state: edited }));
   assert.deepEqual(await physical(f.database), before);
-  const safe = structuredClone(backup.payload.planner); safe.records[date].note = "Nota fictícia";
+  const safe = structuredClone(legacyOf(backup.payload.planner)); safe.records[date].note = "Nota fictícia";
   await saveActivePlannerV2({ ...await capturePlanningFence(f.repository), repository: f.repository, state: safe });
   assert.deepEqual((await exported(f.repository)).payload.executionBridge.bridge.entries[0].planningAudit, backup.payload.executionBridge.bridge.entries[0].planningAudit);
 });

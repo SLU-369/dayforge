@@ -29,10 +29,10 @@ function Item({ item, onSelect, completingIds }: { item: TodayContextItem } & Co
     <article className={styles.item}>
       <span className={styles.time}>{item.start}–{item.end}</span>
       <div>
-        <span className={styles.category}>{CATEGORIES[item.category].label}</span>
+        <span className={styles.category}>{item.category ? CATEGORIES[item.category].label : "Ocorrência"}</span>
         <h3>{item.title}</h3>
         {item.notes && <p>{item.notes}</p>}
-        {item.occurrenceId && !item.completed && <Button size="sm" variant="secondary" aria-label={`Concluir ${item.title}`} disabled={completingIds.includes(item.occurrenceId)} onClick={(event) => onSelect(item, event.currentTarget)}>Concluir</Button>}
+        {item.binding && item.occurrenceId && !item.completed && <Button size="sm" variant="secondary" aria-label={`Concluir ${item.title}`} disabled={completingIds.includes(item.occurrenceId)} onClick={(event) => onSelect(item, event.currentTarget)}>Concluir</Button>}
         {item.occurrenceId && item.reschedulable && <Button size="sm" variant="secondary" aria-label={`Reagendar ${item.title}`} disabled={completingIds.includes(item.occurrenceId)} onClick={(event) => onSelect(item, event.currentTarget, "reschedule")}>Reagendar</Button>}
         {item.binding?.planningAudit && <PlanningHistoryView binding={item.binding} />}
       </div>

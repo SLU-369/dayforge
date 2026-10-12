@@ -32,3 +32,12 @@
 ## Child DOX Index
 
 - No child AGENTS.md files are needed.
+
+## Stage 3A-2 current contract
+
+- Stage 3A-1 is integrated via PR #16. Stage 3A-2 authorizes only the versioned data foundation: planner/current logical envelope 2, execution/bridge discriminated registry 3 and public backup 3. Physical generation 2/schema 1/tables and read-only v1 remain. Earlier stage limits above are historical.
+- Preserve partial legacy entries as partial; full canonical entries use domain factories/transitions, one shared monotonic allocator and one authoritative execution/history. No new complete producer/command, template, structured goal or 3B-1 work.
+- Validate old hashes before conversion; upgrade atomically with epoch/revision/base CAS and readback. No-op/replay never increment. Registry 3 requires the adopted local fence pair. Restore/import/reset replace planner, registry and legacy provenance/sources together, preserve unrelated records and reject unknown planner/execution namespaces.
+- Public export uses 3 for upgraded datasets; explicit v2 export rejects downgrade. Recovery accepts valid 3/2/1 and never imports local authority counters. Use legacyPlanner/legacyBindings adapters deliberately, retain complete entries during legacy saves, and share temporalPlanning/queryTemporalSnapshot for temporal reads. Full references require actual recoverable targets; absent future entities are not invented.
+- Today reads complete timed entities without exposing commands or assigning unknown category/actual duration. Date-only/all-day remain queryable/recoverable; hourly consumers reject them explicitly rather than fabricate timing. Keep drafts, forms, transactional fences and one write queue.
+- Run planning-model-recovery Node/Edge plus prior persistence/execution/rescheduling/write-fence regressions, full npm test, lint/typecheck, master/diff checks and relevant visual review.

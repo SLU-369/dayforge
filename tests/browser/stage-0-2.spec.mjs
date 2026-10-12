@@ -17,7 +17,7 @@ async function readActivePlanner(page) {
       const transaction = database.transaction("plannerDocuments", "readonly");
       const reading = transaction.objectStore("plannerDocuments").get("planner/current");
       reading.onerror = () => reject(reading.error);
-      reading.onsuccess = () => { resolve(reading.result?.payload ?? null); database.close(); };
+      reading.onsuccess = () => { resolve(reading.result?.payload?.legacy ?? reading.result?.payload ?? null); database.close(); };
     };
   }));
 }
@@ -106,9 +106,9 @@ test("primeiro uso exporta backup v2 e preserva v1 após edição", async ({ pag
     const { readFile } = await import("node:fs/promises");
     return readFile(path, "utf8");
   }));
-  expect(backup.formatVersion).toBe(2);
+  expect(backup.formatVersion).toBe(3);
   expect(backup.exportedFrom.persistenceGeneration).toBe(2);
-  expect(Object.values(backup.payload.planner.records)[0].energy).toBe(4);
+  expect(Object.values(backup.payload.planner.legacy.records)[0].energy).toBe(4);
   expect(await page.evaluate(() => localStorage.getItem("rotina-369:data:v1"))).toBe(raw);
 });
 

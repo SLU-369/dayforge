@@ -1,9 +1,11 @@
-import { appendRescheduleEvent, createTimedSchedule, createTemporalReason, parseUtcInstant, rescheduleEventId,
+import { legacyPlanner } from "../contracts/planning-envelope.ts";
+import { legacyBindings } from "./bridge.ts";
+import { appendRescheduleEvent, createTimedSchedule, createTemporalReason, parseUtcInstant, rescheduleEventId, parseStoredTimeZone,
   type OccurrenceSchedule, type TemporalReason, type DomainResult } from "../../domain/temporal/index.ts";
 import { PlanningConflictError, type LocalPersistenceRepository } from "../contracts/index.ts";
 import { readPlannerAuthoritySnapshot } from "../backup/export-backup-v2.ts";
 import { canonicalStringify, type Sha256Hasher } from "../migration/index.ts";
-import { canRescheduleBinding, occurrenceRevision, ExecutionBridgeError, type ExecutionBridge } from "./bridge.ts";
+import { canRescheduleBinding, occurrenceRevision, ExecutionBridgeError, type ExecutionBridge, type OccurrenceBinding } from "./bridge.ts";
 import { OccurrenceConflictError, savePlannerWithBridge, verifyPlanningReplay } from "./repository.ts";
 
 export type ReschedulingIntent = Readonly<{
@@ -17,6 +19,16 @@ function value<T>(result: DomainResult<T>): T {
 }
 const same = (left: unknown, right: unknown) => canonicalStringify(JSON.parse(JSON.stringify(left))) === canonicalStringify(JSON.parse(JSON.stringify(right)));
 
+/** Reconstruct a1d379d's registry-3 revision from validated persisted facts, only for an applied event. */
+function matchesAppliedRevision(binding: OccurrenceBinding, expectedRevision: string): boolean {
+  if (occurrenceRevision(binding) === expectedRevision) return true;
+  if (binding.kind !== "legacy_partial") return false;
+  const { itemIndex: _position, item, ...facts } = binding;
+  const { actualMinutes: _estimate, ...planningItem } = item;
+  void _position; void _estimate;
+  return canonicalStringify(JSON.parse(JSON.stringify({ ...facts, item: planningItem }))) === expectedRevision;
+}
+
 /** Event identity is the captured append position. Its full payload identifies a retry. */
 export async function rescheduleOccurrencePlanning(options: ReschedulingIntent & Readonly<{
   repository: LocalPersistenceRepository; hasher?: Sha256Hasher; afterWriteForTest?: () => void;
@@ -25,7 +37,7 @@ export async function rescheduleOccurrencePlanning(options: ReschedulingIntent &
   if (snapshot.authorityEpoch !== options.expectedAuthorityEpoch) throw new OccurrenceConflictError("Os dados foram substituídos. Cancele e abra uma nova ação.");
   if (!Number.isSafeInteger(options.expectedHistoryLength) || options.expectedHistoryLength < 0) throw new OccurrenceConflictError();
   const bridge = snapshot.backup.payload.executionBridge?.bridge;
-  const binding = bridge?.entries.find((entry) => entry.occurrenceId === options.occurrenceId);
+  const binding = legacyBindings(bridge).find((entry) => entry.occurrenceId === options.occurrenceId);
   if (!binding || !bridge) throw new OccurrenceConflictError();
   if (options.schedule.kind !== "timed") throw new OccurrenceConflictError("Informe início e fim completos do novo planejamento.");
   if (/^[+-]/.test(options.schedule.timeZone) || options.previousSchedule && /^[+-]/.test(options.previousSchedule.timeZone)) throw new OccurrenceConflictError("Informe um identificador IANA, não apenas um offset.");
@@ -42,9 +54,9 @@ export async function rescheduleOccurrencePlanning(options: ReschedulingIntent &
     const previousAudit = { ...audit, rescheduleHistory: audit.rescheduleHistory.slice(0, options.expectedHistoryLength) };
     const previousBinding = { ...base, item: audit.baselineItem, execution: null,
       ...(options.expectedHistoryLength ? { planningAudit: previousAudit } : {}) };
-    const unconfirmedBaseline = occurrenceRevision(previousBinding) === options.expectedRevision;
+    const unconfirmedBaseline = matchesAppliedRevision(previousBinding, options.expectedRevision);
     const matchesRevision = unconfirmedBaseline
-      || options.expectedHistoryLength === 0 && occurrenceRevision({ ...previousBinding, planningAudit: previousAudit }) === options.expectedRevision;
+      || options.expectedHistoryLength === 0 && matchesAppliedRevision({ ...previousBinding, planningAudit: previousAudit }, options.expectedRevision);
     if (!matchesRevision) throw new OccurrenceConflictError();
     if (!same(existing, { ...existing, id, to: schedule, changedAt, ...(reason ? { reason } : {}) })
       || !same(existing.reason ?? null, reason ?? null)
@@ -60,17 +72,17 @@ export async function rescheduleOccurrencePlanning(options: ReschedulingIntent &
     return { baselineItem: { ...binding.item }, baselineSchedule: value(createTimedSchedule(options.previousSchedule)), confirmedAt: changedAt, rescheduleHistory: [] };
   })();
   const from = prior.rescheduleHistory.at(-1)?.to ?? prior.baselineSchedule;
-  const history = value(appendRescheduleEvent(prior, { id, from, to: schedule, changedAt, ...(reason ? { reason } : {}) }));
+  const history = value(appendRescheduleEvent(prior, { id, from, to: schedule, changedAt, ...(reason ? { reason } : {}) }, parseStoredTimeZone));
   const audit = { ...prior, rescheduleHistory: history.rescheduleHistory };
   try {
-    return await savePlannerWithBridge({ ...options, expectedDatasetRevision: options.expectedDatasetRevision ?? snapshot.datasetRevision, state: snapshot.backup.payload.planner, expectedSnapshot: snapshot.backup,
+    return await savePlannerWithBridge({ ...options, expectedDatasetRevision: options.expectedDatasetRevision ?? snapshot.datasetRevision, state: legacyPlanner(snapshot.backup.payload.planner), expectedSnapshot: snapshot.backup,
       rescheduling: { occurrenceId: options.occurrenceId, audit } });
   } catch (error) {
     // Independent equivalent writers can lose CAS after the winner commits. Never retry a conflicting append.
     if (!(error instanceof ExecutionBridgeError) && !(error instanceof PlanningConflictError)) throw error;
     const latest = await readPlannerAuthoritySnapshot({ repository: options.repository, active: true, exportedAt: changedAt, hasher: options.hasher });
     const saved = latest.backup.payload.executionBridge?.bridge;
-    const event = saved?.entries.find((entry) => entry.occurrenceId === options.occurrenceId)?.planningAudit?.rescheduleHistory[options.expectedHistoryLength];
+    const event = legacyBindings(saved).find((entry) => entry.occurrenceId === options.occurrenceId)?.planningAudit?.rescheduleHistory[options.expectedHistoryLength];
     if (latest.authorityEpoch === options.expectedAuthorityEpoch && saved && event && same(event, history.rescheduleHistory.at(-1))) {
       await verifyPlanningReplay(options.repository, latest, options.expectedAuthorityEpoch);
       return saved;

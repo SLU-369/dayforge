@@ -1,3 +1,4 @@
+import { backupV2, bridgeV2 } from "../planning-model-compat.mjs";
 import { expect, test } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
@@ -40,24 +41,25 @@ async function restore(page, data) {
 }
 test("old installed bridge upgrades without changing planner or marker; old backup restores as bridge v2", async ({ page }) => {
   await open(page); const saved = await read(page), marker = await page.evaluate(() => localStorage.getItem("dayforge:persistence:v2"));
-  saved.bridge.payload.version = 1; saved.bridge.formatVersion = 1; saved.bridge.sourceContentFingerprint = hash(saved.bridge.payload);
+  saved.bridge.payload = { ...bridgeV2(saved.bridge.payload), version: 1 };
+  saved.planner = { ...saved.planner, format: "dayforge/legacy-planner-state", formatVersion: 1, payload: saved.planner.payload.legacy, sourceContentFingerprint: hash(saved.planner.payload.legacy) }; saved.bridge.formatVersion = 1; saved.bridge.sourceContentFingerprint = hash(saved.bridge.payload);
   saved.metadata.executionBridgeVersion = 1; delete saved.metadata.authorityEpoch;
   await page.evaluate((seed) => new Promise((resolve, reject) => {
     const request = indexedDB.open("dayforge-local"); request.onerror = () => reject(request.error);
     request.onsuccess = () => { const db = request.result, tx = db.transaction(["metadata", "plannerDocuments"], "readwrite");
-      tx.objectStore("metadata").put(seed.metadata); tx.objectStore("plannerDocuments").put(seed.bridge);
+      tx.objectStore("metadata").put(seed.metadata); tx.objectStore("plannerDocuments").put(seed.bridge); tx.objectStore("plannerDocuments").put(seed.planner);
       tx.oncomplete = () => { db.close(); resolve(); }; tx.onerror = () => { db.close(); reject(tx.error); }; };
   }), saved);
   await page.reload(); await expect(page.locator(".storage-warning")).toHaveCount(0);
-  await expect.poll(async () => (await read(page)).metadata.executionBridgeVersion).toBe(2);
-  const adopted = await read(page); expect(adopted.planner).toEqual(saved.planner); expect(adopted.metadata.authorityEpoch).toBe(0);
-  expect(adopted.bridge.payload).toEqual({ ...saved.bridge.payload, version: 2 });
+  await expect.poll(async () => (await read(page)).metadata.executionBridgeVersion).toBe(3);
+  const adopted = await read(page); expect(adopted.planner.payload.legacy).toEqual(saved.planner.payload); expect(adopted.metadata.authorityEpoch).toBe(0);
+  expect(bridgeV2(adopted.bridge.payload)).toEqual({ ...saved.bridge.payload, version: 2 });
   expect(await page.evaluate(() => localStorage.getItem("dayforge:persistence:v2"))).toBe(marker);
-  const data = await backup(page); data.payload.executionBridge.bridge.version = 1;
+  const data = backupV2(await backup(page)); data.payload.executionBridge.bridge.version = 1;
   data.payload.executionBridge.contentFingerprint = hash(data.payload.executionBridge.bridge);
   await restore(page, data); const restored = await read(page);
   expect(restored.bridge.payload).toEqual(adopted.bridge.payload); expect(restored.metadata.authorityEpoch).toBe(1);
-  expect(restored.planner).toEqual(saved.planner);
+  expect(restored.planner.payload.legacy).toEqual(saved.planner.payload);
 });
 test("recovered audited bridge round-trips without adding an event and projects the effective interval", async ({ page }) => {
   await open(page); const data = await backup(page), bridge = data.payload.executionBridge.bridge;
@@ -68,7 +70,7 @@ test("recovered audited bridge round-trips without adding an event and projects 
   await restore(page, data); const saved = await read(page); expect(saved.bridge.payload).toEqual(bridge);
   await expect(page.getByRole("region", { name: "Próximo" })).toContainText("20:00–21:00");
   const exported = await backup(page); expect(exported.payload).toEqual(data.payload);
-  expect(exported.formatVersion).toBe(2); expect(exported.exportedFrom).toEqual({ persistenceGeneration: 2, schemaVersion: 1 });
+  expect(exported.formatVersion).toBe(3); expect(exported.exportedFrom).toEqual({ persistenceGeneration: 2, schemaVersion: 1 });
   expect(JSON.stringify(exported)).not.toContain("authorityEpoch");
   await restore(page, exported); const restored = await read(page);
   expect(restored.metadata.authorityEpoch).toBe(saved.metadata.authorityEpoch + 1);

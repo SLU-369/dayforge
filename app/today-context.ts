@@ -1,17 +1,14 @@
-import {
-  type CategoryKey,
-  type DayKey,
-  type DailyItem,
-  type PlannerState,
-  type RoutineItem,
-} from "./planner-data";
+import { legacyBindings, temporalPlanning } from "../persistence/execution/bridge.ts";
+import { scheduleIntersects } from "../persistence/execution/query.ts";
+import type { ScheduleOccurrence } from "../domain/temporal/index.ts";
+import type { CategoryKey, DayKey, DailyItem, PlannerState, RoutineItem } from "./planner-data.ts";
 import type { ExecutionBridge, OccurrenceBinding } from "../persistence/execution/bridge.ts";
 
 export type TodayContextItem = Readonly<{
   id: string;
   title: string;
   notes: string;
-  category: CategoryKey;
+  category: CategoryKey | null;
   sourceDate: string;
   start: string;
   end: string;
@@ -26,6 +23,8 @@ export type TodayContextItem = Readonly<{
   planningTimeZone?: string;
   durationMinutes?: number;
   actualMinutes?: number;
+  canonicalOccurrence?: ScheduleOccurrence;
+  terminal?: boolean;
 }>;
 
 export type TodayContext = Readonly<{
@@ -183,21 +182,22 @@ function projectDay(state: PlannerState, sourceDate: string, formatter: Intl.Dat
   });
 }
 
-type EffectiveIndex = { bindings: Map<string, OccurrenceBinding>; byStart: readonly OccurrenceBinding[]; byEnd: readonly OccurrenceBinding[] };
+type EffectiveIndex = { bindings: Map<string, OccurrenceBinding>; byStart: readonly OccurrenceBinding[]; byEnd: readonly OccurrenceBinding[]; untimed: readonly OccurrenceBinding[] };
 const effectiveIndexes = new WeakMap<ExecutionBridge, EffectiveIndex>();
 function auditedLimits(binding: OccurrenceBinding) {
-  const audit = binding.planningAudit!;
-  const schedule = audit.rescheduleHistory.at(-1)?.to ?? audit.baselineSchedule;
+  const schedule = temporalPlanning(binding)!;
   if (schedule.kind !== "timed") throw new Error("Planejamento auditado sem intervalo horário não é suportado em Hoje.");
   return { start: Date.parse(schedule.startsAt), end: Date.parse(schedule.startsAt) + schedule.durationMinutes * 60_000 };
 }
 function effectiveIndex(bridge: ExecutionBridge): EffectiveIndex {
   const cached = effectiveIndexes.get(bridge);
   if (cached) return cached;
-  const audited = bridge.entries.filter((entry) => entry.planningAudit);
-  const index = { bindings: new Map(bridge.entries.map((entry) => [`${entry.sourceDate}:${entry.itemIndex}`, entry])),
-    byStart: [...audited].sort((a, b) => auditedLimits(a).start - auditedLimits(b).start),
-    byEnd: [...audited].sort((a, b) => auditedLimits(a).end - auditedLimits(b).end) };
+  const audited = legacyBindings(bridge).filter((entry) => entry.planningAudit);
+  const timed = audited.filter(entry => temporalPlanning(entry)!.kind === "timed");
+  const index = { bindings: new Map(legacyBindings(bridge).map((entry) => [`${entry.sourceDate}:${entry.itemIndex}`, entry])),
+    byStart: [...timed].sort((a, b) => auditedLimits(a).start - auditedLimits(b).start),
+    byEnd: [...timed].sort((a, b) => auditedLimits(a).end - auditedLimits(b).end),
+    untimed: audited.filter(entry => temporalPlanning(entry)!.kind !== "timed") };
   effectiveIndexes.set(bridge, index);
   return index;
 }
@@ -213,8 +213,7 @@ function auditedBetween(index: EffectiveIndex, start: number, end: number) {
   return candidates.filter((entry) => { const limits = auditedLimits(entry); return limits.start < end && limits.end > start; });
 }
 function auditedItem(binding: OccurrenceBinding, formatter: Intl.DateTimeFormat): TodayContextItem {
-  const audit = binding.planningAudit!;
-  const schedule = audit.rescheduleHistory.at(-1)?.to ?? audit.baselineSchedule;
+  const schedule = temporalPlanning(binding)!;
   if (schedule.kind !== "timed") throw new Error("Planejamento auditado sem intervalo horário não é suportado em Hoje.");
   const end = new Date(Date.parse(schedule.startsAt) + schedule.durationMinutes * 60_000).toISOString();
   const clock = (instant: string) => { const civil = civilAt(Date.parse(instant), formatter); return `${String(civil.hour).padStart(2, "0")}:${String(civil.minute).padStart(2, "0")}`; };
@@ -240,6 +239,16 @@ function bySchedule(left: TodayContextItem, right: TodayContextItem) {
  * ScheduleOccurrence facts or write inferred timezone/status back to storage.
  */
 export function deriveTodayContext(state: PlannerState, referenceTime: Date, timeZone: string, selectedDate?: string, bridge?: ExecutionBridge): TodayContext {
+  return deriveDayProjection(state, referenceTime, timeZone, selectedDate, bridge, "reject").context;
+}
+
+/** Monthly compatibility reports unrepresented schedules; it never hides other projection errors. */
+export function deriveMonthlyDayContext(state: PlannerState, referenceTime: Date, timeZone: string, selectedDate: string, bridge?: ExecutionBridge) {
+  return deriveDayProjection(state, referenceTime, timeZone, selectedDate, bridge, "report");
+}
+
+function deriveDayProjection(state: PlannerState, referenceTime: Date, timeZone: string, selectedDate: string | undefined,
+  bridge: ExecutionBridge | undefined, untimedPolicy: "reject" | "report"): Readonly<{ context: TodayContext; unrepresentedOccurrenceIds: readonly string[] }> {
   if (Number.isNaN(referenceTime.getTime())) throw new Error("Instante de referência inválido.");
   const formatter = new Intl.DateTimeFormat("en-US", {
     timeZone, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit",
@@ -249,18 +258,48 @@ export function deriveTodayContext(state: PlannerState, referenceTime: Date, tim
   const dayEnd = zonedEpoch(civilParts(shiftDate(date, 1)), formatter);
   const previousDate = shiftDate(date, -1);
   const index = bridge ? effectiveIndex(bridge) : undefined;
+  if (untimedPolicy === "reject" && index?.untimed.length) throw new Error("Planejamento auditado sem intervalo horário não é suportado em Hoje.");
+  const intersects = (schedule: NonNullable<ReturnType<typeof temporalPlanning>>) => scheduleIntersects(schedule, new Date(dayStart).toISOString(), new Date(dayEnd).toISOString());
+  const assertPhysicalBinding = (binding: OccurrenceBinding) => {
+    const physical = state.records[binding.sourceDate]?.items[binding.itemIndex];
+    if (!physical || Object.entries(binding.item).some(([key, value]) => physical[key as keyof typeof physical] !== value)) throw new Error("Vínculo auditado incompatível com o planner.");
+  };
+  const unrepresentedOccurrenceIds = (index?.untimed ?? []).filter(binding => {
+    assertPhysicalBinding(binding); return intersects(temporalPlanning(binding)!);
+  }).map(binding => binding.occurrenceId);
+  const canonical: TodayContextItem[] = [];
+  for (const entry of bridge?.entries ?? []) {
+    if (entry.kind !== "canonical") continue;
+    const occurrence = entry.occurrence, schedule = temporalPlanning(entry)!;
+    if (!intersects(schedule)) continue;
+    if (schedule.kind !== "timed") {
+      if (untimedPolicy === "reject") throw new Error("Ocorrência sem intervalo horário não é suportada na visão horária de Hoje.");
+      unrepresentedOccurrenceIds.push(occurrence.id); continue;
+    }
+    const end = new Date(Date.parse(schedule.startsAt) + schedule.durationMinutes * 60000).toISOString();
+    const clock = (instant: string) => { const part = civilAt(Date.parse(instant), formatter); return `${String(part.hour).padStart(2, "0")}:${String(part.minute).padStart(2, "0")}`; };
+    const timing = occurrence.execution?.timing;
+    const actualMinutes = timing?.kind === "timed" ? (Date.parse(timing.interval.end) - Date.parse(timing.interval.start)) / 60000
+      : timing?.kind === "date_only" ? timing.durationMinutes : undefined;
+    canonical.push({ id: occurrence.id, occurrenceId: occurrence.id, title: occurrence.title, notes: occurrence.execution?.note ?? "",
+      category: null, sourceDate: localDate(new Date(schedule.startsAt), formatter), sourceItemId: occurrence.id, sourceIndex: -1,
+      start: clock(schedule.startsAt), end: clock(end), startsAt: schedule.startsAt, endsAt: end,
+      completed: !!occurrence.execution, terminal: occurrence.status !== "planned", canonicalOccurrence: occurrence,
+      reschedulable: false, planningTimeZone: schedule.timeZone, durationMinutes: schedule.durationMinutes,
+      ...(actualMinutes === undefined ? {} : { actualMinutes }) });
+  }
   const items = [
+    ...canonical,
     ...projectDay(state, previousDate, formatter, index?.bindings).filter((entry) => !entry.binding?.planningAudit),
     ...projectDay(state, date, formatter, index?.bindings).filter((entry) => !entry.binding?.planningAudit),
     ...(index ? auditedBetween(index, dayStart, dayEnd).map((binding) => {
-      const physical = state.records[binding.sourceDate]?.items[binding.itemIndex];
-      if (!physical || Object.entries(binding.item).some(([key, value]) => physical[key as keyof typeof physical] !== value)) throw new Error("Vínculo auditado incompatível com o planner.");
+      assertPhysicalBinding(binding);
       const item = auditedItem(binding, formatter);
       return { ...item, reschedulable: item.reschedulable && state.records[binding.sourceDate].items.filter((entry) => entry.id === binding.item.id).length === 1 };
     }) : []),
   ].filter((entry) => Date.parse(entry.startsAt) < dayEnd && Date.parse(entry.endsAt) > dayStart)
     .sort(bySchedule);
-  const pending = items.filter((entry) => !entry.completed);
+  const pending = items.filter((entry) => !entry.completed && !entry.terminal);
   const active = pending.filter((entry) => entry.startsAt <= referenceTime.toISOString() && referenceTime.toISOString() < entry.endsAt);
   const future = pending.filter((entry) => entry.startsAt > referenceTime.toISOString());
   // A finished interval without a completion record still needs a user decision.
@@ -269,7 +308,7 @@ export function deriveTodayContext(state: PlannerState, referenceTime: Date, tim
   const agora = active[0] ?? null;
   const proximo = future[0] ?? null;
   const depois = future.slice(1);
-  return {
+  return { unrepresentedOccurrenceIds, context: {
     date,
     timeZone,
     items,
@@ -284,5 +323,5 @@ export function deriveTodayContext(state: PlannerState, referenceTime: Date, tim
       future: future.length,
       attention: atencao.length,
     },
-  };
+  } };
 }

@@ -1,3 +1,4 @@
+import { legacyOf } from "./planning-model-compat.mjs";
 import { capturePlanningFence } from "../persistence/contracts/dataset-revision.ts";
 import "fake-indexeddb/auto";
 import assert from "node:assert/strict";
@@ -8,12 +9,12 @@ import { readFileSync } from "node:fs";
 import { actualInstant, buildCompletionRecord } from "../app/completion-input.ts";
 import { PlannerWriteQueue } from "../app/planner-write-queue.ts";
 import { persistCompletion, CompletionPersistenceError } from "../app/completion-command.ts";
-import { DayforgeDatabase, IndexedDbPersistenceRepository, bootstrapPlannerV2, exportDayforgeBackupV2,
+import { DayforgeDatabase, IndexedDbPersistenceRepository, bootstrapPlannerV2, exportDayforgeBackup,
   restoreActivePlannerV2, saveActivePlannerV2, recordOccurrenceExecution } from "../persistence/index.ts";
 
 const compiled = ts.transpileModule(readFileSync(new URL("../app/today-context.ts", import.meta.url), "utf8"),
   { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText;
-const { deriveTodayContext } = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString("base64")}`);
+const { deriveTodayContext } = await import(`data:text/javascript;base64,${Buffer.from(compiled.replaceAll("../persistence/execution/bridge.ts", new URL("../persistence/execution/bridge.ts", import.meta.url).href).replaceAll("../persistence/execution/query.ts", new URL("../persistence/execution/query.ts", import.meta.url).href)).toString("base64")}`);
 const date = "2026-10-06";
 const instant = "2026-10-06T08:30:00.000Z";
 const routine = { seg: [], ter: [], qua: [], qui: [], sex: [], sab: [], dom: [] };
@@ -23,7 +24,7 @@ const state = () => ({ version: 1, routine: structuredClone(routine), monthlyGoa
 } });
 const input = { start: `${date}T08:02`, end: `${date}T08:27`, timeZone: "UTC", note: " Fato real " };
 const execution = (id, values = input) => buildCompletionRecord(id, values, instant);
-const exported = (repository) => exportDayforgeBackupV2({ repository, exportedAt: instant, active: true });
+const exported = (repository) => exportDayforgeBackup({ repository, exportedAt: instant, active: true });
 let sequence = 0;
 async function setup(t, initial = state()) {
   const name = `completion-action-${++sequence}`;
@@ -59,7 +60,7 @@ test("actualMinutes uses real elapsed UTC time across DST and replaces legacy es
   const record = execution(id, { ...input, start: "2026-11-01T00:30", end: "2026-11-01T02:30", timeZone: "America/New_York" });
   await recordOccurrenceExecution({ repository, occurrenceId: id, execution: record });
   const backup = await exported(repository);
-  assert.equal(backup.payload.planner.records[date].items[0].actualMinutes, 180);
+  assert.equal(legacyOf(backup.payload.planner).records[date].items[0].actualMinutes, 180);
   assert.equal(backup.payload.executionBridge.bridge.entries[0].originalItem.actualMinutes, 999);
   const once = await physical(database); await recordOccurrenceExecution({ repository, occurrenceId: id, execution: record });
   assert.deepEqual(await physical(database), once);
@@ -158,7 +159,7 @@ for (const kind of ["missing occurrence", "invalid timing", "invalid recordedAt"
     await assert.rejects(persistCompletion({ repository, occurrenceId: id, execution: record, publish: (snapshot) => { published = snapshot; } }),
       (error) => error instanceof CompletionPersistenceError && error.blocked === false);
     assert.deepEqual(await physical(database), before);
-    assert.deepEqual(published.state, (await exported(repository)).payload.planner);
+    assert.deepEqual(published.state, legacyOf((await exported(repository)).payload.planner));
   });
 }
 test("intermediate persistence failure rolls back all structures, publishes previous snapshot and permits equivalent retry", async (t) => {
@@ -185,8 +186,8 @@ test("UI-produced fact survives logical backup/restore/reload unchanged, with al
   await restoreActivePlannerV2({ repository: target.repository, input: JSON.stringify(backup), instant }); target.repository.close();
   const restored = await target.boot();
   assert.deepEqual(restored.executionBridge, backup.payload.executionBridge.bridge);
-  assert.deepEqual(restored.state, backup.payload.planner);
-  assert.equal(backup.formatVersion, 2); assert.equal(backup.exportedFrom.persistenceGeneration, 2);
+  assert.deepEqual(restored.state, legacyOf(backup.payload.planner));
+  assert.equal(backup.formatVersion, 3); assert.equal(backup.exportedFrom.persistenceGeneration, 2);
   assert.equal((await target.repository.open()).schemaVersion, 1);
 });
 test("overnight real execution and day rollover retain the original occurrence identity and source date", async (t) => {

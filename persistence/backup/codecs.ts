@@ -1,3 +1,4 @@
+import { decodePlanningEnvelope, legacyPlanner } from "../contracts/planning-envelope.ts";
 import {
   LEGACY_IMPORT_ORIGINS,
   PERSISTENCE_GENERATION,
@@ -10,8 +11,7 @@ import {
 import { decodeExecutionBridge } from "../execution/bridge.ts";
 import {
   DAYFORGE_BACKUP_FORMAT,
-  DAYFORGE_BACKUP_FORMAT_VERSION,
-  type DayforgeBackupV2,
+  type DayforgeBackupV2, type DayforgeBackup,
   type LegacyMigrationProvenance,
   type LegacyMigrationSourceExport,
   type PlannerProvenance,
@@ -169,9 +169,9 @@ export function isDayforgeBackupV2Envelope(
   return isPlainObject(value) && value.format === DAYFORGE_BACKUP_FORMAT;
 }
 
-export function decodeDayforgeBackupV2(value: unknown): DayforgeBackupV2 {
+export function decodeDayforgeBackup(value: unknown): DayforgeBackup {
   if (isDayforgeBackupV2Envelope(value)
-    && value.formatVersion !== DAYFORGE_BACKUP_FORMAT_VERSION) {
+    && value.formatVersion !== 2 && value.formatVersion !== 3) {
     throw new BackupValidationError(
       "unsupported_backup_version",
       "A versão deste backup não é compatível com esta aplicação.",
@@ -180,7 +180,7 @@ export function decodeDayforgeBackupV2(value: unknown): DayforgeBackupV2 {
   if (!isPlainObject(value)
     || !hasExactFields(value, ENVELOPE_FIELDS)
     || value.format !== DAYFORGE_BACKUP_FORMAT
-    || value.formatVersion !== DAYFORGE_BACKUP_FORMAT_VERSION
+    || (value.formatVersion !== 2 && value.formatVersion !== 3)
     || !isCanonicalUtcInstant(value.exportedAt)
     || !isPlainObject(value.exportedFrom)
     || !hasExactFields(value.exportedFrom, EXPORTED_FROM_FIELDS)
@@ -190,7 +190,8 @@ export function decodeDayforgeBackupV2(value: unknown): DayforgeBackupV2 {
     || value.exportedFrom.schemaVersion < 1
     || !isPlainObject(value.payload)
     || !(hasExactFields(value.payload, PAYLOAD_FIELDS)
-      || hasExactFields(value.payload, [...PAYLOAD_FIELDS, "executionBridge"]))
+      || hasExactFields(value.payload, [...PAYLOAD_FIELDS, "executionBridge"])
+      || (value.formatVersion === 3 && hasExactFields(value.payload, [...PAYLOAD_FIELDS, "executionBridge", "plannerFingerprint"])))
     || !isPlainObject(value.payload.planner)
     || !Array.isArray(value.payload.legacySources)) {
     throw new BackupValidationError(
@@ -205,7 +206,8 @@ export function decodeDayforgeBackupV2(value: unknown): DayforgeBackupV2 {
     || !Array.isArray(payload.legacySources)) {
     throw new BackupValidationError("invalid_backup_envelope", "O payload do backup v2 é inválido.");
   }
-  const plannerInput = payload.planner;
+  const envelope = value.formatVersion === 3 ? decodePlanningEnvelope(payload.planner) : null;
+  const plannerInput = envelope ? envelope.legacy : payload.planner;
   const planner = normalizeLegacyPlannerSnapshotV1(decodePlannerSnapshot(
     plannerInput,
     "O planner do backup v2 é inválido.",
@@ -219,8 +221,10 @@ export function decodeDayforgeBackupV2(value: unknown): DayforgeBackupV2 {
     const data = payload.executionBridge;
     if (!isPlainObject(data) || !hasExactFields(data, ["bridge", "contentFingerprint"])
       || !isSha256Fingerprint(data.contentFingerprint)) return invalidPayload();
-    executionBridge = { bridge: decodeExecutionBridge(data.bridge, planner), contentFingerprint: data.contentFingerprint };
+    executionBridge = { bridge: decodeExecutionBridge(data.bridge, legacyPlanner(planner)), contentFingerprint: data.contentFingerprint };
   }
+  if (value.formatVersion === 2 && executionBridge?.bridge.version === 3) return invalidPayload();
+  if (value.formatVersion === 3 && (!executionBridge || executionBridge.bridge.version !== 3 || !isSha256Fingerprint(payload.plannerFingerprint))) return invalidPayload();
   if (!legacySources.every((source, index) => (
     index === 0 || legacySources[index - 1].rawFingerprint < source.rawFingerprint
   ))) {
@@ -236,13 +240,22 @@ export function decodeDayforgeBackupV2(value: unknown): DayforgeBackupV2 {
       schemaVersion: value.exportedFrom.schemaVersion,
     },
     payload: {
-      planner,
+      planner: envelope ?? planner,
+      ...(envelope ? { plannerFingerprint: payload.plannerFingerprint as string } : {}),
       provenance: decodeProvenance(payload.provenance),
       legacySources,
       ...(executionBridge ? { executionBridge } : {}),
     },
-  };
+  } as DayforgeBackup;
 }
+
+export function decodeDayforgeBackupV2(value: unknown): DayforgeBackupV2 {
+  const decoded = decodeDayforgeBackup(value);
+  if (decoded.formatVersion !== 2) throw new BackupValidationError("unsupported_backup_version", "Este conjunto exige backup 3; downgrade não é permitido.");
+  return decoded;
+}
+
+export const isDayforgeBackupEnvelope = isDayforgeBackupV2Envelope;
 
 export function parseDayforgeBackupV2(raw: string): DayforgeBackupV2 {
   let parsed: unknown;

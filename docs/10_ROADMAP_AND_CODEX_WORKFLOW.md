@@ -13,7 +13,7 @@
 - Etapa 2C-A — contrato/recuperação do planejamento auditado: concluída e integrada pela PR #13.
 - Etapa 2C-B — reagendamento explícito e auditável em Hoje: concluída e integrada pela PR #14.
 - Macroetapa 2 encerrada; os escopos, validações e gates de suas unidades permanecem registrados abaixo.
-- Etapa 3 em andamento exclusivamente na 3A-1 — proteção de escritas: implementada na branch de trabalho, ainda sem integração. A 3A-2 e funcionalidades posteriores não foram iniciadas nem autorizadas.
+- Etapa 3 em andamento: 3A-1 integrada pela PR #16; 3A-2 autorizada exclusivamente como fundação temporal e recuperação. 3B-1 e produtores funcionais continuam sem autorização.
 - Plano da Etapa 1.2 aprovado; cada subetapa exige branch, validação, revisão e autorização próprias.
 - Nenhuma etapa funcional pode começar por consequência automática desta documentação.
 
@@ -407,9 +407,12 @@ seu desenvolvimento. O motor determinístico permanece na Etapa 5 do roadmap.
 ### Etapa 3A-1 — Proteção contra snapshots obsoletos
 
 Implementada em `fix/planning-write-fences` sobre
-`c4d3557711e987cf0748fbc6b7c378ca7194ab72`. Ainda não integrada: abertura de PR,
-merge e próxima unidade exigem autorização própria. O planejamento global foi
-realizado em conversa; a autorização desta entrega é exclusiva da 3A-1.
+`c4d3557711e987cf0748fbc6b7c378ca7194ab72`. Integrada pela PR #16 em
+12/10/2026 (horário local), merge `733bc3037e5143a1f67adfec8909268d9f736702`,
+preservando os dois commits e com verify aprovado na PR e na main. Branch
+removida depois de verificar ancestralidade e ausência de commits exclusivos.
+O planejamento global foi realizado em conversa; a autorização daquela entrega
+foi exclusiva da 3A-1.
 
 Escopo: datasetRevision local validada, CAS transacional com authorityEpoch,
 cobertura de autosave/comandos/recovery/adopção, replay idempotente, invalidação
@@ -435,6 +438,76 @@ merge automático nem restauração desse rascunho como backup lógico.
 Fora de escopo: 3A-2, mudanças dos formatos atuais, novos produtores, Agenda,
 Metas estruturadas, Rotina canônica, Semana, Consistência e motor. A macroetapa 3
 não está concluída. O encerramento da macroetapa 2 acima permanece histórico.
+
+### Etapa 3A-2 — Modelo temporal versionado e recuperação
+
+Branch: `feat/planning-model-recovery`, baseline
+`733bc3037e5143a1f67adfec8909268d9f736702` após PR #16. Autorização explícita
+para implementar e publicar somente a fundação, sem abrir PR ou realizar merge.
+
+Entrega: envelope planner 2, registro temporal discriminado 3, backup público 3,
+upgrade lógico atômico e compatibilidade 3/2/1. A geração continua 2 e o schema
+Dexie 1, nas tabelas atuais. Fontes legadas, IDs, contador, fatos reais e auditoria
+são preservados; não se transformam Rotina e monthlyGoals em entidades canônicas.
+Consulta pura comum e consumidores existentes reconhecem o modelo. CAS da 3A-1
+continua transacional; substituição incrementa autoridade do destino e remove o
+conjunto anterior. D-035 e a arquitetura especificam os contratos exatos.
+
+Implementada e validada em 12/10/2026, ainda sem PR ou integração. Lint, typecheck
+e build aprovados; suíte Node atual 389/389 (64 novos); Edge 49/49 (sete novos),
+com retries desabilitados. Inclui domínio/codecs, instalações antigas, migração
+simultânea, autosave/comandos concorrentes, hash em preparação, quota, rollback,
+metadata, round-trip 3/2/1, integridade e regressões 1.2/2A/2B/2B-A/2C-A/2C-B/3A-1.
+Master/diff check, revisão de recuperação, visual desktop/390 px e varredura dos
+55 arquivos alterados/novos sem segredos ou UTF-8 inválido aprovados.
+
+A primeira rodada Edge teve 45/49: três helpers/expectativas ainda usavam formato
+antigo; outra abria Concluir antes da publicação do autosave local da nota e foi
+corretamente rejeitada pelo CAS. A regressão agora verifica nota persistida e
+publicação antes de abrir o diálogo. Cenários de estado obsoleto continuam exigindo
+rejeição e preservação do rascunho/formulário; nenhum retry automático foi usado.
+Na suíte Node, um import de módulo puro precisou de fronteira type-only/ extensão
+explícita para execução direta; as provas anteriores foram mantidas e adaptadas
+ao envelope. Import v1 verifica agora substituição integral da procedência.
+
+Metas, Agenda, templates/recorrências, Semana, Consistência, motor, backend e cloud
+permanecem fora de escopo. Ocorrências completas são comprovadas em fixtures,
+sem novo produtor ou comando público. Macroetapa 3 continua em andamento.
+
+#### Correções pré-merge — PR #17
+
+Sobre o HEAD auditado a1d379df489f31f0e33afa96a422f3f9cdc886d9, foram corrigidos:
+projeção mensal de schedules sem horário, replay semântico após upgrade, criação
+com fuso IANA estrito e fixture de backup antigo malformado. D-036 registra a
+escolha humana de preservar offsets em leitura/restore históricos, inclusive
+completas v3, com aviso explícito e sem inferência geográfica. Formatos, CAS,
+autoridade/revisão, IDs, fontes e recuperação permanecem. Sem merge ou 3B-1.
+
+Validação inicial dessas correções: lint/typecheck/build aprovados; Node 408/408
+(19 novos), Edge de planejamento/persistência/shell 66/66 (17 novos), sem retries.
+Master/diff check, varredura de segredos/UTF-8, integridade/recuperação e revisão
+visual desktop/390px aprovados nas superfícies afetadas.
+
+A execução Edge global teve 76/77: solar-review, máscara parcial em 1007px,
+falhou na comparação de pixels. A mesma assertion falhou no snapshot isolado
+do HEAD auditado, sem estas correções. Cenário/solar/teste não foram alterados;
+não se declara o gate Edge global aprovado. A falha preexistente permanece
+registrada para avaliação humana, sem retry automático nem assertion reduzida.
+
+#### Correção restrita de replay histórico — PR #17
+
+Replays já aplicados no registro 3 inicial podem conservar a revisão capturada
+com kind. A compatibilidade reconstrói essa representação somente a partir de
+fatos persistidos validados no ramo de replay; não altera revisões atuais nem
+autoriza comandos novos. CAS, época, payload integral e história permanecem.
+
+Validação local desta correção: Node 423/423 (15 novos), suíte dirigida 84/84,
+Edge global 77/77 sem retries, lint/typecheck/build, master/diff check e varredura
+de segredos aprovados. A reprodução isolada usa o código real de a1d379d e a
+implementação corrigida, sem modificar a intenção original. O teste solar 1007px
+passou nesta execução; a instabilidade preexistente permanece registrada, sem
+alteração visual ou do teste. D-031 a D-036 e formatos permanecem intactos.
+Correção publicada na branch da PR; integração/merge e 3B-1 aguardam aprovação.
 
 ## 5. Ordem de dependências
 

@@ -16,7 +16,7 @@ export type DatabaseMetadataRecord = Readonly<{
   persistenceGeneration: typeof PERSISTENCE_GENERATION;
   schemaVersion: typeof DEXIE_SCHEMA_VERSION;
   activeDocumentId: string | null;
-  executionBridgeVersion?: 1 | 2;
+  executionBridgeVersion?: 1 | 2 | 3;
   authorityEpoch?: number;
   writeFenceVersion?: 1;
   datasetRevision?: number;

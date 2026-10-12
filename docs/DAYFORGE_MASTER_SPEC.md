@@ -6,8 +6,8 @@
 # Dayforge 2.0 — Documentação oficial de produto
 
 **Status:** Etapas 0.1, 0.2, 1.1 e 1.2A–1.2D implementadas; 2A, fundação da 2B, 2B-A, 2C-A e 2C-B concluídas e integradas; macroetapa 2 encerrada
-**Data:** 11/10/2026
-**Etapa atual:** 3A-1 — proteção de escritas contra snapshots obsoletos, implementada na branch de trabalho e ainda não integrada; 3A-2 e funcionalidades posteriores não iniciadas nem autorizadas
+**Data:** 12/10/2026
+**Etapa atual:** 3A-1 integrada pela PR #16; 3A-2 — evolução lógica temporal e recuperação, implementada e validada na branch `feat/planning-model-recovery`, ainda não integrada. Produtores e 3B-1 permanecem futuros.
 **Objetivo:** transformar as decisões de produto, UX, domínio e arquitetura discutidas até aqui em uma fonte oficial de verdade para o repositório e para o Codex.
 
 ## Como usar esta documentação
@@ -104,6 +104,11 @@ A 3A-1 implementa revisão persistida local e CAS para o conjunto editável,
 preservando formatos e contratos da Etapa 2. Conflitos mantêm rascunhos e
 formulários; recuperação mantém epoch e revisão do destino. D-034 e os documentos
 09/10/12 registram o contrato e seus limites. A macroetapa 3 não está concluída.
+
+A 3A-1 foi integrada pelo merge `733bc3037e5143a1f67adfec8909268d9f736702`.
+A 3A-2 evolui planner lógico 2, ponte 3 e backup público 3; mantém geração 2,
+Dexie schema 1 e v1 somente leitura. Os relatos de formatos anteriores acima
+descrevem seus escopos históricos; D-035 registra o contrato atual.
 
 ---
 
@@ -1698,6 +1703,14 @@ transação. Um rascunho baixado para resolver conflito contém alterações loc
 não confirmadas e é explicitamente separado do backup lógico; não deve ser
 importado como arquivo de recuperação.
 
+Na 3A-2, o backup público principal passa a 3 após o upgrade: inclui envelope
+planner 2, registro temporal 3, completas/parciais, execução, auditoria, cadeias,
+contador e fontes/procedência. Recuperação aceita 3/2/1; aplicações antigas
+rejeitam o novo formato. Não há export de compatibilidade com perda de entidades.
+Contadores locais, aparência e stores alheios continuam excluídos. Restore/import/
+reset substituem integralmente o conjunto, com CAS/readback/rollback; import v1
+não mantém procedência do conjunto anterior. D-035 detalha os limites atuais.
+
 Deve preservar:
 
 - dados estruturados;
@@ -2092,6 +2105,126 @@ continua fail-closed. Falha isolada de escrita preserva rascunho e oferece retry
 Limites: sem migração estrutural 3A-2, novos produtores, Agenda/Metas/Rotina
 canônicas, Semana, Consistência, correção terminal, cloud ou avanço automático.
 
+### Etapa 3A-2 — Envelope lógico e registro temporal comum
+
+`planner/current` passa a formato `dayforge/planning-state`, versão lógica 2,
+payload estrito `{version:2,legacy,temporalRegistry:{documentId:"execution/bridge",version:3}}`.
+`legacy` é o snapshot v1 normalizado integralmente preservado; a referência liga
+o envelope ao único registro de identidade/plano/execução/história. Não existem
+templates ou metas estruturadas derivados automaticamente do legado.
+
+`execution/bridge` mantém formato `dayforge/execution-bridge` e usa versão
+lógica 3 no documento e payload `{version:3,nextSequence,entries}`. Entradas:
+
+- `legacy_partial`: os campos anteriores de vínculo, data física, posição,
+  originalItem, item, execution e planningAudit opcional, sem origem/fuso/
+  flexibilidade/criação inferidos. `itemIndex` localiza, não identifica.
+- `canonical`: `{kind:"canonical",occurrence:ScheduleOccurrence}`, independente
+  de planner.records; somente a ocorrência guarda plano, execução e história.
+
+IDs `occ:n` são únicos na união e menores que nextSequence. O contador é
+compartilhado, monotônico por linhagem; exclusões legadas não o reduzem. Vínculos
+parciais ficam ordenados por data/posição; completas vêm depois, por sequência.
+Referências de template ou entidade de domínio ainda inexistentes são rejeitadas,
+inclusive em backup: esta unidade não inventa cadastros futuros. OriginReference
+sem referência externa pode carregar kind/label explícitos. Factories e transições
+puras existentes reconstruem e validam ocorrência, estados terminais, resolução,
+ExecutionRecord e cadeia com IDs owner-bound e posições append-only. Schedules
+timed/date_only/all_day seguem o domínio; campos extras e conteúdo não canônico
+falham fechados. Comandos existentes continuam restritos aos vínculos parciais.
+
+Backup público 3 mantém o envelope público, mas payload.planner é o envelope 2,
+payload.plannerFingerprint cobre esse envelope, executionBridge é obrigatório
+com registro 3 e hash próprio. provenance.contentFingerprint continua sendo o
+hash semântico do legado, separado do hash do envelope; legacySources/provenance
+preservam bytes/fontes/relações anteriores. exportedAt não identifica conteúdo;
+epoch/revisão são exclusivamente locais e não aparecem no backup. Aparência e
+dados de outros stores não fazem parte deste conjunto recuperável.
+
+Export principal usa o formato correspondente ao snapshot instalado: após upgrade
+exporta 3. A API explícita exportDayforgeBackupV2 rejeita conjunto novo, inclusive
+sem completas; não oferece downgrade. Codec 2 permanece como entrada compatível.
+Ponte 1/hash original é validada antes da conversão. Backup 2 sem ponte e v1
+geram somente vínculos parciais, sem backfill. Versões desconhecidas bloqueiam.
+Aplicações antigas rejeitam envelope/metadata/ponte/backup novos, sem fallback
+ao v1 e sem promessa de downgrade ou retorno à aplicação antiga sem perda.
+
+Upgrade captura metadata/planner/ponte/fontes numa transação consistente, valida
+hashes e referências e prepara envelope/registro/fingerprints fora da transação.
+CAS compara época/revisão e documentos de base dentro da transação que grava
+planner, ponte e metadata, com readback. Época não muda; revisão avança uma vez.
+Metadata antiga sem revisão começa em zero; adoção 3 persiste par validado e
+exige-o nas leituras seguintes. Bootstrap repetido é no-op. Uma migração concorrente
+somente reconhece replay se o vencedor for exatamente a transformação esperada,
+na mesma época e com um incremento; não rebaseia uma operação conflitante.
+Falha/overflow/quota/readback abortam tudo. Não há hash Web Crypto dentro do commit.
+
+Restore/import/reset preparam entrada convertida antes da escrita e substituem
+planner/current, execution/bridge, legacy-v1/source/* e migration/v1/* juntos.
+Namespaces planner/ e execution/ desconhecidos falham fechados; registros alheios
+preservados. Import v1 substitui também fontes/procedência anteriores pelo input
+recuperável apresentado; não faz merge de procedência de conjuntos diferentes.
+V1 local permanece intacto. Época e revisão do destino avançam atomicamente,
+mesmo em conteúdo idêntico; IDs coincidentes não legitimam diálogos antigos.
+Releitura compara documentos, fontes, metadata e referências; rollback integral.
+
+`legacyPlanner` e `legacyBindings` são adapters explícitos de leitura;
+autosave reconcilia parciais e retém completas sem alteração. A consulta pura
+`queryTemporalSnapshot` recebe envelope/registro validados, janela UTC semiaberta,
+referência e fuso de exibição. Retorna identidade/natureza/procedência/schedule,
+execução/história/capacidades. Sem schedule confirmado, o legado retorna
+`legacy_candidate` (inclui data anterior para madrugada); a projeção horária
+existente interpreta esses candidatos em memória. Nunca confirma plano ou
+materializa rotina ao navegar. `temporalPlanning` centraliza vigente para Hoje
+e consulta comum. Date-only/all-day usam datas no próprio fuso, sem horas inventadas.
+
+Hoje admite completas timed como leitura, sem novos botões de comando/edição;
+categoria é desconhecida, apresentada genericamente e não atribuída às métricas
+legadas. Execução sem duração conhecida não usa duração planejada como realizado.
+Cancelada/não realizada continuam terminais, fora das pendências. A visão horária
+continua rejeitando schedules sem horário quando intersectam o dia, em vez de
+inventar um intervalo; consulta comum/backup os preservam integralmente. UI própria
+de Agenda/Semana e produtores são etapas futuras. Não há novo read model persistido.
+
+Geração 2, schema Dexie 1, tabelas metadata/plannerDocuments e marker não mudam.
+Conflito com armazenamento validável não é corrupção; rascunhos/formulários e
+fila única da 3A-1 permanecem. Migração interrompida não sobrescreve defaults.
+
+### Correções pré-merge da 3A-2
+
+`deriveMonthlyDayContext` separa schedules sem horário das entradas representáveis
+na projeção mensal, retorna os IDs não representados e preserva os cálculos das
+demais atividades. A UI informa a quantidade única no mês e a exclusão desses
+registros dos indicadores horários; navegação/meta mensal/backup continuam
+disponíveis. Não há catch genérico, intervalo inventado ou alteração do registro.
+Hoje mantém sua rejeição controlada; outros erros de projeção continuam erros.
+
+`occurrenceRevision` ignora exclusivamente o novo discriminador estrutural kind,
+além das exclusões históricas de posição/estimativa. Upgrade não muda a revisão
+semântica dos fatos. Replay conserva a prova integral do evento/append/época;
+nova operação continua sujeita ao CAS de datasetRevision, sem rebase automático.
+
+Intenções da representação inicial do registro 3 (`a1d379d`) podem conter kind na
+revisão capturada. Somente quando o evento já existe, o replay reconstrói também
+essa revisão histórica a partir dos fatos persistidos validados, sem interpretar
+ou limpar a string do chamador. Exige igualdade integral da revisão reconstruída,
+evento, posição e história anterior; mantém a verificação transacional do snapshot
+e da época. Eventos posteriores/conclusão não invalidam um replay comprovado nem
+avançam datasetRevision. Comandos novos continuam exigindo a revisão semântica
+atual e CAS; o formato histórico nunca autoriza um novo append.
+
+D-036 separa criação de leitura: parseIanaTimeZone rejeita offsets isolados;
+parseStoredTimeZone é usado explicitamente por codecs de fatos recuperados e
+aceita somente offsets históricos canônicos ±HH:mm, com faixa validada. Não usa
+Intl para inventar equivalência geográfica; não normaliza -00:00 como um fato
+canônico. StoredTimeZone distingue IANA de HistoricalUtcOffset no tipo, mantendo
+o mesmo campo string serializado. Factories estritas são o padrão; reconstrução
+histórica injeta o parser compatível. Backup 2/3 e upgrade conservam os valores,
+inclusive em completas v3, com aviso derivado do registro validado. O formato
+não prova a idade de um arquivo; aceitar offsets em recovery é escolha explícita,
+nunca autorização para novos fatos com offsets. A fonte autoritativa permanece
+única. Backup v1 não contém fatos de fuso para converter.
+
 ## 5. Motor de planejamento
 
 A primeira versão local usa TypeScript puro, determinístico e independente da UI. Os contratos e vetores de teste devem permitir reprodução fora do navegador.
@@ -2142,7 +2275,7 @@ Camadas futuras devem possuir testes unitários de domínio e planner, testes de
 - Etapa 2C-A — contrato/recuperação do planejamento auditado: concluída e integrada pela PR #13.
 - Etapa 2C-B — reagendamento explícito e auditável em Hoje: concluída e integrada pela PR #14.
 - Macroetapa 2 encerrada; os escopos, validações e gates de suas unidades permanecem registrados abaixo.
-- Etapa 3 em andamento exclusivamente na 3A-1 — proteção de escritas: implementada na branch de trabalho, ainda sem integração. A 3A-2 e funcionalidades posteriores não foram iniciadas nem autorizadas.
+- Etapa 3 em andamento: 3A-1 integrada pela PR #16; 3A-2 autorizada exclusivamente como fundação temporal e recuperação. 3B-1 e produtores funcionais continuam sem autorização.
 - Plano da Etapa 1.2 aprovado; cada subetapa exige branch, validação, revisão e autorização próprias.
 - Nenhuma etapa funcional pode começar por consequência automática desta documentação.
 
@@ -2536,9 +2669,12 @@ seu desenvolvimento. O motor determinístico permanece na Etapa 5 do roadmap.
 ### Etapa 3A-1 — Proteção contra snapshots obsoletos
 
 Implementada em `fix/planning-write-fences` sobre
-`c4d3557711e987cf0748fbc6b7c378ca7194ab72`. Ainda não integrada: abertura de PR,
-merge e próxima unidade exigem autorização própria. O planejamento global foi
-realizado em conversa; a autorização desta entrega é exclusiva da 3A-1.
+`c4d3557711e987cf0748fbc6b7c378ca7194ab72`. Integrada pela PR #16 em
+12/10/2026 (horário local), merge `733bc3037e5143a1f67adfec8909268d9f736702`,
+preservando os dois commits e com verify aprovado na PR e na main. Branch
+removida depois de verificar ancestralidade e ausência de commits exclusivos.
+O planejamento global foi realizado em conversa; a autorização daquela entrega
+foi exclusiva da 3A-1.
 
 Escopo: datasetRevision local validada, CAS transacional com authorityEpoch,
 cobertura de autosave/comandos/recovery/adopção, replay idempotente, invalidação
@@ -2564,6 +2700,76 @@ merge automático nem restauração desse rascunho como backup lógico.
 Fora de escopo: 3A-2, mudanças dos formatos atuais, novos produtores, Agenda,
 Metas estruturadas, Rotina canônica, Semana, Consistência e motor. A macroetapa 3
 não está concluída. O encerramento da macroetapa 2 acima permanece histórico.
+
+### Etapa 3A-2 — Modelo temporal versionado e recuperação
+
+Branch: `feat/planning-model-recovery`, baseline
+`733bc3037e5143a1f67adfec8909268d9f736702` após PR #16. Autorização explícita
+para implementar e publicar somente a fundação, sem abrir PR ou realizar merge.
+
+Entrega: envelope planner 2, registro temporal discriminado 3, backup público 3,
+upgrade lógico atômico e compatibilidade 3/2/1. A geração continua 2 e o schema
+Dexie 1, nas tabelas atuais. Fontes legadas, IDs, contador, fatos reais e auditoria
+são preservados; não se transformam Rotina e monthlyGoals em entidades canônicas.
+Consulta pura comum e consumidores existentes reconhecem o modelo. CAS da 3A-1
+continua transacional; substituição incrementa autoridade do destino e remove o
+conjunto anterior. D-035 e a arquitetura especificam os contratos exatos.
+
+Implementada e validada em 12/10/2026, ainda sem PR ou integração. Lint, typecheck
+e build aprovados; suíte Node atual 389/389 (64 novos); Edge 49/49 (sete novos),
+com retries desabilitados. Inclui domínio/codecs, instalações antigas, migração
+simultânea, autosave/comandos concorrentes, hash em preparação, quota, rollback,
+metadata, round-trip 3/2/1, integridade e regressões 1.2/2A/2B/2B-A/2C-A/2C-B/3A-1.
+Master/diff check, revisão de recuperação, visual desktop/390 px e varredura dos
+55 arquivos alterados/novos sem segredos ou UTF-8 inválido aprovados.
+
+A primeira rodada Edge teve 45/49: três helpers/expectativas ainda usavam formato
+antigo; outra abria Concluir antes da publicação do autosave local da nota e foi
+corretamente rejeitada pelo CAS. A regressão agora verifica nota persistida e
+publicação antes de abrir o diálogo. Cenários de estado obsoleto continuam exigindo
+rejeição e preservação do rascunho/formulário; nenhum retry automático foi usado.
+Na suíte Node, um import de módulo puro precisou de fronteira type-only/ extensão
+explícita para execução direta; as provas anteriores foram mantidas e adaptadas
+ao envelope. Import v1 verifica agora substituição integral da procedência.
+
+Metas, Agenda, templates/recorrências, Semana, Consistência, motor, backend e cloud
+permanecem fora de escopo. Ocorrências completas são comprovadas em fixtures,
+sem novo produtor ou comando público. Macroetapa 3 continua em andamento.
+
+#### Correções pré-merge — PR #17
+
+Sobre o HEAD auditado a1d379df489f31f0e33afa96a422f3f9cdc886d9, foram corrigidos:
+projeção mensal de schedules sem horário, replay semântico após upgrade, criação
+com fuso IANA estrito e fixture de backup antigo malformado. D-036 registra a
+escolha humana de preservar offsets em leitura/restore históricos, inclusive
+completas v3, com aviso explícito e sem inferência geográfica. Formatos, CAS,
+autoridade/revisão, IDs, fontes e recuperação permanecem. Sem merge ou 3B-1.
+
+Validação inicial dessas correções: lint/typecheck/build aprovados; Node 408/408
+(19 novos), Edge de planejamento/persistência/shell 66/66 (17 novos), sem retries.
+Master/diff check, varredura de segredos/UTF-8, integridade/recuperação e revisão
+visual desktop/390px aprovados nas superfícies afetadas.
+
+A execução Edge global teve 76/77: solar-review, máscara parcial em 1007px,
+falhou na comparação de pixels. A mesma assertion falhou no snapshot isolado
+do HEAD auditado, sem estas correções. Cenário/solar/teste não foram alterados;
+não se declara o gate Edge global aprovado. A falha preexistente permanece
+registrada para avaliação humana, sem retry automático nem assertion reduzida.
+
+#### Correção restrita de replay histórico — PR #17
+
+Replays já aplicados no registro 3 inicial podem conservar a revisão capturada
+com kind. A compatibilidade reconstrói essa representação somente a partir de
+fatos persistidos validados no ramo de replay; não altera revisões atuais nem
+autoriza comandos novos. CAS, época, payload integral e história permanecem.
+
+Validação local desta correção: Node 423/423 (15 novos), suíte dirigida 84/84,
+Edge global 77/77 sem retries, lint/typecheck/build, master/diff check e varredura
+de segredos aprovados. A reprodução isolada usa o código real de a1d379d e a
+implementação corrigida, sem modificar a intenção original. O teste solar 1007px
+passou nesta execução; a instabilidade preexistente permanece registrada, sem
+alteração visual ou do teste. D-031 a D-036 e formatos permanecem intactos.
+Correção publicada na branch da PR; integração/merge e 3B-1 aguardam aprovação.
 
 ## 5. Ordem de dependências
 
@@ -2797,6 +3003,49 @@ planner 1, ponte 2, backup 2, geração 2 e schema 1 permanecem; v1 é somente l
 D-031, D-032 e D-033 permanecem registros históricos. A 3A-2 e funcionalidades
 posteriores continuam sem autorização de implementação.
 
+### D-035 — Evolução lógica temporal e recuperação na 3A-2
+
+Após integração da 3A-1 pela PR #16, autoriza-se envelope planner lógico 2,
+ponte/registro discriminado 3 e backup público 3, preservando geração 2/schema 1.
+Legado parcial continua parcial; completas independem de records e usam o domínio
+existente, com uma única execução/história autoritativa e alocador compartilhado.
+Não existem novos produtores nem comandos públicos para completas nesta unidade.
+Referências a templates/domínios sem entidade recuperável são rejeitadas até sua
+evolução autorizada, sem inventar contratos ou procedência histórica.
+
+Upgrade valida snapshot/hash antigo antes de transformar, prepara hashes fora do
+commit e faz CAS época/revisão/base, escrita e readback numa única transação.
+Época preservada; uma revisão por mutação; no-op/replay estáveis. Ponte 3 exige
+metadata de revisão adotada. Recuperação aceita 3/2/1 e substitui conjunto completo,
+incluindo fontes/procedência, usando contadores locais do destino. Não há downgrade
+silencioso, export 2 de conjunto novo ou sobrevivência de entidades temporais órfãs.
+
+Consulta comum não cria fatos; capacidades distinguem parciais/completas. Hoje
+preserva leitura legada e admite completas timed sem comandos, categoria inferida
+ou tempo realizado fabricado. Schedules sem horário permanecem na consulta/backup;
+uma UX horária não os transforma em intervalos. Agenda, Rotina canônica, Semana,
+Metas, Consistência e 3B-1 continuam sujeitos a aprovação própria.
+D-031, D-032, D-033 e D-034 permanecem históricos sem reescrita.
+
+### D-036 — Fusos novos estritos e compatibilidade de fatos históricos
+
+A correção pré-merge da 3A-2 exige IANA nomeado em toda criação nova, incluindo
+UTC, sem depender da aceitação de offsets pelo Intl. Factories e codecs de criação
+usam parseIanaTimeZone; offsets isolados e zonas inexistentes são rejeitados.
+
+Por escolha humana explícita, leitura e recuperação preservam offsets históricos
+canônicos também em completas v3 anteriormente aceitas. O arquivo não contém a
+versão da aplicação que aceitou o fato; não se tenta inferir sua idade. Backups
+são fronteiras de recuperação, não produtores de novos fatos: usam validação
+histórica explícita, mantêm literal, UTC, IDs e cadeias, e a UI exibe aviso.
+Um offset histórico possui tipo próprio, não é afirmado como IANA nem convertido
+em localização. Sintaxe/campos/hashes/referências/cronologia continuam estritos.
+Replays exatos podem conservar a execução histórica; novos comandos exigem IANA.
+
+Não há novo campo persistido, produtor, versão de backup ou migração semântica.
+D-031 a D-035 permanecem registros históricos. Qualquer produtor futuro deve usar
+a fronteira estrita, nunca o parser de leitura histórica.
+
 ## Questões abertas antes das etapas correspondentes
 
 1. Quais limiares e pesos formam a primeira regra de risco de Entregas?
@@ -3014,6 +3263,57 @@ backup antigo, reabertura e v1 somente leitura possuem provas próprias.
 
 Mensagem, resolução por teclado, foco e 390 px são verificadas no Edge, sem
 retries automáticos. Conflito é recuperável; corrupção mantém fail-closed.
+
+## Cenário 32 — Fundação temporal versionada e recuperação — 3A-2
+
+Instalação antiga com planner 1 e ponte 1/2 válida migra atomicamente para
+envelope 2 e registro 3, mantendo legado, IDs/contador, execução, auditoria e
+eventos. Não atribui origem, fuso, flexibilidade, criação ou execução ausentes.
+Reabertura/no-op não avançam revisão; upgrade avança uma vez sem mudar época.
+Completas e parciais coexistem em fixtures e usam identidade compartilhada;
+autosave mantém completas e nunca duplica execução/história.
+
+Backup 3 round-trip integral; 2 com ponte 2/1 (hash antigo primeiro), 2 sem ponte
+e v1 são convertidos sem inferências. Restore de conjunto com completas remove
+entidades antigas e troca época/revisão do destino, invalidando formulários mesmo
+com IDs iguais. Fontes/ref/hashes/campos desconhecidos inválidos falham antes da
+mutação. Falha em cada escrita/readback/quota aborta tudo e permite retry explícito.
+Namespaces autoritativos desconhecidos não escapam do recovery; alheios preservados.
+
+Duas conexões/abas migrando convergem uma vez. Autosave, conclusão, reagendamento
+e restore concorrentes não são sobrescritos por migração antiga. CAS permanece
+no banco. Consultas e Hoje não materializam virtuais, inferem execução nem inventam
+horas em date_only/all_day. UI mantém shell, teclado/foco e layout 390px.
+Sem novos produtores funcionais, PR/merge automático ou avanço para 3B-1.
+
+## Cenário 33 — Correções da auditoria pré-merge da 3A-2
+
+Backup 3 válido com date_only, all_day, timed e mistura conserva todas as entradas
+após import/navegação mensal/reload/export, desktop e 390px. Ocorrências sem horário
+são declaradas fora da projeção/indicadores horários; cálculos válidos e edição da
+meta mensal permanecem. Erros inesperados/integridade não são ocultados.
+
+Replay original da ponte 2 funciona antes/depois do upgrade e após eventos
+posteriores, sem duplicação ou incremento da revisão. Divergência de conteúdo,
+época substituída e novo comando com dataset obsoleto continuam rejeitados.
+
+Intenção capturada/aplicada no registro 3 inicial (`a1d379d`), com kind na revisão,
+é repetida sem alterar essa string na implementação corrigida. O conjunto físico,
+IDs, história, época e revisão permanecem idênticos, inclusive após eventos
+posteriores, conclusão e reabertura. Payload, horário, motivo, posição, baseline,
+revisão forjada e autoridade substituída são rejeitados sem mutação. Revisão antiga
+nunca autoriza novo append, mesmo com a revisão de dataset atual; intenção nova
+realmente obsoleta continua rejeitada pelo CAS. A suíte fixa explicitamente o
+algoritmo histórico independente do helper atual, além da reprodução isolada
+entre as implementações reais.
+
+Novos schedules/execuções/ocorrências rejeitam +03:00/-03:00 e zona inexistente;
+UTC e America/Sao_Paulo são aceitos em Node/Edge. Leitura/restore de fatos históricos
+com offsets, em backups 2/3 e instalações antigas, conserva valores e divulga a
+limitação conforme D-036. Não infere localização nem reescreve histórico.
+
+O teste de backup antigo malformado usa envelope 2 válido, exige o erro de vínculo
+esperado e compara o banco integralmente antes/depois da falha e da reabertura.
 
 ---
 
@@ -3292,6 +3592,17 @@ A UI deve oferecer, quando aplicável:
 - reagendar;
 - pular somente hoje.
 
+## 12. Registro comum recuperável — 3A-2
+
+O envelope planner 2 preserva o snapshot legado e referencia execution/bridge 3.
+Entradas legacy_partial conservam vínculo/execução/auditoria sem reivindicar todos
+os campos de ScheduleOccurrence. Entradas canonical contêm ScheduleOccurrence
+completo validado, independente dos records. A união tem ID único occ:n e contador
+compartilhado; o próprio registro é fonte única de plano, execução e cadeia.
+Templates e entidades de outros módulos ainda não são persistidos; referências
+externas sem entidade recuperável falham fechadas. Não se converte rotina ou
+monthlyGoals automaticamente. D-035 e documento 09 definem o contrato técnico.
+
 ---
 
 # 14 — Estado Atual → Estado Alvo
@@ -3505,12 +3816,22 @@ subdivisão e aprovação próprios ainda necessários.
 
 ## 14. Escritas concorrentes — 3A-1
 
-A 3A-1 está implementada na branch de trabalho, ainda sem integração. Corrige
+A 3A-1 foi integrada pela PR #16, merge 733bc3037e5143a1f67adfec8909268d9f736702. Corrige
 perda silenciosa de edições comuns entre abas com datasetRevision na metadata,
 CAS conjunto com authorityEpoch e revisão capturada na UI. Rascunhos/formulários
 sobrevivem a invalidações; resolução é explícita. Comandos e recuperação
 participam da revisão; replay equivalente não duplica fatos. Formatos e tabelas
 atuais permanecem. A 3A-2 e novos módulos não foram implementados.
+
+## 15. Fundação temporal — 3A-2
+
+Implementada e validada na branch feat/planning-model-recovery, ainda não integrada:
+planner/current envelope 2, execution/bridge 3 discriminada, backup público 3,
+upgrade atômico com CAS e recuperação 3/2/1. Geração 2/schema 1/tabelas e v1 somente
+leitura permanecem. Complete occurrences são suportadas por fixtures e consultas;
+Hoje admite leitura timed, sem comandos completos ou categoria inferida.
+Sem produtores de Agenda/Rotina/Metas, Semana, Consistência ou motor. A macroetapa 3
+não está concluída. Descrições anteriores de formatos/escopo são históricas.
 
 ---
 
