@@ -1,3 +1,4 @@
+import { legacyPlanner, createPlanningDocument, planningEnvelope, planningJson, PLANNING_DOCUMENT_FORMAT } from "../contracts/planning-envelope.ts";
 import { capturePlanningFence, assertPlanningFence, PlanningConflictError } from "../contracts/dataset-revision.ts";
 import {
   CURRENT_PLANNER_DOCUMENT_ID,
@@ -7,10 +8,10 @@ import {
 } from "../contracts/index.ts";
 import {
   BackupValidationError,
-  exportDayforgeBackupV2,
-  isDayforgeBackupV2Envelope,
+  exportDayforgeBackup,
+  isDayforgeBackupEnvelope,
   restoreDayforgeBackup,
-  restoreDayforgeBackupV2,
+  restorePlanningBackup,
 } from "../backup/index.ts";
 import {
   LEGACY_PLANNER_STORAGE_KEY,
@@ -21,7 +22,6 @@ import {
 } from "../legacy/index.ts";
 import {
   LEGACY_V1_SOURCE_ID_PREFIX,
-  PLANNER_DOCUMENT_FORMAT,
   WebCryptoSha256Hasher,
   canonicalStringify,
   createLegacyPlannerDocument,
@@ -30,7 +30,7 @@ import {
 } from "../migration/index.ts";
 import { assertActiveDatabaseMetadata, assertInactiveDatabaseMetadata } from "../backup/integrity.ts";
 import { ensureExecutionBridge, savePlannerWithBridge } from "../execution/repository.ts";
-import { EXECUTION_BRIDGE_DOCUMENT_ID, createBridgeDocument, reconcileExecutionBridge, type ExecutionBridge } from "../execution/bridge.ts";
+import { EXECUTION_BRIDGE_DOCUMENT_ID, createBridgeDocument, reconcileExecutionBridge, upgradeTemporalRegistry, type ExecutionBridge } from "../execution/bridge.ts";
 
 export const PERSISTENCE_V2_MARKER_KEY = "dayforge:persistence:v2" as const;
 export const PERSISTENCE_V2_MARKER_VALUE = "active" as const;
@@ -69,7 +69,7 @@ function repairMarker(storage: MarkerStorage): boolean {
 }
 
 async function activeSnapshot(repository: LocalPersistenceRepository, exportedAt: string) {
-  return exportDayforgeBackupV2({ repository, exportedAt, active: true });
+  return exportDayforgeBackup({ repository, exportedAt, active: true });
 }
 
 async function activatePreparedPlanner(
@@ -79,7 +79,7 @@ async function activatePreparedPlanner(
   hasher?: Sha256Hasher,
 ) {
   const fence = await capturePlanningFence(repository);
-  const validated = await exportDayforgeBackupV2({ repository, exportedAt: instant, hasher });
+  const validated = await exportDayforgeBackup({ repository, exportedAt: instant, hasher });
   if (!repairMarker(markerStorage)) throw new PlannerV2UnavailableError();
   await repository.write(async (transaction) => {
     const metadata = await transaction.getDatabaseMetadata();
@@ -87,7 +87,7 @@ async function activatePreparedPlanner(
     assertInactiveDatabaseMetadata(metadata);
     const current = await transaction.getPlannerDocument(CURRENT_PLANNER_DOCUMENT_ID);
     if (current === null || current.role !== "active"
-      || current.sourceContentFingerprint !== validated.payload.provenance.contentFingerprint) {
+      || current.sourceContentFingerprint !== (validated.formatVersion === 3 ? validated.payload.plannerFingerprint : validated.payload.provenance.contentFingerprint)) {
       throw new PlannerV2UnavailableError();
     }
     await transaction.putDatabaseMetadata({
@@ -95,7 +95,7 @@ async function activatePreparedPlanner(
       activeDocumentId: CURRENT_PLANNER_DOCUMENT_ID,
     });
   });
-  return (await activeSnapshot(repository, instant)).payload.planner;
+  return legacyPlanner((await activeSnapshot(repository, instant)).payload.planner);
 }
 
 export async function bootstrapPlannerV2(options: Readonly<{
@@ -116,7 +116,7 @@ export async function bootstrapPlannerV2(options: Readonly<{
       const backup = await activeSnapshot(repository, instant);
       const markerRepaired = marker === PERSISTENCE_V2_MARKER_VALUE || repairMarker(markerStorage);
       const executionBridge = backup.payload.executionBridge!.bridge;
-      return { state: backup.payload.planner, markerRepaired, executionBridge };
+      return { state: legacyPlanner(backup.payload.planner), markerRepaired, executionBridge };
     }
     if (marker !== null) throw new PlannerV2UnavailableError();
     assertInactiveDatabaseMetadata(metadata);
@@ -152,14 +152,15 @@ export async function bootstrapPlannerV2(options: Readonly<{
     await activatePreparedPlanner(repository, markerStorage, instant, options.hasher);
     await ensureExecutionBridge(repository, options.hasher);
     const snapshot = await activeSnapshot(repository, instant);
-    const state = snapshot.payload.planner;
+    const state = legacyPlanner(snapshot.payload.planner);
     const executionBridge = snapshot.payload.executionBridge!.bridge;
     return {
       state,
       executionBridge,
       markerRepaired: true,
     };
-  } catch {
+  } catch (error) {
+    if (error instanceof PlanningConflictError) throw error;
     throw new PlannerV2UnavailableError();
   }
 }
@@ -194,8 +195,8 @@ export async function restoreActivePlannerV2(options: Readonly<{
   } catch {
     throw new BackupValidationError("invalid_backup_json", "O backup não contém JSON válido.");
   }
-  if (isDayforgeBackupV2Envelope(parsed)) {
-    await restoreDayforgeBackupV2({
+  if (isDayforgeBackupEnvelope(parsed)) {
+    await restorePlanningBackup({
       ...fence,
       backup: parsed,
       repository: options.repository,
@@ -215,7 +216,7 @@ export async function restoreActivePlannerV2(options: Readonly<{
       afterWriteForTest: options.afterWriteForTest,
     });
   }
-  return (await activeSnapshot(options.repository, options.instant)).payload.planner;
+  return legacyPlanner((await activeSnapshot(options.repository, options.instant)).payload.planner);
 }
 
 export async function recoverPlannerV2(options: Readonly<{
@@ -264,8 +265,8 @@ export async function resetPlannerV2(options: Readonly<{
     parseLegacyPlannerSnapshotV1(JSON.stringify(options.defaultState)),
   );
   const hasher = options.hasher ?? new WebCryptoSha256Hasher();
-  const fingerprint = await hasher.digestUtf8(canonicalStringify(encodeNormalizedLegacyPlannerV1(state)));
-  const executionDocument = await createBridgeDocument(reconcileExecutionBridge(state), hasher);
+  const fingerprint = await hasher.digestUtf8(canonicalStringify(planningJson(planningEnvelope(state))));
+  const executionDocument = await createBridgeDocument(upgradeTemporalRegistry(reconcileExecutionBridge(state), state), hasher);
   await options.repository.open();
   const metadata = await options.repository.read((transaction) => transaction.getDatabaseMetadata());
   await options.repository.write(async (transaction) => {
@@ -277,6 +278,7 @@ export async function resetPlannerV2(options: Readonly<{
       transaction.listPlannerDocuments(),
       transaction.listMetadata(),
     ]);
+    if (documents.some(document => document.id.startsWith("planner/") && document.id !== CURRENT_PLANNER_DOCUMENT_ID)) throw new PlannerV2UnavailableError();
     if (documents.some((document) => document.id.startsWith("execution/") && document.id !== EXECUTION_BRIDGE_DOCUMENT_ID)) {
       throw new PlannerV2UnavailableError();
     }
@@ -292,10 +294,10 @@ export async function resetPlannerV2(options: Readonly<{
         await transaction.deleteMetadata(record.key);
       }
     }
-    await transaction.putPlannerDocument(createLegacyPlannerDocument(fingerprint, state));
+    await transaction.putPlannerDocument(createPlanningDocument(fingerprint, state));
     await transaction.putPlannerDocument(executionDocument);
     const authorityEpoch = nextAuthorityEpoch(currentMetadata);
-    await transaction.putDatabaseMetadata({ ...currentMetadata, executionBridgeVersion: 2, authorityEpoch });
+    await transaction.putDatabaseMetadata({ ...currentMetadata, executionBridgeVersion: 3, authorityEpoch, writeFenceVersion: 1, datasetRevision: fence.expectedDatasetRevision });
     options.afterWriteForTest?.();
     const persisted = await transaction.getPlannerDocument(EXECUTION_BRIDGE_DOCUMENT_ID);
     const current = await transaction.getPlannerDocument(CURRENT_PLANNER_DOCUMENT_ID);
@@ -303,9 +305,9 @@ export async function resetPlannerV2(options: Readonly<{
     if (!persisted || persisted.role !== executionDocument.role || persisted.format !== executionDocument.format || persisted.formatVersion !== executionDocument.formatVersion
       || canonicalStringify(persisted.payload) !== canonicalStringify(executionDocument.payload)
       || persisted.sourceContentFingerprint !== executionDocument.sourceContentFingerprint
-      || !current || canonicalStringify(current.payload) !== canonicalStringify(encodeNormalizedLegacyPlannerV1(state))
-      || current.sourceContentFingerprint !== fingerprint || current.role !== "active" || current.format !== PLANNER_DOCUMENT_FORMAT || current.formatVersion !== 1
-      || persistedMetadata.authorityEpoch !== authorityEpoch || persistedMetadata.executionBridgeVersion !== 2) throw new PlannerV2UnavailableError();
+      || !current || canonicalStringify(current.payload) !== canonicalStringify(planningJson(planningEnvelope(state)))
+      || current.sourceContentFingerprint !== fingerprint || current.role !== "active" || current.format !== PLANNING_DOCUMENT_FORMAT || current.formatVersion !== 2
+      || persistedMetadata.authorityEpoch !== authorityEpoch || persistedMetadata.executionBridgeVersion !== 3) throw new PlannerV2UnavailableError();
   });
   if (metadata.activeDocumentId === null) {
     const activeState = await activatePreparedPlanner(options.repository, options.markerStorage, options.instant, hasher);
@@ -317,7 +319,7 @@ export async function resetPlannerV2(options: Readonly<{
   }
   const markerRepaired = repairMarker(options.markerStorage);
   return {
-    state: (await activeSnapshot(options.repository, options.instant)).payload.planner,
+    state: legacyPlanner((await activeSnapshot(options.repository, options.instant)).payload.planner),
     executionBridge: await ensureExecutionBridge(options.repository, hasher),
     markerRepaired,
   };

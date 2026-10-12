@@ -1,3 +1,5 @@
+import { legacyPlanner } from "../persistence/contracts/planning-envelope.ts";
+import { legacyBindings } from "../persistence/execution/bridge.ts";
 import type { ExecutionRecord } from "../domain/temporal/index.ts";
 import { readPlannerAuthoritySnapshot } from "../persistence/backup/export-backup-v2.ts";
 import { recordOccurrenceExecution } from "../persistence/execution/repository.ts";
@@ -30,14 +32,14 @@ export async function persistCompletion(options: {
   try {
     const { backup, authorityEpoch, datasetRevision } = await readPlannerAuthoritySnapshot({ repository: options.repository, exportedAt: "1970-01-01T00:00:00.000Z", active: true });
     if (!backup.payload.executionBridge) throw new Error("Missing execution bridge");
-    snapshot = { state: backup.payload.planner, executionBridge: backup.payload.executionBridge.bridge, authorityEpoch, datasetRevision };
+    snapshot = { state: legacyPlanner(backup.payload.planner), executionBridge: backup.payload.executionBridge.bridge, authorityEpoch, datasetRevision };
   } catch { throw new CompletionPersistenceError(true); }
   options.publish(snapshot);
   if (options.expectedAuthorityEpoch !== undefined && snapshot.authorityEpoch !== options.expectedAuthorityEpoch) throw new Error("Os dados foram substituídos. Cancele e abra uma nova ação.");
   if (commandError instanceof Error && commandError.name === "OccurrenceConflictError") throw commandError;
   if (commandError instanceof Error && commandError.name === "PlanningConflictError") throw commandError;
   if (commandFailed) {
-    const saved = snapshot.executionBridge.entries.find((entry) => entry.occurrenceId === options.occurrenceId)?.execution;
+    const saved = legacyBindings(snapshot.executionBridge).find((entry) => entry.occurrenceId === options.occurrenceId)?.execution;
     if (!saved || canonicalStringify(JSON.parse(JSON.stringify(saved))) !== canonicalStringify(JSON.parse(JSON.stringify(options.execution)))) {
       throw new CompletionPersistenceError(false);
     }

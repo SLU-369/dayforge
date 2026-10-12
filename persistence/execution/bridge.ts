@@ -4,6 +4,8 @@ import {
   createTimedSchedule, createDateOnlySchedule, createAllDaySchedule, createTemporalReason,
   parseUtcInstant, rescheduleEventId, validatePlanningHistory,
   parseLocalTime,
+  createOccurrence, rescheduleOccurrence, completeOccurrence, cancelOccurrence, markOccurrenceNotCompleted,
+  type ScheduleOccurrence, type OriginReference, type Flexibility,
   type DomainResult, type ExecutionRecord, type ScheduleOccurrenceId, type OccurrenceSchedule,
   type RescheduleEvent, type UtcInstant,
 } from "../../domain/temporal/index.ts";
@@ -22,6 +24,7 @@ export type PlanningAudit = Readonly<{
 }>;
 
 export type OccurrenceBinding = Readonly<{
+  kind?: "legacy_partial";
   occurrenceId: ScheduleOccurrenceId;
   sourceDate: string;
   itemIndex: number;
@@ -31,10 +34,21 @@ export type OccurrenceBinding = Readonly<{
   planningAudit?: PlanningAudit;
 }>;
 export type ExecutionBridge = Readonly<{
-  version: 1 | 2;
+  version: 1 | 2 | 3;
   nextSequence: number;
-  entries: readonly OccurrenceBinding[];
+  entries: readonly (OccurrenceBinding | CanonicalTemporalEntry)[];
 }>;
+export type CanonicalTemporalEntry = Readonly<{ kind: "canonical"; occurrence: ScheduleOccurrence }>;
+export function legacyBindings(bridge?: ExecutionBridge | null): readonly OccurrenceBinding[] {
+  return bridge?.entries.filter((entry): entry is OccurrenceBinding => entry.kind !== "canonical") ?? [];
+}
+export function temporalEntryId(entry: OccurrenceBinding | CanonicalTemporalEntry): string {
+  return entry.kind === "canonical" ? entry.occurrence.id : entry.occurrenceId;
+}
+export function temporalPlanning(entry: OccurrenceBinding | CanonicalTemporalEntry): OccurrenceSchedule | null {
+  return entry.kind === "canonical" ? entry.occurrence.currentSchedule
+    : entry.planningAudit?.rescheduleHistory.at(-1)?.to ?? entry.planningAudit?.baselineSchedule ?? null;
+}
 export type ExecutionBridgeExport = Readonly<{ bridge: ExecutionBridge; contentFingerprint: string }>;
 
 export class ExecutionBridgeError extends Error {
@@ -77,7 +91,7 @@ export function occurrenceRevision(binding: OccurrenceBinding): string {
 export function canRescheduleBinding(binding: OccurrenceBinding, bridge: ExecutionBridge): boolean {
   return !binding.item.completed && !binding.execution && !!binding.item.title.trim()
     && parseLocalTime(binding.item.start).ok && parseLocalTime(binding.item.end).ok
-    && bridge.entries.filter((entry) => entry.sourceDate === binding.sourceDate && entry.item.id === binding.item.id).length === 1;
+    && legacyBindings(bridge).filter((entry) => entry.sourceDate === binding.sourceDate && entry.item.id === binding.item.id).length === 1;
 }
 function plan(item: LegacyDailyItemV1) {
   const { id, start, end, title, notes, category } = item;
@@ -118,7 +132,7 @@ export function decodeBridgeExecution(input: unknown, occurrenceId: string): Exe
   return decoded;
 }
 
-function decodeSchedule(input: unknown): OccurrenceSchedule {
+export function decodeSchedule(input: unknown): OccurrenceSchedule {
   const schedule = object(input);
   let result: DomainResult<OccurrenceSchedule>;
   if (schedule.kind === "timed") {
@@ -168,6 +182,7 @@ function decodePlanningAudit(input: unknown, occurrenceId: string, item: LegacyD
 export function decodeExecutionBridge(input: unknown, planner: NormalizedLegacyPlannerV1): ExecutionBridge {
   const bridge = object(input);
   fields(bridge, ["version", "nextSequence", "entries"]);
+  if (bridge.version === 3) return decodeTemporalRegistry(bridge, planner);
   if ((bridge.version !== 1 && bridge.version !== 2) || !Number.isSafeInteger(bridge.nextSequence) || number(bridge.nextSequence) < 1 || !Array.isArray(bridge.entries)) invalid();
   const ids = new Set<string>();
   const bindings = new Set<string>();
@@ -216,7 +231,7 @@ export function reconcileExecutionBridge(planner: NormalizedLegacyPlannerV1, pri
   const retained = new Set<string>();
   for (const [sourceDate, record] of Object.entries(planner.records).sort(([left], [right]) => left.localeCompare(right))) {
     if (record.date !== sourceDate || !parseLocalDate(sourceDate).ok) invalid();
-    const previous = prior?.entries.filter((entry) => entry.sourceDate === sourceDate) ?? [];
+    const previous = legacyBindings(prior).filter((entry) => entry.sourceDate === sourceDate);
     const unchangedPlan = same(previous.map((entry) => plan(entry.item)), record.items.map(plan));
     const duplicateIds = new Set(record.items.map((item) => item.id)).size !== record.items.length
       || new Set(previous.map((entry) => entry.item.id)).size !== previous.length;
@@ -237,7 +252,9 @@ export function reconcileExecutionBridge(planner: NormalizedLegacyPlannerV1, pri
         ...(old?.planningAudit ? { planningAudit: old.planningAudit } : {}) });
     });
   }
-  if (prior?.entries.some((entry) => (entry.execution || entry.planningAudit) && !retained.has(entry.occurrenceId))) invalid();
+  if (legacyBindings(prior).some((entry) => (entry.execution || entry.planningAudit) && !retained.has(entry.occurrenceId))) invalid();
+  if (prior?.version === 3) return decodeExecutionBridge({ version: 3, nextSequence,
+    entries: [...entries.map(entry => ({ ...entry, kind: "legacy_partial" })), ...prior.entries.filter(entry => entry.kind === "canonical")] }, planner);
   return decodeExecutionBridge({ version: 2, nextSequence, entries }, planner);
 }
 
@@ -249,7 +266,7 @@ export async function createBridgeDocument(bridge: ExecutionBridge, hasher: Sha2
 
 export function decodeBridgeDocument(document: PlannerDocumentRecord, planner: NormalizedLegacyPlannerV1): ExecutionBridge {
   if (document.id !== EXECUTION_BRIDGE_DOCUMENT_ID || document.role !== "active" || document.format !== EXECUTION_BRIDGE_FORMAT
-    || (document.formatVersion !== 1 && document.formatVersion !== 2) || document.payload.version !== document.formatVersion
+    || (document.formatVersion !== 1 && document.formatVersion !== 2 && document.formatVersion !== 3) || document.payload.version !== document.formatVersion
     || !/^[a-f0-9]{64}$/.test(document.sourceContentFingerprint ?? "")) invalid();
   return decodeExecutionBridge(document.payload, planner);
 }
@@ -259,4 +276,73 @@ export async function readBridgeDocument(transaction: PersistenceReadTransaction
   // Reserve the namespace so unknown records cannot silently escape recovery.
   if (documents.some((document) => document.id.startsWith("execution/") && document.id !== EXECUTION_BRIDGE_DOCUMENT_ID)) invalid();
   return documents.find((document) => document.id === EXECUTION_BRIDGE_DOCUMENT_ID) ?? null;
+}
+
+/** Reconstruct through the domain transitions; serialization adds no new state machine. */
+export function decodeCanonicalOccurrence(input: unknown): ScheduleOccurrence {
+  const raw = object(input);
+  fields(raw, ["id", "templateId", "title", "flexibility", "origin", "status", "originalSchedule", "currentSchedule",
+    "createdAt", "updatedAt", "rescheduleHistory", "execution", "resolution"]);
+  // Templates/domain entities have no recoverable producer yet. Never accept dangling references.
+  if (raw.templateId !== null) invalid();
+  const origin = object(raw.origin);
+  fields(origin, ["kind"], ["label"]);
+  let occurrence: ScheduleOccurrence = value(createOccurrence({ id: value(scheduleOccurrenceId(string(raw.id))),
+    source: { kind: "standalone", title: string(raw.title), flexibility: string(raw.flexibility) as Flexibility,
+      origin: origin as OriginReference }, schedule: decodeSchedule(raw.originalSchedule), createdAt: string(raw.createdAt) }));
+  if (!Array.isArray(raw.rescheduleHistory)) invalid();
+  raw.rescheduleHistory.forEach((input, index) => {
+    const event = object(input); fields(event, ["id", "from", "to", "changedAt"], ["reason"]);
+    if (event.id !== `reschedule:${raw.id}:${index + 1}` || !same(decodeSchedule(event.from), occurrence.currentSchedule)) invalid();
+    let reason;
+    if (Object.hasOwn(event, "reason")) {
+      const r = object(event.reason); fields(r, ["code"], ["note"]);
+      reason = value(createTemporalReason({ code: string(r.code), ...(Object.hasOwn(r, "note") ? { note: string(r.note) } : {}) }));
+    }
+    occurrence = value(rescheduleOccurrence(occurrence, { id: value(rescheduleEventId(string(event.id))),
+      schedule: decodeSchedule(event.to), changedAt: string(event.changedAt), ...(reason ? { reason } : {}) }));
+  });
+  if (raw.status === "completed" || raw.status === "completed_rescheduled") {
+    occurrence = value(completeOccurrence(occurrence, decodeBridgeExecution(raw.execution, string(raw.id))));
+  } else if (raw.status === "cancelled" || raw.status === "not_completed") {
+    const resolution = object(raw.resolution); fields(resolution, ["kind", "resolvedAt"], ["reason"]);
+    let reason;
+    if (Object.hasOwn(resolution, "reason")) {
+      const r = object(resolution.reason); fields(r, ["code"], ["note"]);
+      reason = value(createTemporalReason({ code: string(r.code), ...(Object.hasOwn(r, "note") ? { note: string(r.note) } : {}) }));
+    }
+    const command = { resolvedAt: string(resolution.resolvedAt), ...(reason ? { reason } : {}) };
+    occurrence = value<ScheduleOccurrence>(raw.status === "cancelled" ? cancelOccurrence(occurrence, command) : markOccurrenceNotCompleted(occurrence, command));
+  } else if (raw.status !== "planned") invalid();
+  if (!same(occurrence, input)) invalid();
+  return occurrence;
+}
+function decodeTemporalRegistry(raw: Record<string, unknown>, planner: NormalizedLegacyPlannerV1): ExecutionBridge {
+  if (!Array.isArray(raw.entries)) invalid();
+  const legacy: unknown[] = [], canonical: CanonicalTemporalEntry[] = [];
+  let completeStarted = false, lastSequence = 0;
+  for (const input of raw.entries) {
+    const entry = object(input);
+    if (entry.kind === "legacy_partial") {
+      if (completeStarted) invalid();
+      const { kind: _kind, ...binding } = entry; void _kind; legacy.push(binding);
+    } else if (entry.kind === "canonical") {
+      completeStarted = true; fields(entry, ["kind", "occurrence"]);
+      const occurrence = decodeCanonicalOccurrence(entry.occurrence);
+      const sequence = Number(/^occ:([1-9]\d*)$/.exec(occurrence.id)?.[1]);
+      if (!Number.isSafeInteger(sequence) || sequence <= lastSequence) invalid();
+      lastSequence = sequence; canonical.push({ kind: "canonical", occurrence });
+    } else invalid();
+  }
+  const partial = decodeExecutionBridge({ version: 2, nextSequence: raw.nextSequence, entries: legacy }, planner);
+  const entries = [...legacyBindings(partial).map(entry => ({ ...entry, kind: "legacy_partial" as const })), ...canonical];
+  const ids = entries.map(temporalEntryId);
+  if (new Set(ids).size !== ids.length || lastSequence >= partial.nextSequence) invalid();
+  return { version: 3, nextSequence: partial.nextSequence, entries };
+}
+export function upgradeTemporalRegistry(input: ExecutionBridge, planner: NormalizedLegacyPlannerV1): ExecutionBridge {
+  if (input.version === 3) return decodeExecutionBridge(input, planner);
+  const validated = decodeExecutionBridge(input, planner);
+  return decodeExecutionBridge({ ...validated, version: 3,
+    entries: legacyBindings(validated).map(entry => ({ ...entry, kind: "legacy_partial" })) }, planner);
 }

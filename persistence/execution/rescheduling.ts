@@ -1,3 +1,5 @@
+import { legacyPlanner } from "../contracts/planning-envelope.ts";
+import { legacyBindings } from "./bridge.ts";
 import { appendRescheduleEvent, createTimedSchedule, createTemporalReason, parseUtcInstant, rescheduleEventId,
   type OccurrenceSchedule, type TemporalReason, type DomainResult } from "../../domain/temporal/index.ts";
 import { PlanningConflictError, type LocalPersistenceRepository } from "../contracts/index.ts";
@@ -25,7 +27,7 @@ export async function rescheduleOccurrencePlanning(options: ReschedulingIntent &
   if (snapshot.authorityEpoch !== options.expectedAuthorityEpoch) throw new OccurrenceConflictError("Os dados foram substituídos. Cancele e abra uma nova ação.");
   if (!Number.isSafeInteger(options.expectedHistoryLength) || options.expectedHistoryLength < 0) throw new OccurrenceConflictError();
   const bridge = snapshot.backup.payload.executionBridge?.bridge;
-  const binding = bridge?.entries.find((entry) => entry.occurrenceId === options.occurrenceId);
+  const binding = legacyBindings(bridge).find((entry) => entry.occurrenceId === options.occurrenceId);
   if (!binding || !bridge) throw new OccurrenceConflictError();
   if (options.schedule.kind !== "timed") throw new OccurrenceConflictError("Informe início e fim completos do novo planejamento.");
   if (/^[+-]/.test(options.schedule.timeZone) || options.previousSchedule && /^[+-]/.test(options.previousSchedule.timeZone)) throw new OccurrenceConflictError("Informe um identificador IANA, não apenas um offset.");
@@ -63,14 +65,14 @@ export async function rescheduleOccurrencePlanning(options: ReschedulingIntent &
   const history = value(appendRescheduleEvent(prior, { id, from, to: schedule, changedAt, ...(reason ? { reason } : {}) }));
   const audit = { ...prior, rescheduleHistory: history.rescheduleHistory };
   try {
-    return await savePlannerWithBridge({ ...options, expectedDatasetRevision: options.expectedDatasetRevision ?? snapshot.datasetRevision, state: snapshot.backup.payload.planner, expectedSnapshot: snapshot.backup,
+    return await savePlannerWithBridge({ ...options, expectedDatasetRevision: options.expectedDatasetRevision ?? snapshot.datasetRevision, state: legacyPlanner(snapshot.backup.payload.planner), expectedSnapshot: snapshot.backup,
       rescheduling: { occurrenceId: options.occurrenceId, audit } });
   } catch (error) {
     // Independent equivalent writers can lose CAS after the winner commits. Never retry a conflicting append.
     if (!(error instanceof ExecutionBridgeError) && !(error instanceof PlanningConflictError)) throw error;
     const latest = await readPlannerAuthoritySnapshot({ repository: options.repository, active: true, exportedAt: changedAt, hasher: options.hasher });
     const saved = latest.backup.payload.executionBridge?.bridge;
-    const event = saved?.entries.find((entry) => entry.occurrenceId === options.occurrenceId)?.planningAudit?.rescheduleHistory[options.expectedHistoryLength];
+    const event = legacyBindings(saved).find((entry) => entry.occurrenceId === options.occurrenceId)?.planningAudit?.rescheduleHistory[options.expectedHistoryLength];
     if (latest.authorityEpoch === options.expectedAuthorityEpoch && saved && event && same(event, history.rescheduleHistory.at(-1))) {
       await verifyPlanningReplay(options.repository, latest, options.expectedAuthorityEpoch);
       return saved;

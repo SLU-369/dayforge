@@ -1,3 +1,4 @@
+import { decodePlanningEnvelope, planningJson, legacyPlanner, createPlanningDocument, PLANNING_DOCUMENT_FORMAT } from "../contracts/planning-envelope.ts";
 import {
   CURRENT_PLANNER_DOCUMENT_ID,
   DEXIE_SCHEMA_VERSION,
@@ -24,15 +25,15 @@ import {
   type Sha256Hasher,
 } from "../migration/index.ts";
 import type {
-  DayforgeBackupV2,
+  DayforgeBackup,
   LegacyMigrationProvenance,
   LegacyMigrationSourceExport,
 } from "./contracts.ts";
-import { BackupValidationError, decodeDayforgeBackupV2 } from "./codecs.ts";
+import { BackupValidationError, decodeDayforgeBackup } from "./codecs.ts";
 import { createBridgeDocument, decodeBridgeDocument, readBridgeDocument, upgradeExecutionBridge, EXECUTION_BRIDGE_DOCUMENT_ID } from "../execution/bridge.ts";
 
 export type MaterializedBackupState = Readonly<{
-  backup: DayforgeBackupV2;
+  backup: DayforgeBackup;
   current: PlannerDocumentRecord;
   sources: readonly PlannerDocumentRecord[];
   migrations: readonly LegacyV1MigrationMetadataRecord[];
@@ -85,11 +86,11 @@ function sameJson(left: Parameters<typeof canonicalStringify>[0], right: Paramet
   return canonicalStringify(left) === canonicalStringify(right);
 }
 
-export async function validateAndMaterializeBackupV2(
-  value: DayforgeBackupV2,
+export async function validateAndMaterializeBackup(
+  value: DayforgeBackup,
   hasher: Sha256Hasher,
 ): Promise<MaterializedBackupState> {
-  const backup = decodeDayforgeBackupV2(value);
+  const backup = decodeDayforgeBackup(value);
   if (backup.exportedFrom.schemaVersion !== DEXIE_SCHEMA_VERSION) {
     throw new BackupValidationError(
       "unsupported_backup_version",
@@ -97,20 +98,26 @@ export async function validateAndMaterializeBackupV2(
     );
   }
 
-  const plannerPayload = encodeNormalizedLegacyPlannerV1(backup.payload.planner);
+  const legacy = legacyPlanner(backup.payload.planner);
+  const plannerPayload = encodeNormalizedLegacyPlannerV1(legacy);
   const plannerFingerprint = await hasher.digestUtf8(canonicalStringify(plannerPayload));
   if (plannerFingerprint !== backup.payload.provenance.contentFingerprint) {
     return fingerprintError("O fingerprint do planner não corresponde ao conteúdo exportado.");
   }
-  const current = createLegacyPlannerDocument(plannerFingerprint, backup.payload.planner);
+  let current = createLegacyPlannerDocument(plannerFingerprint, legacy);
+  if (backup.formatVersion === 3) {
+    const fingerprint = await hasher.digestUtf8(canonicalStringify(planningJson(backup.payload.planner)));
+    if (fingerprint !== backup.payload.plannerFingerprint) fingerprintError("O hash do envelope de planejamento é inválido.");
+    current = createPlanningDocument(fingerprint, legacy);
+  }
   const originalExecutionDocument = backup.payload.executionBridge
     ? await createBridgeDocument(backup.payload.executionBridge.bridge, hasher) : null;
   if (originalExecutionDocument && originalExecutionDocument.sourceContentFingerprint !== backup.payload.executionBridge?.contentFingerprint) {
     return fingerprintError("O fingerprint da ponte de execução é inválido.");
   }
   const executionDocument = originalExecutionDocument && backup.payload.executionBridge
-    ? (originalExecutionDocument.formatVersion === 2 ? originalExecutionDocument
-      : await createBridgeDocument(upgradeExecutionBridge(backup.payload.executionBridge.bridge, backup.payload.planner), hasher)) : null;
+    ? (originalExecutionDocument.formatVersion >= 2 ? originalExecutionDocument
+      : await createBridgeDocument(upgradeExecutionBridge(backup.payload.executionBridge.bridge, legacy), hasher)) : null;
 
   const sourceByRawFingerprint = new Map<string, LegacyMigrationSourceExport>();
   const sources: PlannerDocumentRecord[] = [];
@@ -249,16 +256,19 @@ export async function readBackupSnapshot(
   ]);
   if (current === null
     || current.role !== "active"
-    || current.format !== PLANNER_DOCUMENT_FORMAT
-    || current.formatVersion !== 1
+    || !((current.format === PLANNER_DOCUMENT_FORMAT && current.formatVersion === 1)
+      || (current.format === PLANNING_DOCUMENT_FORMAT && current.formatVersion === 2))
     || current.sourceContentFingerprint === null) {
     throw new BackupValidationError(
       "invalid_backup_integrity",
       "O planner/current validado não está disponível para exportação.",
     );
   }
-  const plannerSnapshot = decodeLegacyPlannerSnapshotV1(current.payload);
-  if (!Object.hasOwn(current.payload, "monthlyGoals") || current.payload.monthlyGoals === null) {
+  if (documents.some(document => document.id.startsWith("planner/") && document.id !== CURRENT_PLANNER_DOCUMENT_ID)) referenceError("Namespace de planejamento desconhecido.");
+  const envelope = current.formatVersion === 2 ? decodePlanningEnvelope(current.payload) : null;
+  const legacyPayload = envelope ? encodeNormalizedLegacyPlannerV1(envelope.legacy) : current.payload;
+  const plannerSnapshot = decodeLegacyPlannerSnapshotV1(legacyPayload);
+  if (!Object.hasOwn(legacyPayload, "monthlyGoals") || legacyPayload.monthlyGoals === null) {
     throw new BackupValidationError(
       "invalid_backup_integrity",
       "O planner/current persistido não está normalizado.",
@@ -273,7 +283,9 @@ export async function readBackupSnapshot(
     bridge: decodeBridgeDocument(executionDocument, planner),
     contentFingerprint: executionDocument.sourceContentFingerprint,
   } : null;
-  if (!sameJson(current.payload, encodeNormalizedLegacyPlannerV1(planner))) {
+  if (envelope && executionBridge?.bridge.version !== 3) referenceError("O envelope exige o registro temporal 3.");
+  if (!envelope && executionBridge?.bridge.version === 3) referenceError("O registro 3 exige envelope 2.");
+  if (!sameJson(legacyPayload, encodeNormalizedLegacyPlannerV1(planner))) {
     throw new BackupValidationError(
       "invalid_backup_integrity",
       "O payload de planner/current não corresponde ao formato normalizado.",
@@ -299,18 +311,19 @@ export async function readBackupSnapshot(
     }))
     .sort((left, right) => left.contentFingerprint.localeCompare(right.contentFingerprint));
 
-  const backup = decodeDayforgeBackupV2({
+  const backup = decodeDayforgeBackup({
     format: "dayforge-backup",
-    formatVersion: 2,
+    formatVersion: envelope ? 3 : 2,
     exportedAt: "1970-01-01T00:00:00.000Z",
     exportedFrom: {
       persistenceGeneration: databaseMetadata.persistenceGeneration,
       schemaVersion: databaseMetadata.schemaVersion,
     },
     payload: {
-      planner,
+      planner: envelope ?? planner,
+      ...(envelope ? { plannerFingerprint: current.sourceContentFingerprint } : {}),
       provenance: {
-        contentFingerprint: current.sourceContentFingerprint,
+        contentFingerprint: envelope ? "0".repeat(64) : current.sourceContentFingerprint,
         origins,
       },
       legacySources,
@@ -320,6 +333,8 @@ export async function readBackupSnapshot(
   return {
     databaseMetadata,
     payload: backup.payload,
+    legacyFingerprintNeedsHash: !!envelope,
+    formatVersion: backup.formatVersion,
   };
 }
 
