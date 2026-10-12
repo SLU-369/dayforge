@@ -5,7 +5,7 @@ import { appendRescheduleEvent, createTimedSchedule, createTemporalReason, parse
 import { PlanningConflictError, type LocalPersistenceRepository } from "../contracts/index.ts";
 import { readPlannerAuthoritySnapshot } from "../backup/export-backup-v2.ts";
 import { canonicalStringify, type Sha256Hasher } from "../migration/index.ts";
-import { canRescheduleBinding, occurrenceRevision, ExecutionBridgeError, type ExecutionBridge } from "./bridge.ts";
+import { canRescheduleBinding, occurrenceRevision, ExecutionBridgeError, type ExecutionBridge, type OccurrenceBinding } from "./bridge.ts";
 import { OccurrenceConflictError, savePlannerWithBridge, verifyPlanningReplay } from "./repository.ts";
 
 export type ReschedulingIntent = Readonly<{
@@ -18,6 +18,16 @@ function value<T>(result: DomainResult<T>): T {
   return result.value;
 }
 const same = (left: unknown, right: unknown) => canonicalStringify(JSON.parse(JSON.stringify(left))) === canonicalStringify(JSON.parse(JSON.stringify(right)));
+
+/** Reconstruct a1d379d's registry-3 revision from validated persisted facts, only for an applied event. */
+function matchesAppliedRevision(binding: OccurrenceBinding, expectedRevision: string): boolean {
+  if (occurrenceRevision(binding) === expectedRevision) return true;
+  if (binding.kind !== "legacy_partial") return false;
+  const { itemIndex: _position, item, ...facts } = binding;
+  const { actualMinutes: _estimate, ...planningItem } = item;
+  void _position; void _estimate;
+  return canonicalStringify(JSON.parse(JSON.stringify({ ...facts, item: planningItem }))) === expectedRevision;
+}
 
 /** Event identity is the captured append position. Its full payload identifies a retry. */
 export async function rescheduleOccurrencePlanning(options: ReschedulingIntent & Readonly<{
@@ -44,9 +54,9 @@ export async function rescheduleOccurrencePlanning(options: ReschedulingIntent &
     const previousAudit = { ...audit, rescheduleHistory: audit.rescheduleHistory.slice(0, options.expectedHistoryLength) };
     const previousBinding = { ...base, item: audit.baselineItem, execution: null,
       ...(options.expectedHistoryLength ? { planningAudit: previousAudit } : {}) };
-    const unconfirmedBaseline = occurrenceRevision(previousBinding) === options.expectedRevision;
+    const unconfirmedBaseline = matchesAppliedRevision(previousBinding, options.expectedRevision);
     const matchesRevision = unconfirmedBaseline
-      || options.expectedHistoryLength === 0 && occurrenceRevision({ ...previousBinding, planningAudit: previousAudit }) === options.expectedRevision;
+      || options.expectedHistoryLength === 0 && matchesAppliedRevision({ ...previousBinding, planningAudit: previousAudit }, options.expectedRevision);
     if (!matchesRevision) throw new OccurrenceConflictError();
     if (!same(existing, { ...existing, id, to: schedule, changedAt, ...(reason ? { reason } : {}) })
       || !same(existing.reason ?? null, reason ?? null)

@@ -395,6 +395,15 @@ além das exclusões históricas de posição/estimativa. Upgrade não muda a re
 semântica dos fatos. Replay conserva a prova integral do evento/append/época;
 nova operação continua sujeita ao CAS de datasetRevision, sem rebase automático.
 
+Intenções da representação inicial do registro 3 (`a1d379d`) podem conter kind na
+revisão capturada. Somente quando o evento já existe, o replay reconstrói também
+essa revisão histórica a partir dos fatos persistidos validados, sem interpretar
+ou limpar a string do chamador. Exige igualdade integral da revisão reconstruída,
+evento, posição e história anterior; mantém a verificação transacional do snapshot
+e da época. Eventos posteriores/conclusão não invalidam um replay comprovado nem
+avançam datasetRevision. Comandos novos continuam exigindo a revisão semântica
+atual e CAS; o formato histórico nunca autoriza um novo append.
+
 D-036 separa criação de leitura: parseIanaTimeZone rejeita offsets isolados;
 parseStoredTimeZone é usado explicitamente por codecs de fatos recuperados e
 aceita somente offsets históricos canônicos ±HH:mm, com faixa validada. Não usa

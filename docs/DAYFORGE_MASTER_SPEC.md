@@ -2204,6 +2204,15 @@ além das exclusões históricas de posição/estimativa. Upgrade não muda a re
 semântica dos fatos. Replay conserva a prova integral do evento/append/época;
 nova operação continua sujeita ao CAS de datasetRevision, sem rebase automático.
 
+Intenções da representação inicial do registro 3 (`a1d379d`) podem conter kind na
+revisão capturada. Somente quando o evento já existe, o replay reconstrói também
+essa revisão histórica a partir dos fatos persistidos validados, sem interpretar
+ou limpar a string do chamador. Exige igualdade integral da revisão reconstruída,
+evento, posição e história anterior; mantém a verificação transacional do snapshot
+e da época. Eventos posteriores/conclusão não invalidam um replay comprovado nem
+avançam datasetRevision. Comandos novos continuam exigindo a revisão semântica
+atual e CAS; o formato histórico nunca autoriza um novo append.
+
 D-036 separa criação de leitura: parseIanaTimeZone rejeita offsets isolados;
 parseStoredTimeZone é usado explicitamente por codecs de fatos recuperados e
 aceita somente offsets históricos canônicos ±HH:mm, com faixa validada. Não usa
@@ -2736,7 +2745,7 @@ escolha humana de preservar offsets em leitura/restore históricos, inclusive
 completas v3, com aviso explícito e sem inferência geográfica. Formatos, CAS,
 autoridade/revisão, IDs, fontes e recuperação permanecem. Sem merge ou 3B-1.
 
-Validação atual das correções: lint/typecheck/build aprovados; Node 408/408
+Validação inicial dessas correções: lint/typecheck/build aprovados; Node 408/408
 (19 novos), Edge de planejamento/persistência/shell 66/66 (17 novos), sem retries.
 Master/diff check, varredura de segredos/UTF-8, integridade/recuperação e revisão
 visual desktop/390px aprovados nas superfícies afetadas.
@@ -2746,6 +2755,21 @@ falhou na comparação de pixels. A mesma assertion falhou no snapshot isolado
 do HEAD auditado, sem estas correções. Cenário/solar/teste não foram alterados;
 não se declara o gate Edge global aprovado. A falha preexistente permanece
 registrada para avaliação humana, sem retry automático nem assertion reduzida.
+
+#### Correção restrita de replay histórico — PR #17
+
+Replays já aplicados no registro 3 inicial podem conservar a revisão capturada
+com kind. A compatibilidade reconstrói essa representação somente a partir de
+fatos persistidos validados no ramo de replay; não altera revisões atuais nem
+autoriza comandos novos. CAS, época, payload integral e história permanecem.
+
+Validação local desta correção: Node 423/423 (15 novos), suíte dirigida 84/84,
+Edge global 77/77 sem retries, lint/typecheck/build, master/diff check e varredura
+de segredos aprovados. A reprodução isolada usa o código real de a1d379d e a
+implementação corrigida, sem modificar a intenção original. O teste solar 1007px
+passou nesta execução; a instabilidade preexistente permanece registrada, sem
+alteração visual ou do teste. D-031 a D-036 e formatos permanecem intactos.
+Correção publicada na branch da PR; integração/merge e 3B-1 aguardam aprovação.
 
 ## 5. Ordem de dependências
 
@@ -3272,6 +3296,16 @@ meta mensal permanecem. Erros inesperados/integridade não são ocultados.
 Replay original da ponte 2 funciona antes/depois do upgrade e após eventos
 posteriores, sem duplicação ou incremento da revisão. Divergência de conteúdo,
 época substituída e novo comando com dataset obsoleto continuam rejeitados.
+
+Intenção capturada/aplicada no registro 3 inicial (`a1d379d`), com kind na revisão,
+é repetida sem alterar essa string na implementação corrigida. O conjunto físico,
+IDs, história, época e revisão permanecem idênticos, inclusive após eventos
+posteriores, conclusão e reabertura. Payload, horário, motivo, posição, baseline,
+revisão forjada e autoridade substituída são rejeitados sem mutação. Revisão antiga
+nunca autoriza novo append, mesmo com a revisão de dataset atual; intenção nova
+realmente obsoleta continua rejeitada pelo CAS. A suíte fixa explicitamente o
+algoritmo histórico independente do helper atual, além da reprodução isolada
+entre as implementações reais.
 
 Novos schedules/execuções/ocorrências rejeitam +03:00/-03:00 e zona inexistente;
 UTC e America/Sao_Paulo são aceitos em Node/Edge. Leitura/restore de fatos históricos

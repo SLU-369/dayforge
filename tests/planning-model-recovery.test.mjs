@@ -239,6 +239,88 @@ test("excluding kind does not authorize a new command from a stale pre-upgrade d
   previousSchedule:timed(`${date}T08:00:00.000Z`),schedule:timed("2026-10-13T20:00:00.000Z"),changedAt:instant}),PlanningConflictError);
  assert.deepEqual(await physical(f.db),once);
 });
+
+// Original occurrenceRevision at a1d379df489f31f0e33afa96a422f3f9cdc886d9.
+// Fix this representation independently of today's revision helper: registry 3 included kind.
+function originalRegistry3Revision(binding) {
+ const {itemIndex, item, ...facts}=binding;const {actualMinutes,...planningItem}=item;
+ void itemIndex;void actualMinutes;
+ return canonicalStringify(JSON.parse(JSON.stringify({...facts,item:planningItem})));
+}
+async function registry3ReplayFixture(t,confirmed=false) {
+ const f=await setup(t);await upgradePlanningModel({repository:f.repo,active:true});
+ if(confirmed){const backup=(await read(f.repo)).backup,b=backup.payload.executionBridge.bridge.entries[0];
+  b.planningAudit={baselineItem:{...b.item},baselineSchedule:timed(`${date}T08:00:00.000Z`),confirmedAt:instant,rescheduleHistory:[]};
+  backup.payload.executionBridge.contentFingerprint=hash(backup.payload.executionBridge.bridge);
+  await restoreDayforgeBackupV2({repository:f.repo,backup,active:true});}
+ const s=await read(f.repo),binding=s.backup.payload.executionBridge.bridge.entries[0];
+ const intent={repository:f.repo,...fence(s),occurrenceId:"occ:1",expectedRevision:originalRegistry3Revision(binding),expectedHistoryLength:0,
+  previousSchedule:timed(`${date}T08:00:00.000Z`),schedule:timed("2026-10-13T20:00:00.000Z"),changedAt:instant,reason:{code:"user_note",note:"Intenção histórica fictícia"}};
+ assert.equal(JSON.parse(intent.expectedRevision).kind,"legacy_partial");assert.notEqual(intent.expectedRevision,occurrenceRevision(binding));
+ return {...f,s,binding,intent};
+}
+for(const confirmed of [false,true])test(`original registry 3 replay preserves all facts after later events and completion (confirmed=${confirmed})`,async t=>{
+ const f=await registry3ReplayFixture(t,confirmed);
+ // Equivalent persisted event; the cross-version reproduction uses the actual a1d379d command.
+ const currentIntent={...f.intent,expectedRevision:occurrenceRevision(f.binding)};
+ await rescheduleOccurrencePlanning(currentIntent);let once=await physical(f.db);
+ await rescheduleOccurrencePlanning(f.intent);await rescheduleOccurrencePlanning(currentIntent);assert.deepEqual(await physical(f.db),once);
+ for(let count=1;count<=2;count++){const s=await read(f.repo),b=s.backup.payload.executionBridge.bridge.entries[0];
+  const historical={...f.intent,...fence(s),expectedRevision:originalRegistry3Revision(b),expectedHistoryLength:count,
+   schedule:timed(`2026-10-${13+count}T20:00:00.000Z`),changedAt:`${date}T${12+count}:00:00.000Z`};
+  await rescheduleOccurrencePlanning({...historical,expectedRevision:occurrenceRevision(b)});once=await physical(f.db);
+  await rescheduleOccurrencePlanning(historical);await rescheduleOccurrencePlanning(f.intent);assert.deepEqual(await physical(f.db),once);}
+ await recordOccurrenceExecution({repository:f.repo,occurrenceId:"occ:1",execution:{...execution(),recordedAt:`${date}T15:00:00.000Z`}});
+ once=await physical(f.db);await rescheduleOccurrencePlanning(f.intent);assert.deepEqual(await physical(f.db),once);
+ const b=(await read(f.repo)).backup.payload.executionBridge.bridge.entries[0];assert.equal(b.planningAudit.rescheduleHistory.length,3);assert.ok(b.execution);assert.equal(b.item.completed,true);
+ f.repo.close();await f.repo.open();assert.deepEqual(await physical(f.db),once);
+});
+for(const [label,change] of [
+ ["payload",i=>({...i,schedule:timed("2026-10-20T20:00:00.000Z")})],
+ ["timestamp",i=>({...i,changedAt:`${date}T11:00:00.000Z`})],
+ ["reason",i=>({...i,reason:{code:"user_note",note:"Divergente"}})],
+ ["append position",i=>({...i,expectedHistoryLength:1})],
+ ["forged facts",i=>({...i,expectedRevision:canonicalStringify({...JSON.parse(i.expectedRevision),sourceDate:"2026-10-11"})})],
+ ["forged discriminator",i=>({...i,expectedRevision:canonicalStringify({...JSON.parse(i.expectedRevision),kind:"canonical"})})],
+ ["unrecognized field",i=>({...i,expectedRevision:canonicalStringify({...JSON.parse(i.expectedRevision),ignored:"not allowed"})})],
+ ["forged earlier history",i=>({...i,expectedRevision:canonicalStringify({...JSON.parse(i.expectedRevision),planningAudit:{rescheduleHistory:[]}})})],
+ ["different baseline",i=>({...i,previousSchedule:timed(`${date}T07:00:00.000Z`)})],
+])test(`original registry 3 replay rejects ${label} without mutation`,async t=>{
+ const f=await registry3ReplayFixture(t);await rescheduleOccurrencePlanning({...f.intent,expectedRevision:occurrenceRevision(f.binding)});
+ const before=await physical(f.db);await assert.rejects(rescheduleOccurrencePlanning(change(f.intent)),{name:"OccurrenceConflictError"});
+ assert.deepEqual(await physical(f.db),before);f.repo.close();await f.repo.open();assert.deepEqual(await physical(f.db),before);
+});
+test("original registry 3 revision never authorizes a new append, even at the current dataset fence",async t=>{
+ const f=await registry3ReplayFixture(t),before=await physical(f.db);
+ await assert.rejects(rescheduleOccurrencePlanning(f.intent),{name:"OccurrenceConflictError"});assert.deepEqual(await physical(f.db),before);
+ await rescheduleOccurrencePlanning({...f.intent,expectedRevision:occurrenceRevision(f.binding)});
+ const s=await read(f.repo),b=s.backup.payload.executionBridge.bridge.entries[0],once=await physical(f.db);
+ const next={...f.intent,...fence(s),expectedRevision:originalRegistry3Revision(b),expectedHistoryLength:1,schedule:timed("2026-10-14T20:00:00.000Z")};
+ await assert.rejects(rescheduleOccurrencePlanning(next),{name:"OccurrenceConflictError"});assert.deepEqual(await physical(f.db),once);
+ await assert.rejects(rescheduleOccurrencePlanning({...next,expectedRevision:occurrenceRevision(b),expectedDatasetRevision:f.s.datasetRevision}),PlanningConflictError);
+ assert.deepEqual(await physical(f.db),once);
+});
+test("original registry 3 replay never survives replacement of authority, even for identical content",async t=>{
+ const f=await registry3ReplayFixture(t);await rescheduleOccurrencePlanning({...f.intent,expectedRevision:occurrenceRevision(f.binding)});
+ const s=await read(f.repo);await restoreDayforgeBackupV2({repository:f.repo,backup:s.backup,active:true,...fence(s)});
+ const once=await physical(f.db);await assert.rejects(rescheduleOccurrencePlanning(f.intent),{name:"OccurrenceConflictError"});assert.deepEqual(await physical(f.db),once);
+ f.repo.close();await f.repo.open();assert.deepEqual(await physical(f.db),once);
+});
+for(const winner of ["autosave","restore"])test(`original registry 3 replay still verifies the authoritative snapshot transactionally after ${winner}`,async t=>{
+ const f=await registry3ReplayFixture(t);await rescheduleOccurrencePlanning({...f.intent,expectedRevision:occurrenceRevision(f.binding)});
+ const s=await read(f.repo);let reads=0,winningState;
+ const repository={read:async fn=>{
+  if(++reads===2){
+   if(winner==="restore")await restoreDayforgeBackupV2({repository:f.other,backup:s.backup,active:true,...fence(s)});
+   else {const state=structuredClone(legacyOf(s.backup.payload.planner));state.monthlyGoals["2026-10"]="Outro vencedor";await saveActivePlannerV2({repository:f.other,state,...fence(s)});}
+   winningState=await physical(f.db);
+  }
+  return f.repo.read(fn);
+ }};
+ await assert.rejects(rescheduleOccurrencePlanning({...f.intent,repository}),PlanningConflictError);
+ assert.equal(reads,2);assert.deepEqual(await physical(f.db),winningState);
+ f.repo.close();await f.repo.open();assert.deepEqual(await physical(f.db),winningState);
+});
 for(const kind of ["date_only","all_day"])test(`monthly projection reports ${kind}, retains timed metrics and propagates unrelated errors`,async t=>{
  const f=await mixed(t),s=await read(f.repo),registry=structuredClone(s.backup.payload.executionBridge.bridge);
  const schedule=kind==="date_only"?val(createDateOnlySchedule({date,timeZone:"UTC"})):val(createAllDaySchedule({startsOn:date,endsBefore:"2026-10-14",timeZone:"UTC"}));

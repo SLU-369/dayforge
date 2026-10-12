@@ -483,7 +483,7 @@ escolha humana de preservar offsets em leitura/restore históricos, inclusive
 completas v3, com aviso explícito e sem inferência geográfica. Formatos, CAS,
 autoridade/revisão, IDs, fontes e recuperação permanecem. Sem merge ou 3B-1.
 
-Validação atual das correções: lint/typecheck/build aprovados; Node 408/408
+Validação inicial dessas correções: lint/typecheck/build aprovados; Node 408/408
 (19 novos), Edge de planejamento/persistência/shell 66/66 (17 novos), sem retries.
 Master/diff check, varredura de segredos/UTF-8, integridade/recuperação e revisão
 visual desktop/390px aprovados nas superfícies afetadas.
@@ -493,6 +493,21 @@ falhou na comparação de pixels. A mesma assertion falhou no snapshot isolado
 do HEAD auditado, sem estas correções. Cenário/solar/teste não foram alterados;
 não se declara o gate Edge global aprovado. A falha preexistente permanece
 registrada para avaliação humana, sem retry automático nem assertion reduzida.
+
+#### Correção restrita de replay histórico — PR #17
+
+Replays já aplicados no registro 3 inicial podem conservar a revisão capturada
+com kind. A compatibilidade reconstrói essa representação somente a partir de
+fatos persistidos validados no ramo de replay; não altera revisões atuais nem
+autoriza comandos novos. CAS, época, payload integral e história permanecem.
+
+Validação local desta correção: Node 423/423 (15 novos), suíte dirigida 84/84,
+Edge global 77/77 sem retries, lint/typecheck/build, master/diff check e varredura
+de segredos aprovados. A reprodução isolada usa o código real de a1d379d e a
+implementação corrigida, sem modificar a intenção original. O teste solar 1007px
+passou nesta execução; a instabilidade preexistente permanece registrada, sem
+alteração visual ou do teste. D-031 a D-036 e formatos permanecem intactos.
+Correção publicada na branch da PR; integração/merge e 3B-1 aguardam aprovação.
 
 ## 5. Ordem de dependências
 

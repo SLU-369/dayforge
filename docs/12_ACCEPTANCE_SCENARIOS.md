@@ -238,6 +238,16 @@ Replay original da ponte 2 funciona antes/depois do upgrade e após eventos
 posteriores, sem duplicação ou incremento da revisão. Divergência de conteúdo,
 época substituída e novo comando com dataset obsoleto continuam rejeitados.
 
+Intenção capturada/aplicada no registro 3 inicial (`a1d379d`), com kind na revisão,
+é repetida sem alterar essa string na implementação corrigida. O conjunto físico,
+IDs, história, época e revisão permanecem idênticos, inclusive após eventos
+posteriores, conclusão e reabertura. Payload, horário, motivo, posição, baseline,
+revisão forjada e autoridade substituída são rejeitados sem mutação. Revisão antiga
+nunca autoriza novo append, mesmo com a revisão de dataset atual; intenção nova
+realmente obsoleta continua rejeitada pelo CAS. A suíte fixa explicitamente o
+algoritmo histórico independente do helper atual, além da reprodução isolada
+entre as implementações reais.
+
 Novos schedules/execuções/ocorrências rejeitam +03:00/-03:00 e zona inexistente;
 UTC e America/Sao_Paulo são aceitos em Node/Edge. Leitura/restore de fatos históricos
 com offsets, em backups 2/3 e instalações antigas, conserva valores e divulga a
