@@ -1,3 +1,4 @@
+import { legacyOf } from "./planning-model-compat.mjs";
 import { capturePlanningFence } from "../persistence/contracts/dataset-revision.ts";
 import "fake-indexeddb/auto";
 
@@ -13,7 +14,7 @@ import {
   PERSISTENCE_V2_MARKER_VALUE,
   PlannerV2UnavailableError,
   bootstrapPlannerV2,
-  exportDayforgeBackupV2,
+  exportDayforgeBackup,
   recoverPlannerV2,
   resetPlannerV2,
   restoreActivePlannerV2,
@@ -69,8 +70,8 @@ test("first run uses current defaults and activates only v2", async (t) => {
   assert.equal(marker.getItem(PERSISTENCE_V2_MARKER_KEY), PERSISTENCE_V2_MARKER_VALUE);
   assert.equal(legacy.writes, 0);
   assert.equal((await repository.read((transaction) => transaction.getDatabaseMetadata())).activeDocumentId, CURRENT_PLANNER_DOCUMENT_ID);
-  const backup = await exportDayforgeBackupV2({ repository, exportedAt: instant, active: true });
-  assert.equal(backup.formatVersion, 2);
+  const backup = await exportDayforgeBackup({ repository, exportedAt: instant, active: true });
+  assert.equal(backup.formatVersion, 3);
   assert.deepEqual(backup.payload.provenance.origins, []);
   assert.deepEqual(backup.payload.legacySources, []);
 });
@@ -82,15 +83,15 @@ test("migrates exact v1 bytes before activation and stops writing v1", async (t)
   const legacy = storage({ "rotina-369:data:v1": raw });
   const initial = await boot(repository, marker, legacy);
   assert.equal(initial.state.monthlyGoals["2026-09"], "Original");
-  const before = await exportDayforgeBackupV2({ repository, exportedAt: instant, active: true });
+  const before = await exportDayforgeBackup({ repository, exportedAt: instant, active: true });
   assert.deepEqual(before.payload.provenance.origins[0].importOrigins, ["local-storage-v1"]);
   assert.equal(before.payload.legacySources[0].raw, raw);
 
   await saveActivePlannerV2({ ...await capturePlanningFence(repository), repository,
     state: { ...initial.state, monthlyGoals: { "2026-09": "Alterado" } },
   });
-  const after = await exportDayforgeBackupV2({ repository, exportedAt: instant, active: true });
-  assert.equal(after.payload.planner.monthlyGoals["2026-09"], "Alterado");
+  const after = await exportDayforgeBackup({ repository, exportedAt: instant, active: true });
+  assert.equal(legacyOf(after.payload.planner).monthlyGoals["2026-09"], "Alterado");
   assert.deepEqual(after.payload.provenance.origins, []);
   assert.deepEqual(after.payload.legacySources, []);
   assert.equal(legacy.getItem("rotina-369:data:v1"), raw);
@@ -210,7 +211,7 @@ test("active v2 restore round-trips and rolls back on intermediate failure", asy
   const { database, repository } = await setup(t);
   const marker = storage();
   await boot(repository, marker, storage());
-  const backup = await exportDayforgeBackupV2({ repository, exportedAt: instant, active: true });
+  const backup = await exportDayforgeBackup({ repository, exportedAt: instant, active: true });
   await saveActivePlannerV2({ ...await capturePlanningFence(repository), repository,
     state: { ...createDefaultState(), monthlyGoals: { "2026-09": "Depois" } },
   });
@@ -224,7 +225,7 @@ test("active v2 restore round-trips and rolls back on intermediate failure", asy
     repository, markerStorage: marker, input: JSON.stringify(backup), instant,
   });
   assert.deepEqual(restored.state, createDefaultState());
-  assert.deepEqual((await exportDayforgeBackupV2({ repository, exportedAt: instant, active: true })).payload.planner, backup.payload.planner);
+  assert.deepEqual(legacyOf((await exportDayforgeBackup({ repository, exportedAt: instant, active: true })).payload.planner), legacyOf(backup.payload.planner));
 });
 
 test("active v1 import records backup origin and explicit reset keeps legacy bytes", async (t) => {
@@ -236,17 +237,17 @@ test("active v1 import records backup origin and explicit reset keeps legacy byt
   const imported = JSON.stringify({ ...createDefaultState(), monthlyGoals: { "2026-09": "Importado" } });
   const restored = await recoverPlannerV2({ repository, markerStorage: marker, input: imported, instant });
   assert.equal(restored.state.monthlyGoals["2026-09"], "Importado");
-  const backup = await exportDayforgeBackupV2({ repository, exportedAt: instant, active: true });
-  assert.equal(backup.payload.provenance.origins.length, 2);
+  const backup = await exportDayforgeBackup({ repository, exportedAt: instant, active: true });
+  assert.equal(backup.payload.provenance.origins.length, 1);
   assert.ok(backup.payload.provenance.origins.some(
     (origin) => origin.importOrigins.includes("backup-v1"),
   ));
   await resetPlannerV2({ repository, markerStorage: marker, defaultState: createDefaultState(), instant });
-  assert.deepEqual((await exportDayforgeBackupV2({ repository, exportedAt: instant, active: true })).payload.provenance.origins, []);
+  assert.deepEqual((await exportDayforgeBackup({ repository, exportedAt: instant, active: true })).payload.provenance.origins, []);
   assert.equal(legacy.getItem("rotina-369:data:v1"), original);
 });
 
-test("active v1 import is idempotent and preserves equivalent source provenance", async (t) => {
+test("active v1 import replaces only its recoverable source; destination fences advance", async (t) => {
   const { database, repository } = await setup(t);
   const marker = storage();
   const original = JSON.stringify(createDefaultState());
@@ -260,16 +261,17 @@ test("active v1 import is idempotent and preserves equivalent source provenance"
   });
   first.metadata.find((record) => record.key === "database").authorityEpoch += 1;
   first.metadata.find((record) => record.key === "database").datasetRevision += 1;
+  first.metadata.find(record => record.kind === "legacy-v1-migration").migratedAt = "2026-09-29T12:00:00.000Z";
   assert.deepEqual(await physical(database), first);
 
   const formatted = JSON.stringify(imported, null, 2);
   await restoreActivePlannerV2({ repository, input: formatted, instant });
-  const backup = await exportDayforgeBackupV2({ repository, exportedAt: instant, active: true });
-  assert.equal(backup.payload.provenance.origins.length, 2);
+  const backup = await exportDayforgeBackup({ repository, exportedAt: instant, active: true });
+  assert.equal(backup.payload.provenance.origins.length, 1);
   const importedOrigin = backup.payload.provenance.origins.find(
     (origin) => origin.importOrigins.includes("backup-v1"),
   );
-  assert.equal(importedOrigin.sourceRawFingerprints.length, 2);
+  assert.equal(importedOrigin.sourceRawFingerprints.length, 1);
   assert.equal(importedOrigin.migratedAt, instant);
 });
 
@@ -288,7 +290,7 @@ test("active v1 import rolls back all prepared replacements on failure", async (
 test("explicit import recovers interrupted cutover without using stale v1", async (t) => {
   const donor = await setup(t);
   await boot(donor.repository, storage(), storage());
-  const backup = await exportDayforgeBackupV2({ repository: donor.repository, exportedAt: instant, active: true });
+  const backup = await exportDayforgeBackup({ repository: donor.repository, exportedAt: instant, active: true });
 
   const { repository } = await setup(t);
   const marker = storage({ [PERSISTENCE_V2_MARKER_KEY]: PERSISTENCE_V2_MARKER_VALUE });

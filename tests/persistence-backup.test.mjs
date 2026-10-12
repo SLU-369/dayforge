@@ -1,3 +1,4 @@
+import { legacyOf, assertUpgradedBackup } from "./planning-model-compat.mjs";
 import "fake-indexeddb/auto";
 
 import assert from "node:assert/strict";
@@ -17,7 +18,7 @@ import {
   createLegacyPlannerDocument,
   decodeDayforgeBackupV2,
   encodeNormalizedLegacyPlannerV1,
-  exportDayforgeBackupV2,
+  exportDayforgeBackup,
   migrateLegacyPlannerV1,
   restoreDayforgeBackup,
   restoreDayforgeBackupV2,
@@ -92,7 +93,7 @@ async function migrate(repository, state, migratedAt = "2026-09-23T12:00:00.000Z
 }
 
 async function exportBackup(repository, exportedAt = "2026-09-23T13:00:00.000Z") {
-  return exportDayforgeBackupV2({ repository, exportedAt });
+  return exportDayforgeBackup({ repository, exportedAt });
 }
 
 async function physicalSnapshot(database) {
@@ -126,7 +127,7 @@ test("round-trips export, restore into an empty logical database, and export", a
   await restoreDayforgeBackupV2({ backup: first, repository: target.repository });
   const second = await exportBackup(target.repository, "2026-09-24T13:00:00.000Z");
 
-  assert.deepEqual(second.payload, first.payload);
+  assertUpgradedBackup(first, second);
   assert.notEqual(second.exportedAt, first.exportedAt);
   assert.equal(
     (await target.repository.read((transaction) => transaction.getDatabaseMetadata())).activeDocumentId,
@@ -148,7 +149,7 @@ test("exports and restores a validated planner with zero legacy sources", async 
   assert.deepEqual(backup.payload.legacySources, []);
 
   await restoreDayforgeBackupV2({ backup, repository: target.repository });
-  assert.deepEqual((await exportBackup(target.repository)).payload, backup.payload);
+  assertUpgradedBackup(backup, await exportBackup(target.repository));
 });
 
 test("preserves equivalent raw sources and sorted provenance", async (t) => {
@@ -187,7 +188,7 @@ test("preserves A-B-A history while current converges back to A", async (t) => {
     backup.payload.provenance.origins.map((origin) => origin.contentFingerprint).sort(),
     [firstA.contentFingerprint, migrationB.contentFingerprint].sort(),
   );
-  assert.equal(backup.payload.planner.monthlyGoals["2026-09"], "Preservar dados");
+  assert.equal(legacyOf(backup.payload.planner).monthlyGoals["2026-09"], "Preservar dados");
 });
 
 test("imports v1 through migration and records backup-v1 without touching localStorage", async (t) => {
@@ -224,7 +225,7 @@ test("imports v1 through migration and records backup-v1 without touching localS
   assert.deepEqual(calls, []);
 });
 
-test("merges local-storage-v1 and backup-v1 origins idempotently", async (t) => {
+test("explicit v1 replacement retains only the imported source provenance", async (t) => {
   const { repository } = await createPersistence(t, "origins");
   const raw = JSON.stringify(legacyState());
   await migrate(repository, raw);
@@ -241,7 +242,7 @@ test("merges local-storage-v1 and backup-v1 origins idempotently", async (t) => 
 
   assert.deepEqual(
     (await exportBackup(repository)).payload.provenance.origins[0].importOrigins,
-    ["backup-v1", "local-storage-v1"],
+    ["backup-v1"],
   );
 });
 
@@ -267,7 +268,7 @@ test("restore replaces only the approved set and preserves unrelated documents",
     await target.repository.read((transaction) => transaction.getPlannerDocument(unrelated.id)),
     unrelated,
   );
-  assert.deepEqual((await exportBackup(target.repository)).payload, backup.payload);
+  assertUpgradedBackup(backup, await exportBackup(target.repository));
 });
 
 test("rejects tampered fingerprints and broken references before writes", async (t) => {
@@ -306,7 +307,7 @@ test("strict codecs reject incompatible versions, missing fields, extras, and in
   const backup = await exportBackup(repository);
 
   assert.throws(
-    () => decodeDayforgeBackupV2({ ...backup, formatVersion: 3 }),
+    () => decodeDayforgeBackupV2({ ...backup, formatVersion: 4 }),
     backupError("unsupported_backup_version"),
   );
   const missing = structuredClone(backup);
@@ -323,13 +324,13 @@ test("strict codecs reject incompatible versions, missing fields, extras, and in
     backupError("invalid_backup_payload"),
   );
   const specialObject = structuredClone(backup);
-  specialObject.payload.planner.monthlyGoals = new Map([["month", "goal"]]);
+  legacyOf(specialObject.payload.planner).monthlyGoals = new Map([["month", "goal"]]);
   assert.throws(
     () => decodeDayforgeBackupV2(specialObject),
     backupError("invalid_backup_payload"),
   );
   const cyclic = structuredClone(backup);
-  cyclic.payload.planner.records.loop = cyclic.payload.planner;
+  legacyOf(cyclic.payload.planner).records.loop = legacyOf(cyclic.payload.planner);
   assert.throws(
     () => decodeDayforgeBackupV2(cyclic),
     backupError("invalid_backup_payload"),
@@ -386,7 +387,7 @@ test("restore is idempotent and remains valid after database reopening", async (
 
   target.repository.close();
   const reopened = new IndexedDbPersistenceRepository(new DayforgeDatabase(target.name));
-  assert.deepEqual((await exportBackup(reopened)).payload, backup.payload);
+  assertUpgradedBackup(backup, await exportBackup(reopened));
   reopened.close();
 });
 

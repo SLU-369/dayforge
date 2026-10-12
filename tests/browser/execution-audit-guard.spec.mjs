@@ -11,7 +11,7 @@ function readAuditState(page) {
       const tx = database.transaction("plannerDocuments", "readonly");
       const planner = tx.objectStore("plannerDocuments").get("planner/current");
       const bridge = tx.objectStore("plannerDocuments").get("execution/bridge");
-      tx.oncomplete = () => { database.close(); resolve({ planner: planner.result.payload, bridge: bridge.result.payload }); };
+      tx.oncomplete = () => { database.close(); resolve({ planner: (planner.result.payload.legacy ?? planner.result.payload), bridge: bridge.result.payload }); };
       tx.onerror = () => { database.close(); reject(tx.error); };
     };
   }));

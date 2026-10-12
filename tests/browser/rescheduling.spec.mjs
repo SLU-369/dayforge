@@ -17,7 +17,7 @@ async function read(page) {
     request.onsuccess = () => {
       const db = request.result, tx = db.transaction(["plannerDocuments", "metadata"], "readonly");
       const planner = tx.objectStore("plannerDocuments").get("planner/current"), bridge = tx.objectStore("plannerDocuments").get("execution/bridge"), metadata = tx.objectStore("metadata").get("database");
-      tx.oncomplete = () => { db.close(); resolve({ planner: planner.result.payload, bridge: bridge.result.payload, metadata: metadata.result }); };
+      tx.oncomplete = () => { db.close(); resolve({ planner: (planner.result.payload.legacy ?? planner.result.payload), bridge: bridge.result.payload, metadata: metadata.result }); };
       tx.onerror = () => { db.close(); reject(tx.error); };
     };
   }));
@@ -82,7 +82,7 @@ test("other day keeps selected date, offers destination, appends subsequent even
   const saved = await read(page); expect(saved.bridge.entries[0].planningAudit.rescheduleHistory).toHaveLength(2);
   await page.goto("/configuracoes/dados-e-backup"); const download = page.waitForEvent("download"); await page.getByRole("button", { name: "Exportar arquivo", exact: true }).click();
   const raw = await readFile(await (await download).path(), "utf8"), backup = JSON.parse(raw);
-  expect(backup.formatVersion).toBe(2); expect(backup.exportedFrom).toEqual({ persistenceGeneration: 2, schemaVersion: 1 }); expect(backup.payload.executionBridge.bridge).toEqual(saved.bridge);
+  expect(backup.formatVersion).toBe(3); expect(backup.exportedFrom).toEqual({ persistenceGeneration: 2, schemaVersion: 1 }); expect(backup.payload.executionBridge.bridge).toEqual(saved.bridge);
   await expect(page.getByRole("button", { name: "Selecionar arquivo", exact: true })).toBeEnabled();
   await page.locator('input[type="file"]').setInputFiles({ name: "fictional-rescheduling.json", mimeType: "application/json", buffer: Buffer.from(raw) });
   await expect(page.getByRole("status")).toContainText("Backup importado com sucesso");

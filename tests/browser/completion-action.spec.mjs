@@ -31,7 +31,7 @@ function read(page) {
     opening.onsuccess = () => {
       const db = opening.result, tx = db.transaction(["plannerDocuments", "metadata"], "readonly");
       const planner = tx.objectStore("plannerDocuments").get("planner/current"), bridge = tx.objectStore("plannerDocuments").get("execution/bridge"), metadata = tx.objectStore("metadata").get("database");
-      tx.oncomplete = () => { db.close(); resolve({ planner: planner.result.payload, bridge: bridge.result.payload, metadata: metadata.result }); };
+      tx.oncomplete = () => { db.close(); resolve({ planner: (planner.result.payload.legacy ?? planner.result.payload), bridge: bridge.result.payload, metadata: metadata.result }); };
       tx.onerror = () => { db.close(); reject(tx.error); };
     };
   }));
@@ -57,6 +57,9 @@ test("canonical completion serializes autosave, rejects double-submit and update
   const raw = await open(page); const before = await read(page);
   await page.getByText("Ver dia completo", { exact: true }).click();
   await page.locator(".daily-note textarea").fill("Nota anterior à conclusão");
+  // A dialog captures the persisted editing base; wait for the preceding local autosave publication.
+  await expect.poll(async () => (await read(page)).planner.records[date].note).toBe("Nota anterior à conclusão");
+  await expect(page.getByRole("status")).toContainText("Alterações salvas.");
   await page.getByRole("button", { name: "Concluir Ativa", exact: true }).focus(); await page.keyboard.press("Enter");
   const dialog = page.getByRole("dialog", { name: "Concluir Ativa", exact: true }); await expect(dialog).toBeVisible();
   await expect(page.getByLabel("Início real", { exact: true })).toHaveValue("");
@@ -148,7 +151,7 @@ test("UI completion is exported, restored and reloaded as an identical fact with
   await page.goto("/configuracoes/dados-e-backup");
   const download = page.waitForEvent("download"); await page.getByRole("button", { name: "Exportar arquivo", exact: true }).click();
   const raw = await readFile(await (await download).path(), "utf8"), backup = JSON.parse(raw);
-  expect(backup.formatVersion).toBe(2); expect(backup.exportedFrom.persistenceGeneration).toBe(2); expect(saved.metadata.schemaVersion).toBe(1);
+  expect(backup.formatVersion).toBe(3); expect(backup.exportedFrom.persistenceGeneration).toBe(2); expect(saved.metadata.schemaVersion).toBe(1);
   expect(backup.payload.executionBridge.bridge).toEqual(saved.bridge);
   await page.goto("/hoje"); await complete(page, "Próxima");
   await page.goto("/configuracoes/dados-e-backup");

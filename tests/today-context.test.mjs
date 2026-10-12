@@ -11,7 +11,7 @@ const contextSource = readFileSync(new URL("../app/today-context.ts", import.met
   .replace('"./planner-data"', JSON.stringify(dataUrl));
 const contextCompiled = ts.transpileModule(contextSource, { compilerOptions }).outputText;
 const { createDefaultState } = await import(dataUrl);
-const { deriveTodayContext } = await import(`data:text/javascript;base64,${Buffer.from(contextCompiled).toString("base64")}`);
+const { deriveTodayContext } = await import(`data:text/javascript;base64,${Buffer.from(contextCompiled.replaceAll("../persistence/execution/bridge.ts", new URL("../persistence/execution/bridge.ts", import.meta.url).href).replaceAll("../persistence/execution/query.ts", new URL("../persistence/execution/query.ts", import.meta.url).href)).toString("base64")}`);
 
 const monday = "2026-09-28";
 const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
