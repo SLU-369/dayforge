@@ -18,6 +18,8 @@ export type DatabaseMetadataRecord = Readonly<{
   activeDocumentId: string | null;
   executionBridgeVersion?: 1 | 2;
   authorityEpoch?: number;
+  writeFenceVersion?: 1;
+  datasetRevision?: number;
 }>;
 
 export type LegacyV1MigrationMetadataRecord = Readonly<{

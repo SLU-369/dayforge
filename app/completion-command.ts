@@ -6,7 +6,7 @@ import type { LocalPersistenceRepository } from "../persistence/contracts/reposi
 import type { NormalizedLegacyPlannerV1 } from "../persistence/legacy/legacy-planner-v1.ts";
 import { canonicalStringify } from "../persistence/migration/canonical-json.ts";
 
-export type CompletionSnapshot = Readonly<{ state: NormalizedLegacyPlannerV1; executionBridge: ExecutionBridge; authorityEpoch: number }>;
+export type CompletionSnapshot = Readonly<{ state: NormalizedLegacyPlannerV1; executionBridge: ExecutionBridge; authorityEpoch: number; datasetRevision: number }>;
 export class CompletionPersistenceError extends Error {
   readonly blocked: boolean;
   constructor(blocked: boolean) {
@@ -20,6 +20,7 @@ export class CompletionPersistenceError extends Error {
 export async function persistCompletion(options: {
   repository: LocalPersistenceRepository; occurrenceId: string; execution: ExecutionRecord;
   expectedAuthorityEpoch?: number; expectedRevision?: string;
+  expectedDatasetRevision?: number;
   publish: (snapshot: CompletionSnapshot) => void;
 }): Promise<void> {
   let commandFailed = false;
@@ -27,13 +28,14 @@ export async function persistCompletion(options: {
   try { await recordOccurrenceExecution(options); } catch (error) { commandFailed = true; commandError = error; }
   let snapshot: CompletionSnapshot;
   try {
-    const { backup, authorityEpoch } = await readPlannerAuthoritySnapshot({ repository: options.repository, exportedAt: "1970-01-01T00:00:00.000Z", active: true });
+    const { backup, authorityEpoch, datasetRevision } = await readPlannerAuthoritySnapshot({ repository: options.repository, exportedAt: "1970-01-01T00:00:00.000Z", active: true });
     if (!backup.payload.executionBridge) throw new Error("Missing execution bridge");
-    snapshot = { state: backup.payload.planner, executionBridge: backup.payload.executionBridge.bridge, authorityEpoch };
+    snapshot = { state: backup.payload.planner, executionBridge: backup.payload.executionBridge.bridge, authorityEpoch, datasetRevision };
   } catch { throw new CompletionPersistenceError(true); }
   options.publish(snapshot);
   if (options.expectedAuthorityEpoch !== undefined && snapshot.authorityEpoch !== options.expectedAuthorityEpoch) throw new Error("Os dados foram substituídos. Cancele e abra uma nova ação.");
   if (commandError instanceof Error && commandError.name === "OccurrenceConflictError") throw commandError;
+  if (commandError instanceof Error && commandError.name === "PlanningConflictError") throw commandError;
   if (commandFailed) {
     const saved = snapshot.executionBridge.entries.find((entry) => entry.occurrenceId === options.occurrenceId)?.execution;
     if (!saved || canonicalStringify(JSON.parse(JSON.stringify(saved))) !== canonicalStringify(JSON.parse(JSON.stringify(options.execution)))) {

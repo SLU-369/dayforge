@@ -1,3 +1,4 @@
+import { capturePlanningFence } from "../persistence/contracts/dataset-revision.ts";
 import "fake-indexeddb/auto";
 
 import assert from "node:assert/strict";
@@ -85,8 +86,7 @@ test("migrates exact v1 bytes before activation and stops writing v1", async (t)
   assert.deepEqual(before.payload.provenance.origins[0].importOrigins, ["local-storage-v1"]);
   assert.equal(before.payload.legacySources[0].raw, raw);
 
-  await saveActivePlannerV2({
-    repository,
+  await saveActivePlannerV2({ ...await capturePlanningFence(repository), repository,
     state: { ...initial.state, monthlyGoals: { "2026-09": "Alterado" } },
   });
   const after = await exportDayforgeBackupV2({ repository, exportedAt: instant, active: true });
@@ -101,8 +101,7 @@ test("valid active metadata wins over missing or invalid marker and stale v1", a
   const { repository } = await setup(t);
   const marker = storage();
   await boot(repository, marker, storage());
-  await saveActivePlannerV2({
-    repository,
+  await saveActivePlannerV2({ ...await capturePlanningFence(repository), repository,
     state: { ...createDefaultState(), monthlyGoals: { "2026-09": "Autoridade v2" } },
   });
   marker.values.delete(PERSISTENCE_V2_MARKER_KEY);
@@ -181,8 +180,7 @@ test("invalid active write and invalid backup cause zero mutations", async (t) =
   const marker = storage();
   await boot(repository, marker, storage());
   const before = await physical(database);
-  await assert.rejects(saveActivePlannerV2({
-    repository,
+  await assert.rejects(saveActivePlannerV2({ ...await capturePlanningFence(repository), repository,
     state: { ...createDefaultState(), routine: { seg: [] } },
   }));
   await assert.rejects(recoverPlannerV2({
@@ -213,8 +211,7 @@ test("active v2 restore round-trips and rolls back on intermediate failure", asy
   const marker = storage();
   await boot(repository, marker, storage());
   const backup = await exportDayforgeBackupV2({ repository, exportedAt: instant, active: true });
-  await saveActivePlannerV2({
-    repository,
+  await saveActivePlannerV2({ ...await capturePlanningFence(repository), repository,
     state: { ...createDefaultState(), monthlyGoals: { "2026-09": "Depois" } },
   });
   const beforeFailure = await physical(database);
@@ -262,6 +259,7 @@ test("active v1 import is idempotent and preserves equivalent source provenance"
     repository, input: raw, instant: "2026-09-29T12:00:00.000Z",
   });
   first.metadata.find((record) => record.key === "database").authorityEpoch += 1;
+  first.metadata.find((record) => record.key === "database").datasetRevision += 1;
   assert.deepEqual(await physical(database), first);
 
   const formatted = JSON.stringify(imported, null, 2);

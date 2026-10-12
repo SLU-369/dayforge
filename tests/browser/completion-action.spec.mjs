@@ -158,6 +158,8 @@ test("UI completion is exported, restored and reloaded as an identical fact with
   await page.goto("/hoje"); await page.reload();
   await expect(page.getByRole("region", { name: "Resumo", exact: true })).toContainText("1 concluídos");
   saved.metadata.authorityEpoch += 1;
+  // The second completion and the explicit restore each advance local dataset authority.
+  saved.metadata.datasetRevision += 2;
   expect(await read(page)).toEqual(saved); await healthy(page);
 });
 test("completion dialog supports keyboard cancel, predictable focus and compact layout", async ({ page }) => {

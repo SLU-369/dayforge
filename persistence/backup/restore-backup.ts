@@ -1,3 +1,4 @@
+import { capturePlanningFence, assertPlanningFence } from "../contracts/dataset-revision.ts";
 import {
   CURRENT_PLANNER_DOCUMENT_ID,
   LEGACY_V1_MIGRATION_KEY_PREFIX,
@@ -38,8 +39,11 @@ export async function restoreDayforgeBackupV2(options: Readonly<{
   repository: LocalPersistenceRepository;
   hasher?: Sha256Hasher;
   afterWriteForTest?: () => void;
+  expectedAuthorityEpoch?: number;
+  expectedDatasetRevision?: number;
   active?: boolean;
 }>): Promise<RestoreBackupResult> {
+  const fence = await capturePlanningFence(options.repository, options);
   const decoded = decodeDayforgeBackupV2(options.backup);
   const hasher = options.hasher ?? new WebCryptoSha256Hasher();
   const materialized = await validateAndMaterializeBackupV2(decoded, hasher);
@@ -50,6 +54,7 @@ export async function restoreDayforgeBackupV2(options: Readonly<{
 
   await options.repository.write(async (transaction) => {
     const databaseMetadata = await transaction.getDatabaseMetadata();
+    assertPlanningFence(databaseMetadata, fence);
     if (options.active) assertActiveDatabaseMetadata(databaseMetadata);
     else assertInactiveDatabaseMetadata(databaseMetadata);
     const [documents, metadata] = await Promise.all([
@@ -107,7 +112,10 @@ export async function restoreDayforgeBackup(options: Readonly<{
   repository: LocalPersistenceRepository;
   hasher?: Sha256Hasher;
   afterWriteForTest?: () => void;
+  expectedAuthorityEpoch?: number;
+  expectedDatasetRevision?: number;
 }>): Promise<RestoreBackupResult> {
+  const fence = await capturePlanningFence(options.repository, options);
   let parsed: unknown = options.input;
   if (typeof options.input === "string") {
     try {
@@ -118,6 +126,7 @@ export async function restoreDayforgeBackup(options: Readonly<{
   }
   if (isDayforgeBackupV2Envelope(parsed)) {
     return restoreDayforgeBackupV2({
+      ...fence,
       backup: parsed,
       repository: options.repository,
       hasher: options.hasher,
@@ -129,6 +138,7 @@ export async function restoreDayforgeBackup(options: Readonly<{
     ? options.input
     : JSON.stringify(encodeLegacyPlannerSnapshotV1(decodeLegacyPlannerSnapshotV1(parsed)));
   const migration = await migrateLegacyPlannerV1({
+    ...fence,
     raw,
     migratedAt: options.migratedAt,
     repository: options.repository,

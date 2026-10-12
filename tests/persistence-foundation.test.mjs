@@ -151,12 +151,12 @@ test("lists and deletes validated metadata without exposing Dexie", async (t) =>
   await repository.write((transaction) => transaction.putMetadata(migration));
   assert.deepEqual(
     await repository.read((transaction) => transaction.listMetadata()),
-    [createDatabaseMetadata(), migration],
+    [{ ...createDatabaseMetadata(), writeFenceVersion: 1, datasetRevision: 1 }, migration],
   );
   await repository.write((transaction) => transaction.deleteMetadata(migration.key));
   assert.deepEqual(
     await repository.read((transaction) => transaction.listMetadata()),
-    [createDatabaseMetadata()],
+    [{ ...createDatabaseMetadata(), writeFenceVersion: 1, datasetRevision: 2 }],
   );
   repository.close();
 });

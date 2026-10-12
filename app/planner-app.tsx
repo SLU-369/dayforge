@@ -66,7 +66,7 @@ function itemMinutes(item: RoutineItem) {
 }
 
 export default function PlannerApp({ view = "hoje", initialDate }: { view?: PlannerView; initialDate?: string }) {
-  const { state, executionBridge, authorityEpoch, rescheduleOccurrence, setState, ready, storageBlocked, notify, completeOccurrence, completingIds } = usePlanner();
+  const { state, executionBridge, authorityEpoch, datasetRevision, beginEditing, endEditing, rescheduleOccurrence, setState, ready, storageBlocked, notify, completeOccurrence, completingIds } = usePlanner();
   const router = useRouter();
   const searchParams = useSearchParams();
   const requestedDate = searchParams.get("date");
@@ -78,6 +78,17 @@ export default function PlannerApp({ view = "hoje", initialDate }: { view?: Plan
   const [referenceTime, setReferenceTime] = useState(() => new Date());
   const deviceTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const selectedDate = selectedDateOverride ?? localISO(referenceTime);
+
+  const [initialEditorRequested] = useState(() => searchParams.get("new") === "activity");
+  useEffect(() => { if (initialEditorRequested) beginEditing(); }, [initialEditorRequested, beginEditing]);
+
+  useEffect(() => () => endEditing(), [endEditing]);
+
+  function openEditor(target: EditorTarget) {
+    if (!editor && !beginEditing()) return;
+    setEditor(target);
+  }
+  function closeEditor() { endEditing(); setEditor(null); }
 
   function selectDate(date: Date) {
     const dateISO = localISO(date);
@@ -161,7 +172,7 @@ export default function PlannerApp({ view = "hoje", initialDate }: { view?: Plan
         routine: { ...current.routine, [routineDay]: current.routine[routineDay].filter((_, itemIndex) => itemIndex !== index) },
       }));
     }
-    notify("Atividade removida.");
+    notify("Remoção preparada para salvar.");
   }
 
   function saveEditor(item: RoutineItem, actualMinutes?: number) {
@@ -188,8 +199,8 @@ export default function PlannerApp({ view = "hoje", initialDate }: { view?: Plan
         return { ...current, routine: { ...current.routine, [routineDay]: items.sort((a, b) => a.start.localeCompare(b.start)) } };
       });
     }
-    setEditor(null);
-    notify("Atividade salva.");
+    closeEditor();
+    notify("Alteração preparada para salvar.");
   }
 
   if (!ready || !selectedDate || !monthDate) {
@@ -202,6 +213,7 @@ export default function PlannerApp({ view = "hoje", initialDate }: { view?: Plan
           {view === "hoje" && (
             <TodayContextView
               authorityEpoch={authorityEpoch}
+              datasetRevision={datasetRevision}
               onReschedule={rescheduleOccurrence}
               onComplete={completeOccurrence}
               completingIds={completingIds}
@@ -221,9 +233,9 @@ export default function PlannerApp({ view = "hoje", initialDate }: { view?: Plan
                 terminalIndexes={executionBridge?.entries.filter((entry) => entry.sourceDate === selectedDate && (entry.execution || entry.planningAudit)).map((entry) => entry.itemIndex) ?? []}
                 effectiveItems={todayContext.context?.items}
                 effectivePlanning={executionBridge?.entries.some((entry) => entry.planningAudit) ?? false}
-                onEdit={(item, index) => setEditor({ type: "day", item, index })}
+                onEdit={(item, index) => openEditor({ type: "day", item, index })}
                 onDelete={(index) => deleteItem(index, "day")}
-                onAdd={() => setEditor({ type: "day" })}
+                onAdd={() => openEditor({ type: "day" })}
                 onNote={(note) => updateRecord((current) => ({ ...current, note }))}
                 onEnergy={(energy) => updateRecord((current) => ({ ...current, energy }))}
               />}
@@ -245,13 +257,13 @@ export default function PlannerApp({ view = "hoje", initialDate }: { view?: Plan
               state={state}
               day={routineDay}
               onDay={setRoutineDay}
-              onEdit={(item, index) => setEditor({ type: "routine", item, index })}
+              onEdit={(item, index) => openEditor({ type: "routine", item, index })}
               onDelete={(index) => deleteItem(index, "routine")}
-              onAdd={() => setEditor({ type: "routine" })}
+              onAdd={() => openEditor({ type: "routine" })}
             />
           )}
       </div>
-      {editor && <ItemEditor target={editor} onClose={() => setEditor(null)} onSave={saveEditor} />}
+      {editor && <ItemEditor target={editor} onClose={closeEditor} onSave={saveEditor} />}
     </>
   );
 }

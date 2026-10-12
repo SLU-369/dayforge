@@ -59,6 +59,7 @@ export function TodayContextView({
   onComplete,
   completingIds,
   authorityEpoch,
+  datasetRevision,
   onReschedule,
 }: {
   context: TodayContext | null;
@@ -67,19 +68,21 @@ export function TodayContextView({
   blocked: boolean;
   error: boolean;
   details: ReactNode;
-  onComplete: (id: string, execution: ExecutionRecord, fence: { expectedAuthorityEpoch: number; expectedRevision: string }) => Promise<void>;
+  onComplete: (id: string, execution: ExecutionRecord, fence: { expectedAuthorityEpoch: number; expectedDatasetRevision: number; expectedRevision: string }) => Promise<void>;
   authorityEpoch: number;
+  datasetRevision: number;
   onReschedule: (intent: ReschedulingIntent) => Promise<void>;
   completingIds: readonly string[];
 }) {
   const [selected, setSelected] = useState<TodayContextItem | null>(null);
   const [action, setAction] = useState<"complete" | "reschedule">("complete");
   const [selectedEpoch, setSelectedEpoch] = useState(authorityEpoch);
+  const [selectedDatasetRevision, setSelectedDatasetRevision] = useState(datasetRevision);
   const [destination, setDestination] = useState<string | null>(null);
   const trigger = useRef<HTMLButtonElement | null>(null);
   const heading = useRef<HTMLHeadingElement | null>(null);
   const restoreFocus = useRef(false);
-  const controls: CompletionControls = { completingIds, onSelect: (item, button, selectedAction) => { trigger.current = button; setSelectedEpoch(authorityEpoch); setAction(selectedAction ? "reschedule" : "complete"); setSelected(item); } };
+  const controls: CompletionControls = { completingIds, onSelect: (item, button, selectedAction) => { trigger.current = button; setSelectedEpoch(authorityEpoch); setSelectedDatasetRevision(datasetRevision); setAction(selectedAction ? "reschedule" : "complete"); setSelected(item); } };
   function close() {
     restoreFocus.current = true;
     setSelected(null);
@@ -125,8 +128,8 @@ export function TodayContextView({
           </div>
         </>
       )}
-      {selected?.occurrenceId && action === "complete" && <CompletionDialog occurrenceId={selected.occurrenceId} title={selected.title} onComplete={(id, execution) => onComplete(id, execution, { expectedAuthorityEpoch: selectedEpoch, expectedRevision: occurrenceRevision(selected.binding!) })} onClose={close} />}
-      {selected && action === "reschedule" && <ReschedulingDialog item={selected} authorityEpoch={selectedEpoch} onReschedule={async (intent) => {
+      {selected?.occurrenceId && action === "complete" && <CompletionDialog occurrenceId={selected.occurrenceId} title={selected.title} onComplete={(id, execution) => onComplete(id, execution, { expectedAuthorityEpoch: selectedEpoch, expectedDatasetRevision: selectedDatasetRevision, expectedRevision: occurrenceRevision(selected.binding!) })} onClose={close} />}
+      {selected && action === "reschedule" && <ReschedulingDialog item={selected} authorityEpoch={selectedEpoch} datasetRevision={selectedDatasetRevision} onReschedule={async (intent) => {
         await onReschedule(intent);
         if (intent.schedule.kind === "timed") setDestination(localPlanningTime(intent.schedule.startsAt, context!.timeZone).slice(0, 10));
       }} onClose={close} />}

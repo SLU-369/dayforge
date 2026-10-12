@@ -381,6 +381,7 @@ test("restore is idempotent and remains valid after database reopening", async (
   const once = await physicalSnapshot(target.database);
   await restoreDayforgeBackupV2({ backup, repository: target.repository });
   once.metadata.find((record) => record.key === "database").authorityEpoch += 1;
+  once.metadata.find((record) => record.key === "database").datasetRevision += 1;
   assert.deepEqual(await physicalSnapshot(target.database), once);
 
   target.repository.close();

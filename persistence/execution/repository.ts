@@ -1,9 +1,11 @@
 import { parseLocalTime, type ExecutionRecord } from "../../domain/temporal/index.ts";
-import { CURRENT_PLANNER_DOCUMENT_ID, LEGACY_V1_MIGRATION_KEY_PREFIX, authorityEpoch, assertAuthorityEpoch,
+import { CURRENT_PLANNER_DOCUMENT_ID, LEGACY_V1_MIGRATION_KEY_PREFIX, assertAuthorityEpoch,
   type LocalPersistenceRepository, type PlannerDocumentRecord } from "../contracts/index.ts";
 import { exportDayforgeBackupV2 } from "../backup/export-backup-v2.ts";
 import { assertActiveDatabaseMetadata } from "../backup/integrity.ts";
 import type { DayforgeBackupV2 } from "../backup/contracts.ts";
+import { capturePlanningFence, assertPlanningFence, PlanningConflictError, type PlanningFence } from "../contracts/dataset-revision.ts";
+import { readPlannerAuthoritySnapshot } from "../backup/export-backup-v2.ts";
 import { decodeLegacyPlannerSnapshotV1, normalizeLegacyPlannerSnapshotV1, encodeNormalizedLegacyPlannerV1, type NormalizedLegacyPlannerV1 } from "../legacy/index.ts";
 import { canonicalStringify, createLegacyPlannerDocument, LEGACY_V1_SOURCE_ID_PREFIX, PLANNER_DOCUMENT_FORMAT, WebCryptoSha256Hasher, type Sha256Hasher } from "../migration/index.ts";
 import { bridgeJson, createBridgeDocument, decodeBridgeExecution, decodeExecutionBridge, occurrenceRevision, ExecutionBridgeError, EXECUTION_BRIDGE_DOCUMENT_ID, EXECUTION_BRIDGE_FORMAT, reconcileExecutionBridge, type ExecutionBridge, type PlanningAudit } from "./bridge.ts";
@@ -35,11 +37,12 @@ export async function savePlannerWithBridge(options: Readonly<{
   afterWriteForTest?: () => void;
   expectedSnapshot?: DayforgeBackupV2;
   expectedAuthorityEpoch?: number;
+  expectedDatasetRevision?: number;
 }>): Promise<ExecutionBridge> {
   const hasher = options.hasher ?? new WebCryptoSha256Hasher();
   const state = normalizeLegacyPlannerSnapshotV1(decodeLegacyPlannerSnapshotV1(options.state));
-  const expectedAuthorityEpoch = options.expectedAuthorityEpoch
-    ?? await options.repository.read(async (transaction) => authorityEpoch(await transaction.getDatabaseMetadata()));
+  const fence = await capturePlanningFence(options.repository, options);
+  const expectedAuthorityEpoch = fence.expectedAuthorityEpoch;
   // Export time is only validation metadata; it is not an execution instant.
   const before = options.expectedSnapshot ?? await exportDayforgeBackupV2({ repository: options.repository, exportedAt: "1970-01-01T00:00:00.000Z", active: true, hasher });
   let bridge = reconcileExecutionBridge(state, before.payload.executionBridge?.bridge, options.execution);
@@ -77,6 +80,7 @@ export async function savePlannerWithBridge(options: Readonly<{
       transaction.getDatabaseMetadata(), transaction.getPlannerDocument(CURRENT_PLANNER_DOCUMENT_ID), transaction.listPlannerDocuments(),
     ]);
     assertActiveDatabaseMetadata(metadata);
+    assertPlanningFence(metadata, fence);
     assertAuthorityEpoch(metadata, expectedAuthorityEpoch);
     assertSnapshot(current, documents, before);
     if (before.payload.executionBridge?.contentFingerprint === document.sourceContentFingerprint
@@ -106,9 +110,24 @@ export async function savePlannerWithBridge(options: Readonly<{
 }
 
 export async function ensureExecutionBridge(repository: LocalPersistenceRepository, hasher?: Sha256Hasher): Promise<ExecutionBridge> {
+  const fence = await capturePlanningFence(repository);
   const backup = await exportDayforgeBackupV2({ repository, exportedAt: "1970-01-01T00:00:00.000Z", active: true, hasher });
-  if (backup.payload.executionBridge?.bridge.version === 2) return backup.payload.executionBridge.bridge;
-  return savePlannerWithBridge({ repository, state: backup.payload.planner, hasher, expectedSnapshot: backup });
+  if (backup.payload.executionBridge?.bridge.version === 2) {
+    await repository.write(async (tx) => {
+      assertPlanningFence(await tx.getDatabaseMetadata(), fence);
+      assertSnapshot(await tx.getPlannerDocument(CURRENT_PLANNER_DOCUMENT_ID), await tx.listPlannerDocuments(), backup);
+    }); // Also adopts missing local fence metadata without advancing a no-op revision.
+    return backup.payload.executionBridge.bridge;
+  }
+  return savePlannerWithBridge({ repository, ...fence, state: backup.payload.planner, hasher, expectedSnapshot: backup });
+}
+
+/** Idempotent facts may outlive the request revision, but never its authority. */
+export async function verifyPlanningReplay(repository: LocalPersistenceRepository, snapshot: Awaited<ReturnType<typeof readPlannerAuthoritySnapshot>>, epoch: number) {
+  await repository.read(async (tx) => {
+    assertPlanningFence(await tx.getDatabaseMetadata(), { expectedAuthorityEpoch: epoch, expectedDatasetRevision: snapshot.datasetRevision });
+    assertSnapshot(await tx.getPlannerDocument(CURRENT_PLANNER_DOCUMENT_ID), await tx.listPlannerDocuments(), snapshot.backup);
+  });
 }
 
 /** Canonical command. Receives actual timing explicitly; never interprets planned timing as execution. */
@@ -120,15 +139,22 @@ export async function recordOccurrenceExecution(options: Readonly<{
   afterWriteForTest?: () => void;
   expectedAuthorityEpoch?: number;
   expectedRevision?: string;
+  expectedDatasetRevision?: number;
 }>): Promise<ExecutionBridge> {
-  const expectedAuthorityEpoch = options.expectedAuthorityEpoch
-    ?? await options.repository.read(async (transaction) => authorityEpoch(await transaction.getDatabaseMetadata()));
-  const before = await exportDayforgeBackupV2({ repository: options.repository, exportedAt: "1970-01-01T00:00:00.000Z", active: true, hasher: options.hasher });
+  const snapshot = await readPlannerAuthoritySnapshot({ repository: options.repository, exportedAt: "1970-01-01T00:00:00.000Z", active: true, hasher: options.hasher });
+  const fence: PlanningFence = { expectedAuthorityEpoch: options.expectedAuthorityEpoch ?? snapshot.authorityEpoch,
+    expectedDatasetRevision: options.expectedDatasetRevision ?? snapshot.datasetRevision };
+  const expectedAuthorityEpoch = fence.expectedAuthorityEpoch;
+  const before = snapshot.backup;
   const bridge = before.payload.executionBridge?.bridge;
   const binding = bridge?.entries.find((entry) => entry.occurrenceId === options.occurrenceId);
   if (!binding || (binding.item.completed && !binding.execution) || !binding.item.title.trim() || !parseLocalTime(binding.item.start).ok
     || !parseLocalTime(binding.item.end).ok) throw new ExecutionBridgeError();
   const execution = decodeBridgeExecution(options.execution, options.occurrenceId);
+  if (binding.execution && canonicalStringify(JSON.parse(JSON.stringify(binding.execution))) === canonicalStringify(JSON.parse(JSON.stringify(execution)))) {
+    await verifyPlanningReplay(options.repository, snapshot, expectedAuthorityEpoch);
+    return bridge!;
+  }
   if (options.expectedRevision !== undefined && occurrenceRevision(binding) !== options.expectedRevision
     && (!binding.execution || canonicalStringify(JSON.parse(JSON.stringify(binding.execution))) !== canonicalStringify(JSON.parse(JSON.stringify(execution))))) throw new OccurrenceConflictError();
   const actualMinutes = !binding.execution && execution.timing.kind === "timed"
@@ -142,16 +168,16 @@ export async function recordOccurrenceExecution(options: Readonly<{
       ? { ...item, completed: true, ...(actualMinutes === undefined ? {} : { actualMinutes }) } : item),
   } } };
   try {
-    return await savePlannerWithBridge({ ...options, expectedAuthorityEpoch, expectedSnapshot: before, state: updated, execution: { occurrenceId: options.occurrenceId, record: options.execution } });
+    return await savePlannerWithBridge({ ...options, ...fence, expectedSnapshot: before, state: updated, execution: { occurrenceId: options.occurrenceId, record: options.execution } });
   } catch (error) {
-    if (!(error instanceof ExecutionBridgeError)) throw error;
+    if (!(error instanceof ExecutionBridgeError) && !(error instanceof PlanningConflictError)) throw error;
     await options.repository.read(async (transaction) => assertAuthorityEpoch(await transaction.getDatabaseMetadata(), expectedAuthorityEpoch));
-    const latest = await exportDayforgeBackupV2({ repository: options.repository, exportedAt: "1970-01-01T00:00:00.000Z", active: true, hasher: options.hasher });
-    const recovered = latest.payload.executionBridge?.bridge;
+    const latest = await readPlannerAuthoritySnapshot({ repository: options.repository, exportedAt: "1970-01-01T00:00:00.000Z", active: true, hasher: options.hasher });
+    const recovered = latest.backup.payload.executionBridge?.bridge;
     const existing = recovered?.entries.find((entry) => entry.occurrenceId === options.occurrenceId)?.execution;
     const expected = decodeBridgeExecution(options.execution, options.occurrenceId);
     if (recovered && existing && canonicalStringify(JSON.parse(JSON.stringify(existing))) === canonicalStringify(JSON.parse(JSON.stringify(expected)))) {
-      await options.repository.read(async (transaction) => assertAuthorityEpoch(await transaction.getDatabaseMetadata(), expectedAuthorityEpoch));
+      await verifyPlanningReplay(options.repository, latest, expectedAuthorityEpoch);
       return recovered;
     }
     throw error;
