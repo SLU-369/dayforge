@@ -226,3 +226,22 @@ e restore concorrentes não são sobrescritos por migração antiga. CAS permane
 no banco. Consultas e Hoje não materializam virtuais, inferem execução nem inventam
 horas em date_only/all_day. UI mantém shell, teclado/foco e layout 390px.
 Sem novos produtores funcionais, PR/merge automático ou avanço para 3B-1.
+
+## Cenário 33 — Correções da auditoria pré-merge da 3A-2
+
+Backup 3 válido com date_only, all_day, timed e mistura conserva todas as entradas
+após import/navegação mensal/reload/export, desktop e 390px. Ocorrências sem horário
+são declaradas fora da projeção/indicadores horários; cálculos válidos e edição da
+meta mensal permanecem. Erros inesperados/integridade não são ocultados.
+
+Replay original da ponte 2 funciona antes/depois do upgrade e após eventos
+posteriores, sem duplicação ou incremento da revisão. Divergência de conteúdo,
+época substituída e novo comando com dataset obsoleto continuam rejeitados.
+
+Novos schedules/execuções/ocorrências rejeitam +03:00/-03:00 e zona inexistente;
+UTC e America/Sao_Paulo são aceitos em Node/Edge. Leitura/restore de fatos históricos
+com offsets, em backups 2/3 e instalações antigas, conserva valores e divulga a
+limitação conforme D-036. Não infere localização nem reescreve histórico.
+
+O teste de backup antigo malformado usa envelope 2 válido, exige o erro de vínculo
+esperado e compara o banco integralmente antes/depois da falha e da reabertura.

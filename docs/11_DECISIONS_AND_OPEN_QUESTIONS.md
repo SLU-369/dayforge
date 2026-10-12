@@ -209,6 +209,25 @@ uma UX horária não os transforma em intervalos. Agenda, Rotina canônica, Sema
 Metas, Consistência e 3B-1 continuam sujeitos a aprovação própria.
 D-031, D-032, D-033 e D-034 permanecem históricos sem reescrita.
 
+### D-036 — Fusos novos estritos e compatibilidade de fatos históricos
+
+A correção pré-merge da 3A-2 exige IANA nomeado em toda criação nova, incluindo
+UTC, sem depender da aceitação de offsets pelo Intl. Factories e codecs de criação
+usam parseIanaTimeZone; offsets isolados e zonas inexistentes são rejeitados.
+
+Por escolha humana explícita, leitura e recuperação preservam offsets históricos
+canônicos também em completas v3 anteriormente aceitas. O arquivo não contém a
+versão da aplicação que aceitou o fato; não se tenta inferir sua idade. Backups
+são fronteiras de recuperação, não produtores de novos fatos: usam validação
+histórica explícita, mantêm literal, UTC, IDs e cadeias, e a UI exibe aviso.
+Um offset histórico possui tipo próprio, não é afirmado como IANA nem convertido
+em localização. Sintaxe/campos/hashes/referências/cronologia continuam estritos.
+Replays exatos podem conservar a execução histórica; novos comandos exigem IANA.
+
+Não há novo campo persistido, produtor, versão de backup ou migração semântica.
+D-031 a D-035 permanecem registros históricos. Qualquer produtor futuro deve usar
+a fronteira estrita, nunca o parser de leitura histórica.
+
 ## Questões abertas antes das etapas correspondentes
 
 1. Quais limiares e pesos formam a primeira regra de risco de Entregas?

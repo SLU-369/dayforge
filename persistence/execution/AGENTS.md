@@ -30,6 +30,8 @@
 
 ## Work Guidance
 
+- Read/recovery codecs explicitly preserve canonical historical offsets (D-036); creation codecs/commands default to named IANA. Exact execution replay may retain an existing offset, never create one. occurrenceRevision excludes structural kind without relaxing factual/epoch/dataset fences.
+
 - Keep pure domain code independent of this legacy adapter. A binding is not a fabricated full ScheduleOccurrence.
 - Inject execution facts and timestamps; never read the ambient clock or use randomness for identity.
 

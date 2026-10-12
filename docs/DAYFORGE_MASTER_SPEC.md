@@ -2190,6 +2190,32 @@ Geração 2, schema Dexie 1, tabelas metadata/plannerDocuments e marker não mud
 Conflito com armazenamento validável não é corrupção; rascunhos/formulários e
 fila única da 3A-1 permanecem. Migração interrompida não sobrescreve defaults.
 
+### Correções pré-merge da 3A-2
+
+`deriveMonthlyDayContext` separa schedules sem horário das entradas representáveis
+na projeção mensal, retorna os IDs não representados e preserva os cálculos das
+demais atividades. A UI informa a quantidade única no mês e a exclusão desses
+registros dos indicadores horários; navegação/meta mensal/backup continuam
+disponíveis. Não há catch genérico, intervalo inventado ou alteração do registro.
+Hoje mantém sua rejeição controlada; outros erros de projeção continuam erros.
+
+`occurrenceRevision` ignora exclusivamente o novo discriminador estrutural kind,
+além das exclusões históricas de posição/estimativa. Upgrade não muda a revisão
+semântica dos fatos. Replay conserva a prova integral do evento/append/época;
+nova operação continua sujeita ao CAS de datasetRevision, sem rebase automático.
+
+D-036 separa criação de leitura: parseIanaTimeZone rejeita offsets isolados;
+parseStoredTimeZone é usado explicitamente por codecs de fatos recuperados e
+aceita somente offsets históricos canônicos ±HH:mm, com faixa validada. Não usa
+Intl para inventar equivalência geográfica; não normaliza -00:00 como um fato
+canônico. StoredTimeZone distingue IANA de HistoricalUtcOffset no tipo, mantendo
+o mesmo campo string serializado. Factories estritas são o padrão; reconstrução
+histórica injeta o parser compatível. Backup 2/3 e upgrade conservam os valores,
+inclusive em completas v3, com aviso derivado do registro validado. O formato
+não prova a idade de um arquivo; aceitar offsets em recovery é escolha explícita,
+nunca autorização para novos fatos com offsets. A fonte autoritativa permanece
+única. Backup v1 não contém fatos de fuso para converter.
+
 ## 5. Motor de planejamento
 
 A primeira versão local usa TypeScript puro, determinístico e independente da UI. Os contratos e vetores de teste devem permitir reprodução fora do navegador.
@@ -2701,6 +2727,26 @@ Metas, Agenda, templates/recorrências, Semana, Consistência, motor, backend e 
 permanecem fora de escopo. Ocorrências completas são comprovadas em fixtures,
 sem novo produtor ou comando público. Macroetapa 3 continua em andamento.
 
+#### Correções pré-merge — PR #17
+
+Sobre o HEAD auditado a1d379df489f31f0e33afa96a422f3f9cdc886d9, foram corrigidos:
+projeção mensal de schedules sem horário, replay semântico após upgrade, criação
+com fuso IANA estrito e fixture de backup antigo malformado. D-036 registra a
+escolha humana de preservar offsets em leitura/restore históricos, inclusive
+completas v3, com aviso explícito e sem inferência geográfica. Formatos, CAS,
+autoridade/revisão, IDs, fontes e recuperação permanecem. Sem merge ou 3B-1.
+
+Validação atual das correções: lint/typecheck/build aprovados; Node 408/408
+(19 novos), Edge de planejamento/persistência/shell 66/66 (17 novos), sem retries.
+Master/diff check, varredura de segredos/UTF-8, integridade/recuperação e revisão
+visual desktop/390px aprovados nas superfícies afetadas.
+
+A execução Edge global teve 76/77: solar-review, máscara parcial em 1007px,
+falhou na comparação de pixels. A mesma assertion falhou no snapshot isolado
+do HEAD auditado, sem estas correções. Cenário/solar/teste não foram alterados;
+não se declara o gate Edge global aprovado. A falha preexistente permanece
+registrada para avaliação humana, sem retry automático nem assertion reduzida.
+
 ## 5. Ordem de dependências
 
 - Hoje depende do núcleo temporal e não deve defini-lo dentro de componentes.
@@ -2957,6 +3003,25 @@ uma UX horária não os transforma em intervalos. Agenda, Rotina canônica, Sema
 Metas, Consistência e 3B-1 continuam sujeitos a aprovação própria.
 D-031, D-032, D-033 e D-034 permanecem históricos sem reescrita.
 
+### D-036 — Fusos novos estritos e compatibilidade de fatos históricos
+
+A correção pré-merge da 3A-2 exige IANA nomeado em toda criação nova, incluindo
+UTC, sem depender da aceitação de offsets pelo Intl. Factories e codecs de criação
+usam parseIanaTimeZone; offsets isolados e zonas inexistentes são rejeitados.
+
+Por escolha humana explícita, leitura e recuperação preservam offsets históricos
+canônicos também em completas v3 anteriormente aceitas. O arquivo não contém a
+versão da aplicação que aceitou o fato; não se tenta inferir sua idade. Backups
+são fronteiras de recuperação, não produtores de novos fatos: usam validação
+histórica explícita, mantêm literal, UTC, IDs e cadeias, e a UI exibe aviso.
+Um offset histórico possui tipo próprio, não é afirmado como IANA nem convertido
+em localização. Sintaxe/campos/hashes/referências/cronologia continuam estritos.
+Replays exatos podem conservar a execução histórica; novos comandos exigem IANA.
+
+Não há novo campo persistido, produtor, versão de backup ou migração semântica.
+D-031 a D-035 permanecem registros históricos. Qualquer produtor futuro deve usar
+a fronteira estrita, nunca o parser de leitura histórica.
+
 ## Questões abertas antes das etapas correspondentes
 
 1. Quais limiares e pesos formam a primeira regra de risco de Entregas?
@@ -3196,6 +3261,25 @@ e restore concorrentes não são sobrescritos por migração antiga. CAS permane
 no banco. Consultas e Hoje não materializam virtuais, inferem execução nem inventam
 horas em date_only/all_day. UI mantém shell, teclado/foco e layout 390px.
 Sem novos produtores funcionais, PR/merge automático ou avanço para 3B-1.
+
+## Cenário 33 — Correções da auditoria pré-merge da 3A-2
+
+Backup 3 válido com date_only, all_day, timed e mistura conserva todas as entradas
+após import/navegação mensal/reload/export, desktop e 390px. Ocorrências sem horário
+são declaradas fora da projeção/indicadores horários; cálculos válidos e edição da
+meta mensal permanecem. Erros inesperados/integridade não são ocultados.
+
+Replay original da ponte 2 funciona antes/depois do upgrade e após eventos
+posteriores, sem duplicação ou incremento da revisão. Divergência de conteúdo,
+época substituída e novo comando com dataset obsoleto continuam rejeitados.
+
+Novos schedules/execuções/ocorrências rejeitam +03:00/-03:00 e zona inexistente;
+UTC e America/Sao_Paulo são aceitos em Node/Edge. Leitura/restore de fatos históricos
+com offsets, em backups 2/3 e instalações antigas, conserva valores e divulga a
+limitação conforme D-036. Não infere localização nem reescreve histórico.
+
+O teste de backup antigo malformado usa envelope 2 válido, exige o erro de vínculo
+esperado e compara o banco integralmente antes/depois da falha e da reabertura.
 
 ---
 

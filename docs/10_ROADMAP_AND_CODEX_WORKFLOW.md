@@ -474,6 +474,26 @@ Metas, Agenda, templates/recorrências, Semana, Consistência, motor, backend e 
 permanecem fora de escopo. Ocorrências completas são comprovadas em fixtures,
 sem novo produtor ou comando público. Macroetapa 3 continua em andamento.
 
+#### Correções pré-merge — PR #17
+
+Sobre o HEAD auditado a1d379df489f31f0e33afa96a422f3f9cdc886d9, foram corrigidos:
+projeção mensal de schedules sem horário, replay semântico após upgrade, criação
+com fuso IANA estrito e fixture de backup antigo malformado. D-036 registra a
+escolha humana de preservar offsets em leitura/restore históricos, inclusive
+completas v3, com aviso explícito e sem inferência geográfica. Formatos, CAS,
+autoridade/revisão, IDs, fontes e recuperação permanecem. Sem merge ou 3B-1.
+
+Validação atual das correções: lint/typecheck/build aprovados; Node 408/408
+(19 novos), Edge de planejamento/persistência/shell 66/66 (17 novos), sem retries.
+Master/diff check, varredura de segredos/UTF-8, integridade/recuperação e revisão
+visual desktop/390px aprovados nas superfícies afetadas.
+
+A execução Edge global teve 76/77: solar-review, máscara parcial em 1007px,
+falhou na comparação de pixels. A mesma assertion falhou no snapshot isolado
+do HEAD auditado, sem estas correções. Cenário/solar/teste não foram alterados;
+não se declara o gate Edge global aprovado. A falha preexistente permanece
+registrada para avaliação humana, sem retry automático nem assertion reduzida.
+
 ## 5. Ordem de dependências
 
 - Hoje depende do núcleo temporal e não deve defini-lo dentro de componentes.

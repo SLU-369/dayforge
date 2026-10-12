@@ -381,6 +381,32 @@ Geração 2, schema Dexie 1, tabelas metadata/plannerDocuments e marker não mud
 Conflito com armazenamento validável não é corrupção; rascunhos/formulários e
 fila única da 3A-1 permanecem. Migração interrompida não sobrescreve defaults.
 
+### Correções pré-merge da 3A-2
+
+`deriveMonthlyDayContext` separa schedules sem horário das entradas representáveis
+na projeção mensal, retorna os IDs não representados e preserva os cálculos das
+demais atividades. A UI informa a quantidade única no mês e a exclusão desses
+registros dos indicadores horários; navegação/meta mensal/backup continuam
+disponíveis. Não há catch genérico, intervalo inventado ou alteração do registro.
+Hoje mantém sua rejeição controlada; outros erros de projeção continuam erros.
+
+`occurrenceRevision` ignora exclusivamente o novo discriminador estrutural kind,
+além das exclusões históricas de posição/estimativa. Upgrade não muda a revisão
+semântica dos fatos. Replay conserva a prova integral do evento/append/época;
+nova operação continua sujeita ao CAS de datasetRevision, sem rebase automático.
+
+D-036 separa criação de leitura: parseIanaTimeZone rejeita offsets isolados;
+parseStoredTimeZone é usado explicitamente por codecs de fatos recuperados e
+aceita somente offsets históricos canônicos ±HH:mm, com faixa validada. Não usa
+Intl para inventar equivalência geográfica; não normaliza -00:00 como um fato
+canônico. StoredTimeZone distingue IANA de HistoricalUtcOffset no tipo, mantendo
+o mesmo campo string serializado. Factories estritas são o padrão; reconstrução
+histórica injeta o parser compatível. Backup 2/3 e upgrade conservam os valores,
+inclusive em completas v3, com aviso derivado do registro validado. O formato
+não prova a idade de um arquivo; aceitar offsets em recovery é escolha explícita,
+nunca autorização para novos fatos com offsets. A fonte autoritativa permanece
+única. Backup v1 não contém fatos de fuso para converter.
+
 ## 5. Motor de planejamento
 
 A primeira versão local usa TypeScript puro, determinístico e independente da UI. Os contratos e vetores de teste devem permitir reprodução fora do navegador.

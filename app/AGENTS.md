@@ -47,6 +47,8 @@
 
 ## Work Guidance
 
+- Monthly compatibility reports unrepresented untimed occurrences without hiding other errors; retain valid metrics/navigation/goals. Display historical-offset compatibility explicitly (D-036), separately from storage corruption warnings.
+
 - Keep user-facing copy in Brazilian Portuguese and code identifiers in English.
 - Extend semantic tokens in `globals.css`; co-locate complex component styling and avoid rebuilding a global CSS monolith.
 - Appearance uses `dayforge:appearance:v1`, mirrors the effective theme to `dayforge:theme:v1`, and keeps a disposable solar cache in `dayforge:solar-cache:v1`. None of these fields belong in planner backups or payloads.
