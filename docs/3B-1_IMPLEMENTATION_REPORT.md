@@ -347,3 +347,21 @@ A falha solar histórica1007 permanece de origem indeterminada; execução verde
 não prova sua causa resolvida. Leitores anteriores à D-038 continuam rejeitando
 a extensão de recibo de forma fail-closed, limitação já documentada, sem downgrade.
 Nenhum merge/auto-merge/exclusão/3B-2. Aguardará auditoria final dirigida e gate humano.
+
+### Fechamento de publicação
+
+Código/testes/contratos publicados sem force-push no commit
+4dcc8b158ea09c00a501658cb403c3bd8d1e85a1 — fix(agenda): separate event confirmation
+from write authority. Os três commits anteriores estão preservados. PR #18
+permanece aberta sobre main40ed9f, sem conflitos Git, comentários/reviews ou
+auto-merge. Branch sincronizada e working tree limpa no checkpoint de publicação.
+
+CI verify do commit de código: SUCCESS/concluído, run38343960094/job115120980041,
+docs/master, lint, typecheck, build e Node aprovados. Workflow remoto não executa
+Edge; seus gates são as execuções locais reais36/36 e101/101 descritas acima.
+Ambiente local Windows/Node24.17.0/Edge; CI Ubuntu/Node22.13.0. Avisos de plataforma
+sobre runtime das actions e futura imagem Ubuntu não foram alterados nesta unidade.
+
+Este fechamento somente documental é publicado em commit separado. O HEAD final
+e o verify desse commit são confirmados ao usuário após sua conclusão, sem
+reutilizar CI pendente como aprovação. Não há alteração de código após os gates.
