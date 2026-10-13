@@ -2,7 +2,7 @@
 
 **Status:** Etapas 0.1, 0.2, 1.1 e 1.2A–1.2D implementadas; 2A, fundação da 2B, 2B-A, 2C-A e 2C-B concluídas e integradas; macroetapa 2 encerrada
 **Data:** 12/10/2026
-**Etapa atual:** 3A-1 e 3A-2 concluídas, auditadas e integradas à main; baseline `40ed9f425b419b4ce25b20bc2e44023ea88e5b18`. 3B-1 — criação exclusivamente timed e consulta de eventos canônicos na Agenda — implementada na branch `feat/agenda-canonical-events`, sem integração. Node 452/452; Edge final global 87/88, pendente pelo teste solar 1007px. PR e merge exigem autorizações independentes; outras subetapas permanecem futuras.
+**Etapa atual:** 3A-1 e 3A-2 concluídas, auditadas e integradas à main; baseline `40ed9f425b419b4ce25b20bc2e44023ea88e5b18`. 3B-1 — criação exclusivamente timed e consulta de eventos canônicos na Agenda — na PR #18, sem integração. Correções autorizadas F1–F5/D-038: Node 466/466, Agenda Edge 19/19, global 96/96 sem retries. Falhas históricas 87/88 e causa solar indeterminada permanecem registradas; o resultado atual não prova sua origem. Nova avaliação independente e merge aguardam gates humanos próprios; outras subetapas permanecem futuras.
 **Objetivo:** transformar as decisões de produto, UX, domínio e arquitetura discutidas até aqui em uma fonte oficial de verdade para o repositório e para o Codex.
 
 ## Como usar esta documentação

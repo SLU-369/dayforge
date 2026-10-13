@@ -115,3 +115,101 @@ Commit/push da branch seguem a autorização permanente após validação. A abe
 da PR aguarda autorização explícita do usuário; a auditoria pré-merge e o merge
 continuam com seus gates próprios. Este relatório registra revisão e validação
 locais, sem alegar auditoria independente ou CI de uma PR ainda inexistente.
+
+## Correções pré-merge da PR #18 — F1–F5
+
+Esta seção sucede os checkpoints históricos acima. A PR #18 foi aberta por
+autorização própria e a auditoria do HEAD a2eea6239a03bc8d14f4a8cc29376f4f9d8933e1
+concluiu NÃO APTO PARA MERGE. Branch e base continuaram iguais às referências
+aprovadas, um commit/30 arquivos, working tree limpa, PR OPEN/MERGEABLE e verify
+aprovado. Fetch --prune confirmou main 40ed9f e a branch a2eea62 antes das alterações.
+Relatório/evidências: outputs/audit-pr18/REPORT.md e seus harnesses/results/logs.
+
+F1/F2/F3 foram reproduzidos antes da correção em duas conexões Dexie; F1/F2 e F4
+também no Edge sobre o build auditado. O ensaio conservou dois sucessos/um evento,
+sucesso falso sem evento e retry bloqueado após commit. Não se descartou trabalho.
+
+| Achado | Causa e correção | Estado |
+| --- | --- | --- |
+| F1 P1 | Igualdade de campos/createdAt/alocador confundia intenções. UUID v4 por formulário, injetado ao produtor e persistido como creationIntentId na entrada canonical, prova integral/época e unicidade estritas | Resolvido |
+| F2 P2 | Truthiness do catch ignorava rejeições falsy. Estado rejected explícito e sucesso condicionado à prova autoritativa própria | Resolvido |
+| F3 P2 | Resposta perdida publicava a própria revisão como conflito externo. Releitura validada e prova própria reconciliam o commit, sem nova escrita/revisão ou remoção de guards globais | Resolvido |
+| F4 P2 | Próximo mês era tratado como LocalDate inválida. Último dia define a borda civil exclusiva real; consulta numérica admite ISO expandido só em memória | Resolvido |
+| F5 P3 | Export desabilitado também existia antes do ready. Guard positivo Selecionar arquivo habilitado e comparação do conjunto após reload | Resolvido |
+
+### Política de identidade e compatibilidade
+
+D-038 complementa D-037 sem reescrever D-031 a D-037. creationIntentId é UUID v4
+opaco gerado uma vez na abertura explícita, controlável por injeção na API/testes.
+Retry conserva ID e createdAt; campos alterados não autorizam replay de outro fato.
+occ:n continua vindo do alocador monotônico compartilhado. O token não é relógio,
+posição, origin.label ou uma nova entidade de domínio. Outra intenção na posição
+ocupada conserva erro/formulário. Reutilizar um token em outra posição é rejeitado.
+
+A prova opcional vive junto à ocorrência no execution/bridge 3, coberta pelo
+mesmo fingerprint/escrita/readback. O codec continua estrito, valida UUID/origem/
+unicidade e rejeita campo extra ou token inválido. Não há tabela/store paralelo,
+schema novo, migração estrutural ou segunda fonte de verdade. Sem prova histórica,
+leitura/export/upgrade/recovery preservam a ausência e criação nova não reconhece
+replay por aparência. Restore/reset usam a época local e invalidam tentativas antigas.
+
+Preservados planner 2, registro 3, backup público 3/recovery 3/2/1, geração 2,
+Dexie 1, D-036 e v1 somente leitura. Backups antigos continuam legíveis na versão
+corrigida; export/restore novos preservam prova e fatos integralmente. Leitores
+antigos estritos que não conhecem a extensão rejeitam o campo, sem descarte ou
+downgrade; não se promete compatibilidade de leitura futura por binários antigos.
+
+### Evidências e validação corrigida
+
+- Node dirigido da Agenda: 43 cenários no conjunto final; suíte Node completa
+  **466/466**, com 14 novos, incluindo rejeições undefined/null/false/0/string vazia,
+  resposta perdida pós-commit, resposta resolvida sem fato, dois produtores,
+  recibo divergente/reutilizado/ausente, codec estrito, reopen e backup.
+- `npm.cmd test` executou build e 465/465 antes da inclusão do último caso
+  de resposta resolvida sem fato. Após essa inclusão somente de teste, a suíte
+  completa `node --experimental-strip-types --test tests/*.test.mjs` passou 466/466.
+  Código de produção permaneceu igual ao build usado no Edge. Não se reutiliza
+  452/452 como resultado corrigido.
+- Recuperação Edge dirigida: **1/1**. Agenda final dirigida: **19/19**.
+  Duas abas reais/IndexedDB compartilhado/relógio fixo, hash suspenso, campos iguais:
+  apenas a vencedora confirma; a perdedora conserva todos os campos. Após resolução
+  explícita, occ:2/occ:3 e tokens distintos persistem em reload/export 3.
+- Cinco rejeições falsy antes do commit mantêm formulário/erro/banco. O rascunho
+  identifica a mesma prova depois do retry; createdAt conserva o instante original.
+- Hook de IDBTransaction injeta erro no handler de resposta somente depois de
+  complete real do browser. A interface confirma o evento próprio, sem aviso de
+  conflito/storage bloqueado; uma revisão/uma ocorrência, preservadas após reload.
+  Retry posterior direto é read-only no Node; intenção concorrente diferente
+  continua rejeitada em Node e duas abas reais.
+- Dezembro de 9999: 31 dias, evento visível, novembro com 30 dias, navegação de
+  volta, limite de ano seguinte informado sem apagar o mês, dia 31/reload/backup
+  íntegros. Fixtures Node incluem timed atravessando a borda UTC, date_only e all_day
+  com fim exclusivo. LocalDate/UTC persistidos continuam rejeitando ano 10000.
+- Global Edge: **96/96**, um worker e retries=0. Inclui regressões 3A-1/3A-2,
+  Hoje, metas/métricas mensais, conclusão/reagendamento/replay histórico, backup,
+  recuperação, D-036, shell e cena. Todos os quatro solares passaram, inclusive
+  1007px. Não se alteraram cena, teste, snapshot, tolerância ou assertion solar.
+- Lint/typecheck/build, master check/diff check, segredos/UTF-8 e revisão visual
+  desktop/390px aprovados. Capturas: outputs/agenda-fixes-desktop.png,
+  agenda-fixes-390.png e agenda-fixes-dialog-390.png.
+
+Falhas intermediárias foram preservadas: primeira Agenda 18/19 porque o hook
+de IDBDatabase.transaction não interceptou a resposta (assertion do commit
+falhou). Dexie captura esse método; o hook final intercepta oncomplete do
+IDBTransaction e comprova o commit. Lint rejeitou alias de this; corrigido mantendo
+semântica/assertions, seguido de nova verificação dirigida. Não houve retry automático.
+
+Evidências: outputs/agenda-fixes-node-full.log, agenda-fixes-node-final.log,
+agenda-fixes-recovery-edge.log, agenda-fixes-directed-edge.log,
+agenda-fixes-lost-response-edge.log, agenda-fixes-directed-edge-final.log,
+agenda-fixes-global-edge.log e respectivos diretórios de resultados. As falhas
+históricas 87/88 da implementação/auditoria continuam no histórico; 96/96 não prova
+a origem da instabilidade solar. Se voltar a ocorrer, seu gate deve ser informado.
+
+### Publicação e limites
+
+Correções restritas à PR #18. Commits/hash/estado remoto são informados no fechamento
+de publicação. CI remoto é consultado no novo HEAD; só verify concluído pode ser
+declarado aprovado e seu workflow não inclui Edge. Nenhum merge, auto-merge,
+exclusão de branch, deploy ou avanço para 3B-2 foi autorizado/executado.
+Após publicar, aguardar nova avaliação independente e autorização humana.

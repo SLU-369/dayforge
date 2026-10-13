@@ -474,3 +474,29 @@ bordas civis compartilham a política de leitura DST de Hoje; a fronteira de
 criação continua estrita. Consulta nunca materializa rotina nem escreve fatos.
 Timed é apresentado no fuso de consulta; sem horário/dia inteiro preservam suas
 datas e fuso originais. Não há edição, exclusão ou transição completa nesta unidade.
+
+## 12. Correções pré-merge da 3B-1 — prova de intenção e fronteiras de leitura
+
+D-038 adiciona creationIntentId opcional à entrada canonical do registro 3,
+fora dos campos semânticos de ScheduleOccurrence. O comando exige o UUID v4
+injetado; o codec exige formato canônico, origem event e unicidade quando presente.
+O mesmo documento/fingerprint contém ocorrência e prova atomicamente. Ausência
+em fatos antigos é preservada, sem migração/backfill ou novo store. Export/restore
+carregam a extensão pelo codec estrito; recuperação 3/2/1 e contadores locais permanecem.
+Aplicações antigas que desconhecem a extensão falham fechadas; a aplicação
+corrigida continua lendo os fatos anteriores. Não há nova versão pública/schema.
+
+isEventCreationConfirmed compara prova, occ:n, ocorrência integral e época.
+verifyPlanningReplay verifica novamente o snapshot em transação readonly.
+O adapter usa esse resultado para publicar sucesso mesmo após resposta perdida,
+sem nova escrita/revisão. Erros falsy continuam erros quando não existe fato próprio.
+Outro token ou fato divergente conserva conflito/formulário; guards de sessão
+e CAS permanecem. Provas antigas recuperadas não sobrevivem à troca de época do destino.
+
+readCivilDayWindow calcula a próxima borda por aritmética civil, inclusive
+ano 10000 como limite exclusivo de leitura. queryTemporalSnapshot compara
+instantes/datas numericamente e aceita bordas ISO reais expandidas somente na
+janela efêmera. Codecs de fatos/backup/referência permanecem estritos. A Agenda
+usa o último dia do mês para sua borda final, sem truncamento de milissegundos
+nem janeiro de 10000 como data selecionável. O teste de recuperação aguarda
+o controle de importação habilitado e verifica o conjunto novamente após reload.

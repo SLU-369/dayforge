@@ -251,6 +251,45 @@ Novos comandos de execução, edição/exclusão, recorrência e demais subetapa
 permanecem gated. PR e merge não são consequência da autorização de implementar.
 D-031 a D-036 permanecem históricos, sem reescrita retrospectiva.
 
+### D-038 — Prova persistida de intenção e confirmação da criação (correções da 3B-1)
+
+A correção autorizada de F1–F5 distingue a intenção de criação da identidade
+occ:n e dos campos visíveis. Cada abertura explícita de formulário gera um UUID
+v4 opaco, fornecido ao comando como creationIntentId. Retry conserva esse valor;
+outro formulário recebe outro valor mesmo com todos os fatos e relógio iguais.
+O produtor recebe a identidade, não gera aleatoriedade dentro do domínio/migração.
+
+Entradas canonical do registro 3 admitem creationIntentId opcional, imutável
+nas operações normais, junto à ocorrência e coberto pelo mesmo fingerprint.
+Quando presente, exige UUID v4 canônico, origem event e unicidade no registro.
+Novas criações sempre o escrevem; leitura/upgrade/export/restore de fatos antigos
+sem prova conservam a ausência. Não existe token retroativo nem replay novo
+legitimado somente pela igualdade de um fato histórico. Não há store de recibos
+paralelo, campo semântico reutilizado ou segunda fonte de verdade.
+
+Replay exige prova, identidade, ocorrência integral e época original, com
+verificação readonly do snapshot autoritativo. Nova mutação continua exigindo
+CAS estrito de época/revisão/base/alocador. Outra intenção na mesma posição
+recebe conflito recuperável. Reutilizar uma prova em outra posição é rejeitado.
+Restore/reset conservam as regras de autoridade local e invalidam tentativas antigas.
+
+Após qualquer resposta do comando, a aplicação relê e valida a autoridade.
+Somente a prova e o fato próprios permitem anunciar sucesso, inclusive após
+commit cuja resposta se perdeu. Rejeição é um estado explícito, independente
+do valor lançado; ausência de prova conserva formulário e erro/conflito.
+Não se removem os guards globais de rascunho ou autoridade substituída.
+
+Preservados planner 2, registro 3, backup 3/recovery 3/2/1, geração 2/schema 1.
+A extensão é opcional e compatível com a leitura dos formatos/dados anteriores
+na aplicação corrigida, sem migração estrutural. Leitores anteriores com codec
+estrito que desconhece o campo rejeitam o registro novo, sem descarte/downgrade;
+não se promete leitura futura por binários antigos. D-031 a D-037 ficam históricos.
+
+As bordas da consulta pura podem usar ISO UTC expandido para representar o
+fim exclusivo de dezembro de 9999. Isso não amplia LocalDate, instantes
+persistidos, criação ou validação histórica. Navegação para ano 10000 continua
+fora do intervalo de datas e informa o limite sem ocultar o último mês válido.
+
 ## Questões abertas antes das etapas correspondentes
 
 1. Quais limiares e pesos formam a primeira regra de risco de Entregas?

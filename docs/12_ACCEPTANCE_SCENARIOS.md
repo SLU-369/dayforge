@@ -277,3 +277,25 @@ esperado e compara o banco integralmente antes/depois da falha e da reabertura.
   conjunto com época local nova; recuperação 3/2/1 e v1 somente leitura permanecem.
 - Rota direta, teclado/Escape/foco e layout a 390px permanecem acessíveis.
   Sem PR/merge automático, novas transições ou avanço para outra subetapa.
+
+## Correções pré-merge da 3B-1 — F1–F5
+
+- Dois formulários independentes sobre a mesma base, com campos/createdAt iguais
+  e uma operação suspensa no hash, possuem provas distintas. Apenas a vencedora
+  recebe sucesso; a perdedora conserva todos os campos e conflito recuperável.
+  Após carregar explicitamente a base e confirmar outra criação, duas identidades
+  sobrevivem a reload e backup. Duplo clique/retry da mesma prova aplica uma vez.
+- Replay próprio após eventos posteriores é read-only. Prova divergente/reutilizada,
+  payload divergente, época substituída ou fato antigo sem prova não legitimam replay.
+  Backups anteriores continuam recuperáveis sem backfill de identidades técnicas.
+- Rejeições undefined/null/false/0/string vazia antes do commit conservam campos,
+  banco e erro, sem sucesso falso; retry conserva prova e instante. Resposta perdida
+  após commit real é reconciliada somente pela prova/fato próprios na autoridade
+  validada, sem nova revisão ou conflito remoto falso. Outra intenção não é confirmada.
+- Novembro/dezembro de 9999 continuam navegáveis e consultáveis; dia 31 conserva
+  intervalo semiaberto e fim exclusivo real. A borda de leitura no ano 10000 não
+  altera os codecs históricos nem torna essa data selecionável. Navegação inválida
+  informa o limite mantendo o mês válido visível.
+- Recuperação estrutural aguarda seleção de arquivo habilitada, verifica sucesso,
+  metadata/conjunto após reload e v1 intacto. Não usa sleeps/retries nem reduz
+  assertions; importação não realizada continua causando falha do cenário.

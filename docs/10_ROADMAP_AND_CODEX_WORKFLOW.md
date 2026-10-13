@@ -560,6 +560,35 @@ Master/diff check, revisão de integridade, segredos/UTF-8 e visual desktop/390p
 aprovados. O relatório `3B-1_IMPLEMENTATION_REPORT.md` registra as evidências e a
 pendência para avaliação humana antes da integração. PR/merge seguem não autorizados.
 
+#### Correções pré-merge — PR #18 / F1–F5
+
+A PR #18 foi aberta mediante autorização própria no HEAD a2eea6239a03bc8d14f4a8cc29376f4f9d8933e1.
+A auditoria adversarial encontrou confusão entre intenções independentes (P1),
+sucesso falso com rejeição falsy, retry bloqueado após resposta perdida,
+dezembro de 9999 não consultável (P2) e guard de readiness insuficiente (P3).
+Seu veredito foi NÃO APTO PARA MERGE. A global dessa auditoria foi 87/88 por
+recuperação; solar passou nela, mas falhou em ensaios controlados, sem causa
+confirmada. O relatório ignorado outputs/audit-pr18/REPORT.md conserva as evidências.
+
+F1–F5 foram autorizados separadamente e corrigidos sem reiniciar a unidade.
+D-038 define UUID de intenção distinto de occ:n, prova opcional no mesmo registro
+e confirmação autoritativa após qualquer resposta. Campos iguais não provam
+intenção; fatos antigos não recebem token retroativo. Calendário usa bordas reais
+de consulta no ano 10000 sem ampliar codecs históricos; recuperação aguarda
+controle de importação habilitado e compara o conjunto após reload.
+
+Validação corrigida: Node 466/466 (14 novos), recuperação Edge dirigida 1/1,
+Agenda Edge 19/19 (oito novos) e global 96/96 sem retries. Build, lint/typecheck,
+master/diff check, segredos/UTF-8 e revisão desktop/390px aprovados. A primeira
+Agenda dirigida foi 18/19 por hook que não interceptou a resposta perdida;
+foi corrigido mantendo a assertion do commit. Lint também identificou alias de
+this nesse hook; corrigido sem mudar assertions, com cenário dirigido reexecutado.
+Logs e capturas de cada execução ficam em outputs/. Não houve mudança solar.
+O 96/96 é aprovação da execução atual, não diagnóstico da falha histórica.
+
+Publicação limitada a novos commits na branch da PR existente. Nova auditoria,
+merge/exclusão de branch e 3B-2 continuam aguardando autorização humana.
+
 ## 5. Ordem de dependências
 
 - Hoje depende do núcleo temporal e não deve defini-lo dentro de componentes.
