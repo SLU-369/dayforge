@@ -299,3 +299,20 @@ esperado e compara o banco integralmente antes/depois da falha e da reabertura.
 - Recuperação estrutural aguarda seleção de arquivo habilitada, verifica sucesso,
   metadata/conjunto após reload e v1 intacto. Não usa sleeps/retries nem reduz
   assertions; importação não realizada continua causando falha do cenário.
+
+## Estabilização da confirmação da 3B-1 — A2-01/A2-02
+
+- C1–C7: commit normal ou resposta perdida, com outra criação/autosave/conclusão
+  antes da releitura, entre captura/verificação ou durante a reconciliação,
+  confirma somente o recibo próprio. Uma revisão por mutação, nenhuma por replay.
+  A testemunha inclui os fatos observados; mudanças posteriores chegam via refresh.
+- C8: restore/reset durante validação invalidam a época anterior, mesmo preservando
+  fisicamente o mesmo recibo. Campos/erro permanecem e não há sucesso falso.
+- C9/C10: outra intenção idêntica, prova ausente/divergente, fato adulterado,
+  hash inválido ou UUID duplicado não produzem sucesso nem nova escrita.
+- C11/C12: replay depois de outros eventos e sessão já remota alcançam confirmação
+  readonly; sem prova própria os guards impedem criação nova. Rascunhos e outros
+  editores permanecem, sem merge automático. Reabertura valida o conjunto físico.
+- O teste de reagendamento aguarda a nota no banco e a publicação do autosave
+  antes de capturar o diálogo. Mantém rejeição de fences obsoletos, história,
+  notas, CAS e recuperação; sem sleep/retry ou mudança no comportamento do produto.

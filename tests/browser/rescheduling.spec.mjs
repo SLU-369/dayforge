@@ -35,6 +35,8 @@ async function healthy(page) { await expect(page.locator(".storage-warning")).to
 test("06:30 → 20:00 is explicit, updates Hoje/full day, protects legacy controls, then completes with audited history", async ({ page }) => {
   await open(page); const before = await read(page);
   await page.getByText("Ver dia completo", { exact: true }).click(); await page.locator(".daily-note textarea").fill("Nota permitida");
+  await expect.poll(async () => (await read(page)).planner.records[date].note).toBe("Nota permitida");
+  await expect(page.getByText("Alterações salvas.", { exact: true })).toBeVisible();
   const modal = await dialog(page);
   await expect(modal.getByLabel("Anterior início", { exact: true })).toHaveValue(`${date}T06:30`);
   await expect(modal.getByLabel("Anterior fim", { exact: true })).toHaveValue(`${date}T07:30`);

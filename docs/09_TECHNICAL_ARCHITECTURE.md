@@ -487,8 +487,9 @@ Aplicações antigas que desconhecem a extensão falham fechadas; a aplicação
 corrigida continua lendo os fatos anteriores. Não há nova versão pública/schema.
 
 isEventCreationConfirmed compara prova, occ:n, ocorrência integral e época.
-verifyPlanningReplay verifica novamente o snapshot em transação readonly.
-O adapter usa esse resultado para publicar sucesso mesmo após resposta perdida,
+Na primeira correção, verifyPlanningReplay verificava novamente o snapshot em
+transação readonly. A reconciliação específica atual segue D-039 abaixo.
+O adapter usa a prova autoritativa para publicar sucesso mesmo após resposta perdida,
 sem nova escrita/revisão. Erros falsy continuam erros quando não existe fato próprio.
 Outro token ou fato divergente conserva conflito/formulário; guards de sessão
 e CAS permanecem. Provas antigas recuperadas não sobrevivem à troca de época do destino.
@@ -500,3 +501,21 @@ janela efêmera. Codecs de fatos/backup/referência permanecem estritos. A Agend
 usa o último dia do mês para sua borda final, sem truncamento de milissegundos
 nem janeiro de 10000 como data selecionável. O teste de recuperação aguarda
 o controle de importação habilitado e verifica o conjunto novamente após reload.
+
+## 13. Reconciliação de criação sob concorrência — D-039
+
+reconcileCanonicalEvent separa comprovação de um fato da autorização de uma
+mutação. Reaproveita readBackupSnapshot e a materialização/hash compartilhados
+com exportação, sem outra autoridade. Após a validação inicial, uma recaptura
+readonly consistente fornece planner, registro, proveniência e fence da testemunha.
+Valida fora da transação, prova UUID/fato/época exatos e verifica a época atual
+antes de retornar. A revisão pode avançar; a confirmação nunca incrementa nada.
+O ponto de linearização é a captura da testemunha. Alterações posteriores a essa
+captura chegam pela fila de refresh; não há perseguição ilimitada de revisões.
+
+EventCommand sempre comprova o resultado antes de publicar sucesso, mesmo que
+a resposta do commit tenha se perdido. Na sessão dirty/remote, PlannerContext
+permite apenas esse caminho readonly, mantendo os guards dos demais comandos.
+Sem prova, a intenção obsoleta não chega ao produtor. confirmedEvent preserva
+rascunhos, outros editores e bases mais recentes já observadas. Novas escritas
+mantêm o CAS original e verifyPlanningReplay global permanece inalterado.

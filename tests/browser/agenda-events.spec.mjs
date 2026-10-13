@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { canonicalStringify } from "../../persistence/migration/canonical-json.ts";
-import { createOccurrence, createDateOnlySchedule, createAllDaySchedule, scheduleOccurrenceId } from "../../domain/temporal/index.ts";
+import { createOccurrence, createTimedSchedule, createDateOnlySchedule, createAllDaySchedule, scheduleOccurrenceId } from "../../domain/temporal/index.ts";
 test.use({ timezoneId: "UTC" });
 const instant = "2026-10-12T12:00:00.000Z", day = "2026-11-02";
 const state = { version: 1, routine: { seg: [], ter: [], qua: [], qui: [], sex: [], sab: [], dom: [] },
@@ -272,4 +272,95 @@ test("December 9999 remains queryable with 31 days, exclusive end and bounded na
   await page.getByRole("button", { name: /^Consultar 9999-12-31:/ }).click(); await expect(page.getByText("Nenhum evento canônico nesta data.", { exact: true })).toBeVisible();
   expect(await read(page)).toEqual(saved); await page.reload(); await expect(page.getByRole("button", { name: "Novo evento", exact: true })).toBeEnabled();
   await page.getByLabel("Data consultada", { exact: true }).fill("9999-12-10"); await expect(page.getByRole("region", { name: "Eventos da data" })).toContainText("Último mês válido"); expect(await read(page)).toEqual(saved);
+});
+
+async function lostReplyBarrier(page, stage) {
+  await page.evaluate(stage => {
+    const descriptor = Object.getOwnPropertyDescriptor(IDBTransaction.prototype, "oncomplete");
+    let injected = false, reads = 0, paused = false;
+    Object.defineProperty(IDBTransaction.prototype, "oncomplete", { ...descriptor, set(handler) {
+      if (this.mode === "readwrite" && this.objectStoreNames.contains("plannerDocuments") && !injected) {
+        injected = true;
+        descriptor.set.call(this, async function(event) {
+          event.stopImmediatePropagation(); window.realEventCommit = true;
+          if (stage === "reply") { window.reconciliationBarrier = true; await new Promise(resolve => window.releaseReconciliation = resolve); }
+          Object.defineProperty(this, "error", { value: new DOMException("Lost committed response", "UnknownError") });
+          this.onerror?.call(this, new Event("error", { cancelable: true }));
+        });
+      } else if (this.mode === "readonly" && this.objectStoreNames.contains("plannerDocuments")) {
+        descriptor.set.call(this, function(event) { if (window.realEventCommit) reads++; handler?.call(this, event); });
+      } else descriptor.set.call(this, handler);
+    } });
+    const digest = crypto.subtle.digest.bind(crypto.subtle);
+    crypto.subtle.digest = async (...args) => {
+      if (!paused && window.realEventCommit && reads === (stage === "witness" ? 2 : 1) && stage !== "reply") {
+        paused = true; window.reconciliationBarrier = true; await new Promise(resolve => window.releaseReconciliation = resolve);
+      }
+      return digest(...args);
+    };
+  }, stage);
+}
+
+for (const [id, stage] of [["C3", "reply"], ["C4", "candidate"], ["C5", "witness"]]) test(`${id}: real committed lost reply is confirmed after another tab creates during ${stage}`, async ({ page, context }) => {
+  await setup(page); const before = await read(page); await open(page, "Minha intenção confirmada"); await lostReplyBarrier(page, stage);
+  await page.getByRole("button", { name: "Criar evento", exact: true }).click(); await expect.poll(() => page.evaluate(() => window.reconciliationBarrier)).toBe(true);
+  const other = await context.newPage(); await setup(other); await open(other, "Intenção posterior da outra aba"); await submit(other);
+  const saved = await read(other); expect(entries(saved)).toHaveLength(2);
+  await page.evaluate(() => window.releaseReconciliation()); await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page.getByText("Evento criado.", { exact: true })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Eventos da data" })).toContainText("Intenção posterior da outra aba");
+  await expect(page.locator('[aria-label="Alterações locais preservadas"]')).toHaveCount(0);
+  expect(await page.evaluate(() => window.realEventCommit)).toBe(true); expect(await read(page)).toEqual(saved);
+  expect(saved.metadata.datasetRevision).toBe(before.metadata.datasetRevision + 2);
+  expect(entries(saved).map(e => e.occurrence.id)).toEqual(["occ:2", "occ:3"]);
+  expect(new Set(entries(saved).map(e => e.creationIntentId)).size).toBe(2);
+  await page.screenshot({ path: `outputs/reconciliation-${id}-desktop.png`, fullPage: true });
+  await page.reload(); await expect(page.getByRole("button", { name: "Novo evento", exact: true })).toBeEnabled(); expect(await read(page)).toEqual(saved);
+  await page.goto("/configuracoes/dados-e-backup"); await expect(page.getByRole("button", { name: "Exportar arquivo", exact: true })).toBeEnabled();
+  const downloading = page.waitForEvent("download"); await page.getByRole("button", { name: "Exportar arquivo", exact: true }).click();
+  expect(JSON.parse(await readFile(await (await downloading).path(), "utf8")).payload.executionBridge.bridge).toEqual(saved.bridge.payload);
+});
+
+test("C8: replacement during real lost-reply reconciliation never confirms the former authority", async ({ page, context }) => {
+  await setup(page); await open(page); await lostReplyBarrier(page, "witness");
+  await page.getByRole("button", { name: "Criar evento", exact: true }).click(); await expect.poll(() => page.evaluate(() => window.reconciliationBarrier)).toBe(true);
+  const other = await context.newPage(); await setup(other); await other.goto("/configuracoes/dados-e-backup");
+  await expect(other.getByRole("button", { name: "Restaurar dados", exact: true })).toBeEnabled();
+  other.once("dialog", dialog => dialog.accept()); await other.getByRole("button", { name: "Restaurar dados", exact: true }).click();
+  await expect(other.getByText("Dados restaurados.", { exact: true })).toBeVisible(); const replaced = await read(other);
+  await page.evaluate(() => window.releaseReconciliation()); await expect(page.getByRole("dialog").getByRole("alert")).toContainText("substituídos");
+  await expect(page.getByLabel("Título do evento", { exact: true })).toHaveValue("Evento fictício");
+  await expect(page.getByText("Evento criado.", { exact: true })).toHaveCount(0); expect(await read(page)).toEqual(replaced);
+  await page.getByRole("button", { name: "Criar evento", exact: true }).click(); await expect(page.getByRole("dialog").getByRole("alert")).toBeVisible();
+  expect(await read(page)).toEqual(replaced);
+});
+
+test("C12: an already remote-conflicted form can confirm only its own persisted receipt without writing", async ({ page, context }) => {
+  await setup(page); await open(page); const before = await read(page);
+  await page.evaluate(() => { const digest = crypto.subtle.digest.bind(crypto.subtle); let first = true;
+    crypto.subtle.digest = async (...args) => { if (first) { first = false; throw false; } return digest(...args); };
+  });
+  await page.getByRole("button", { name: "Criar evento", exact: true }).click(); await expect(page.getByRole("dialog")).toContainText("Não foi possível confirmar");
+  const downloading = page.waitForEvent("download"); await page.getByRole("button", { name: "Baixar rascunho do evento", exact: true }).click();
+  const draft = JSON.parse(await readFile(await (await downloading).path(), "utf8"));
+  // Seed the exact acknowledged receipt as an isolated authoritative fixture.
+  // C3-C5 above exercise the actual producer/native commit; this case isolates UI retry with remote already set.
+  const bridge = structuredClone(before.bridge), occurrence = val(createOccurrence({ id: val(scheduleOccurrenceId(`occ:${draft.base.expectedSequence}`)),
+    source: { kind: "standalone", title: draft.fields.title, flexibility: draft.fields.flexibility, origin: { kind: "event" } },
+    schedule: val(createTimedSchedule({ startsAt: `${day}T23:00:00.000Z`, durationMinutes: 120, timeZone: "UTC" })), createdAt: instant }));
+  bridge.payload.entries.push({ kind: "canonical", occurrence, creationIntentId: draft.base.creationIntentId }); bridge.payload.nextSequence++;
+  bridge.sourceContentFingerprint = createHash("sha256").update(canonicalStringify(bridge.payload)).digest("hex");
+  await page.evaluate(({ bridge, metadata }) => new Promise((resolve, reject) => {
+    const request = indexedDB.open("dayforge-local"); request.onsuccess = () => {
+      const db = request.result, tx = db.transaction(["metadata", "plannerDocuments"], "readwrite");
+      tx.objectStore("plannerDocuments").put(bridge); tx.objectStore("metadata").put({ ...metadata, datasetRevision: metadata.datasetRevision + 1 });
+      tx.oncomplete = () => { db.close(); resolve(); }; tx.onerror = () => reject(tx.error);
+    };
+  }), { bridge, metadata: before.metadata });
+  const other = await context.newPage(); await setup(other); await open(other, "Outra intenção legítima"); await submit(other);
+  await expect(page.locator('[aria-label="Alterações locais preservadas"]')).toBeVisible();
+  const saved = await read(other); await submit(page); await expect(page.getByText("Evento criado.", { exact: true })).toBeVisible();
+  await expect(page.locator('[aria-label="Alterações locais preservadas"]')).toHaveCount(0); expect(await read(page)).toEqual(saved);
+  expect(entries(saved)).toHaveLength(2); expect(entries(saved)[0].creationIntentId).toBe(draft.base.creationIntentId);
+  await page.reload(); await expect(page.getByRole("button", { name: "Novo evento", exact: true })).toBeEnabled(); expect(await read(page)).toEqual(saved);
 });

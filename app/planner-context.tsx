@@ -158,11 +158,12 @@ export function PlannerProvider({ children }: Readonly<{ children: ReactNode }>)
     ++saveQueue.current.revision;
     session.observe(next); update();
   }, [session, update]);
-  const command = useCallback((id: string, intent: unknown, work: () => Promise<void>) => {
+  const command = useCallback((id: string, intent: unknown, work: (allowNewWrite: boolean) => Promise<void>, allowConfirmation = false) => {
     const request = saveQueue.current.command(id, intent, async () => {
       if (writesBlocked.current) throw new Error("O armazenamento está bloqueado; recupere os dados antes de continuar.");
-      if (session.dirty || session.remote) throw new PlanningConflictError();
-      try { await work(); signal(); } catch (error) {
+      const allowNewWrite = !session.dirty && !session.remote;
+      if (!allowNewWrite && !allowConfirmation) throw new PlanningConflictError();
+      try { await work(allowNewWrite); signal(); } catch (error) {
         if (error instanceof CompletionPersistenceError && error.blocked) block();
         throw error;
       }
@@ -177,16 +178,16 @@ export function PlannerProvider({ children }: Readonly<{ children: ReactNode }>)
   const rescheduleOccurrence = useCallback((intent: ReschedulingIntent) => command(intent.occurrenceId, { kind: "rescheduling", intent }, async () => {
     await persistRescheduling({ ...intent, repository, publish }); notify("Ocorrência reagendada. A execução será registrada separadamente.");
   }), [command, repository, publish, notify]);
-  const createEvent = useCallback((intent: EventCreationIntent) => command(`occ:${intent.expectedSequence}`, { kind: "event_creation", intent }, async () => {
-    await persistEventCreation({ ...intent, repository, publish: (snapshot, applied) => {
+  const createEvent = useCallback((intent: EventCreationIntent) => command(`occ:${intent.expectedSequence}`, { kind: "event_creation", intent }, async (allowNewWrite) => {
+    await persistEventCreation({ ...intent, repository, allowNewWrite, publish: (snapshot, applied) => {
       if (applied) {
         // This command owns the mutation. Retain the open form until its success is confirmed.
-        session.load({ ...snapshot, state: toPlannerState(snapshot.state) });
+        session.confirmedEvent({ ...snapshot, state: toPlannerState(snapshot.state) });
         ++saveQueue.current.revision; update();
       } else publish(snapshot);
     } });
     notify("Evento criado.");
-  }), [command, repository, session, publish, update, notify]);
+  }, true), [command, repository, session, publish, update, notify]);
 
   const exportBackup = useCallback(async () => {
     try { return await saveQueue.current.enqueue(async () => {

@@ -1,35 +1,29 @@
 import { legacyPlanner } from "../persistence/contracts/planning-envelope.ts";
 import type { LocalPersistenceRepository } from "../persistence/contracts/repository.ts";
-import { createCanonicalEvent, isEventCreationConfirmed, type EventCreationIntent } from "../persistence/execution/event-creation.ts";
-import { verifyPlanningReplay } from "../persistence/execution/repository.ts";
+import { createCanonicalEvent, reconcileCanonicalEvent, type EventCreationIntent } from "../persistence/execution/event-creation.ts";
 import { PlanningConflictError } from "../persistence/contracts/dataset-revision.ts";
-import { readPlannerAuthoritySnapshot } from "../persistence/backup/export-backup-v2.ts";
 import { CompletionPersistenceError, type CompletionSnapshot } from "./completion-command.ts";
 
 /** Refresh validated authority on every outcome; structural failures alone block the store. */
 export async function persistEventCreation(options: EventCreationIntent & Readonly<{
   repository: LocalPersistenceRepository; publish: (snapshot: CompletionSnapshot, applied: boolean) => void;
+  allowNewWrite?: boolean;
 }>) {
   let failure: unknown;
   let rejected = false;
-  try { await createCanonicalEvent(options); } catch (error) { rejected = true; failure = error; }
+  if (options.allowNewWrite !== false) {
+    try { await createCanonicalEvent(options); } catch (error) { rejected = true; failure = error; }
+  } else { rejected = true; failure = new PlanningConflictError(); }
   let snapshot: CompletionSnapshot;
   let confirmed = false;
+  let sameAuthority = false;
   try {
-    const { backup, authorityEpoch, datasetRevision } = await readPlannerAuthoritySnapshot({ repository: options.repository,
-      exportedAt: "1970-01-01T00:00:00.000Z", active: true });
+    const proof = await reconcileCanonicalEvent(options);
+    const { backup, authorityEpoch, datasetRevision } = proof.snapshot;
     if (backup.formatVersion !== 3) throw new Error();
-    confirmed = isEventCreationConfirmed({ backup, authorityEpoch, datasetRevision }, options);
-    if (confirmed) {
-      try { await verifyPlanningReplay(options.repository, { backup, authorityEpoch, datasetRevision }, options.expectedAuthorityEpoch); }
-      catch (error) {
-        if (!(error instanceof PlanningConflictError)) throw error;
-        confirmed = false; rejected = true; failure = error;
-      }
-    }
+    confirmed = proof.confirmed; sameAuthority = proof.sameAuthority;
     snapshot = { state: legacyPlanner(backup.payload.planner), executionBridge: backup.payload.executionBridge.bridge, authorityEpoch, datasetRevision };
   } catch { throw new CompletionPersistenceError(true); }
-  const sameAuthority = snapshot.authorityEpoch === options.expectedAuthorityEpoch;
   options.publish(snapshot, confirmed && sameAuthority);
   if (!sameAuthority) throw new Error("Os dados foram substituídos. Feche e revise os dados salvos antes de criar um evento.");
   if (confirmed) return;

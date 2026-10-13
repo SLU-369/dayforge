@@ -27,6 +27,14 @@ export class PlannerDraftSession {
     this.state = typeof action === "function" ? action(this.state) : action;
     this.dirty = !sameState(this.state, this.persisted.state);
   }
+  /** Acknowledging one event must not discard an unrelated draft/open editor. */
+  confirmedEvent(snapshot: PlannerSnapshot) {
+    if (this.dirty || this.openEditors > 1) { this.observe(snapshot); return; }
+    const observed = this.remote ?? this.persisted;
+    if (observed.authorityEpoch > snapshot.authorityEpoch
+      || observed.authorityEpoch === snapshot.authorityEpoch && observed.datasetRevision > snapshot.datasetRevision) return;
+    this.load(snapshot);
+  }
   observe(snapshot: PlannerSnapshot) {
     if (snapshot.authorityEpoch === this.persisted.authorityEpoch && snapshot.datasetRevision === this.persisted.datasetRevision) return;
     if (this.dirty || this.openEditors || this.remote) { this.remote = snapshot; this.paused = true; }

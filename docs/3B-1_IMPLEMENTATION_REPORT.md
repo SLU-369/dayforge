@@ -213,3 +213,137 @@ de publicação. CI remoto é consultado no novo HEAD; só verify concluído pod
 declarado aprovado e seu workflow não inclui Edge. Nenhum merge, auto-merge,
 exclusão de branch, deploy ou avanço para 3B-2 foi autorizado/executado.
 Após publicar, aguardar nova avaliação independente e autorização humana.
+
+## Estabilização arquitetural pré-merge — A2-01/A2-02
+
+Checkpoint inicial: HEAD 2dd8af89c6948857dedbe8f8d3007588bdda90d2, branch
+feat/agenda-canonical-events limpa/sincronizada, base/main 40ed9f425b419b4ce25b20bc2e44023ea88e5b18.
+Fetch --prune confirmou as referências. PR #18 OPEN/MERGEABLE/CLEAN, três commits,
+verify SUCCESS no HEAD anterior, sem comentários/reviews/auto-merge. Os três
+commits anteriores permanecem. A autorização desta unidade é restrita a
+confirmação/reconciliação/retry e ordenação determinística do teste de reagendamento.
+
+O relatório outputs/audit2-pr18/REPORT.md reprovou o aceite completo de F3:
+F1/F2/F4/F5 resolvidos, A2-01 reproduzido em Node e Edge e gate global 95/96
+com falha no primeiro teste de reagendamento. Esses resultados históricos
+permanecem; os números desta seção não apagam execuções anteriores.
+
+### Causa fundamental e pontos de linearização
+
+A verificação global de replay protegia um snapshot inteiro contra mudança de
+revisão. Isso era usado para confirmar um fato imutável de criação já aplicado.
+A mutação legítima B fazia essa verificação rejeitar a base antiga; a publicação
+applied=false criava conflito remoto, e o guard da sessão impedia até confirmação
+readonly no retry. Os dados permaneciam íntegros, mas a aplicação não reconhecia
+o próprio commit. Rejeitar uma nova escrita obsoleta continua correto.
+
+| Ponto | Contrato atual |
+| --- | --- |
+| 1. Abertura/captura | Formulário captura época, revisão, posição e UUID independente; confirmação constrói fatos/createdAt, cacheados no retry inalterado |
+| 2. Entrada na fila | Uma fila/coalescência; sessão dirty/remote permite somente reconciliação de criação, sem chamar produtor de nova escrita |
+| 3. Preparação | Snapshot íntegro e hash fora da transação; não atualiza o fence original |
+| 4. Escrita | Transação compara autoridade/revisão/alocador/base, insere documento e faz readback; tudo atômico |
+| 5. Commit/resposta | Commit físico lineariza a criação; rejeição/resposta perdida não prova ausência nem sucesso, inclusive valores falsy |
+| 6. Leitura inicial | Captura transacional do conjunto completo e validação de codecs/hashes; falha estrutural permanece visível e bloqueante |
+| 7. Testemunha | Uma recaptura readonly consistente, com validação fora da transação, lineariza a comprovação de UUID/occ:n/fatos integrais na mesma época |
+| 8. Guard final | Verifica somente autoridade atual; restore/reset durante a validação impedem confirmação da época anterior; revisão posterior não revoga o fato |
+| 9. Publicação/invalidação | Snapshot da testemunha contém fatos observados na captura; sessão limpa do editor próprio pode avançar, rascunhos/outros editores ficam preservados. Mutações posteriores chegam via fila de refresh |
+| 10. Retry explícito | Mesma prova/fatos/época permitem confirmação sem write/revisão/contador; sem prova própria, campos/erro permanecem e nenhuma escrita obsoleta acontece |
+
+D-039 registra a separação durável, sem reescrever D-031 a D-038. A operação
+reconcileCanonicalEvent reaproveita readBackupSnapshot/materialização, sem
+recibos paralelos. Não modifica verifyPlanningReplay global, CAS, schema ou
+formatos. Não há loop/retry automático que persiga datasetRevision. O guard de
+época não congela outras abas: substituição após esse guard é posterior à
+confirmação; comandos futuros continuam presos à época capturada. Uma alteração
+posterior à testemunha pode aparecer no refresh seguinte, sem invalidar sucesso
+próprio. Isso é delimitado explicitamente, não uma promessa de snapshot eterno.
+
+### Matriz determinística C1–C12
+
+Todos os casos abaixo passaram nos testes dirigidos. Node usa conexões Dexie
+independentes sobre fake-indexeddb e instantes explícitos. Barreiras ficam fora
+das transações, preservando seus locks/snapshots reais; não há sleeps arbitrários.
+As assertions verificam fatos, revisão, conteúdo físico, ausência de nova escrita,
+reabertura e preservação de sessão quando aplicável.
+
+| Caso | Evidência e resultado individual |
+| --- | --- |
+| C1 | Commit normal, prova própria, uma ocorrência/uma revisão — aprovado |
+| C2 | Commit real seguido de rejeição undefined; reconciliado, replay/reopen sem mutação — aprovado |
+| C3 | B cria antes da primeira releitura; testemunha/publicação incluem ambas — aprovado em Node e Edge real |
+| C4 | B cria entre primeira captura e verificação; testemunha atual comprova A sem conflito — aprovado em Node e Edge, reproduz a corrida original |
+| C5 | B cria antes/durante reconciliação; caso antes da testemunha publica ambas, caso depois dela mantém sucesso e refresh/retry readonly observa B — aprovado em Node e Edge |
+| C6 | Autosave legítimo da nota após A; nota e evento presentes, duas revisões totais — aprovado |
+| C7 | Conclusão canônica legada após A; execução/notas/minutos preservados, evento de A não ganha execução — aprovado |
+| C8 | Reset e restore após cada captura, inclusive backup contendo o mesmo recibo; época nova rejeita intenção antiga e preserva banco — quatro variantes Node e reset Edge aprovados |
+| C9 | Campos idênticos/UUID diferente; sem sucesso próprio nem escrita no modo readonly — aprovado |
+| C10 | Prova ausente/divergente, fato diferente, hash inválido e UUID duplicado; zero sucessos, banco não modificado, reopen — cinco variantes aprovadas |
+| C11 | Retry direto após eventos posteriores e outra mutação durante reconciliação; write seria uma assertion fatal; três eventos intactos — aprovado |
+| C12 | Sessão já remota confirma apenas própria prova; variante dirty conserva rascunho/fence antigo e outros editores continuam protegidos; sem prova não escreve — aprovado Node e percurso completo UI Edge |
+
+22 testes Node novos: matriz mais variantes de autoridade/recibo e proteção de
+outro editor/base já observada. Regressões existentes da Agenda verificam cinco
+rejeições falsy, resposta resolvida sem fato, payload divergente, UUID reutilizado,
+duplo clique, alocador compartilhado, rollback/readback, F1 original e dezembro9999.
+
+Edge C3/C4/C5 utiliza dois formulários/abas reais, IndexedDB compartilhado, relógio
+fixo e interceptação de IDBTransaction.oncomplete depois do commit nativo, antes
+de notificar o Dexie. Barreiras na resposta e hashes das capturas controlam B.
+A fecha com Evento criado, sem conflito remoto; B também confirma seu fato
+independente. occ:2/occ:3, duas provas, duas revisões e ambos os eventos sobrevivem
+a reload e backup3. C8 troca autoridade durante materialização da testemunha:
+nenhum sucesso, formulário/horários preservados, retry não altera a substituição.
+
+O Edge C12 isola especificamente o guard da UI já remota. Após uma falha antes
+do commit, insere uma fixture autoritativa íntegra com o recibo exato do formulário
+e usa o produtor real na outra aba para invalidar a sessão. O retry atravessa
+EventDialog→PlannerContext→EventCommand→IndexedDB sem nova escrita e fecha com
+prova própria. Essa fixture não é alegada como commit do produtor; commits nativos
+com resposta perdida são comprovados separadamente em C2/C3/C4/C5/C8.
+
+### A2-02 e preservação dos contratos
+
+O primeiro teste Edge de reagendamento preenchia a nota e abria o diálogo antes
+de o autosave terminar/publicar. A comparação da auditoria entre baseline e HEAD
+demonstrou rejeição correta do fence antigo nos dois builds. Agora o teste aguarda
+a nota física no IndexedDB e a mensagem de publicação Alterações salvas antes de
+capturar o diálogo. Nenhum comportamento do produto foi alterado para aceitar
+base obsoleta. Todas as assertions de história/CAS/nota/recuperação permanecem.
+Outro preenchimento da mesma suíte é um teste deliberado de autosave obsoleto
+com barreira controlada; permanece como cenário negativo, sem sincronização extra.
+
+Preservados planner2, registro3, backup3/recovery3/2/1, geração2, Dexie1 e D-036.
+Nenhum campo persistido/tabela/schema/dependência foi adicionado. UUID/fatos e
+ausência histórica continuam no mesmo documento/hash. Fences de novas escritas
+e comandos legados mantêm validação/CAS/readback. Replay readonly não altera
+contador/revisão. Conflitos comuns não bloqueiam o armazenamento; falha estrutural
+de snapshot continua fail-closed. Não há criação untimed ou comandos completos.
+
+### Validação desta unidade
+
+- Node dirigido: matriz **22/22**, Agenda existente **43/43**.
+- `npm.cmd test`: build e Node completo **488/488** (466 anteriores +22).
+- Edge dirigido, um worker/retries0: **36/36** — Agenda **24/24**, reagendamento **12/12**.
+- Edge global desta unidade: **101/101**, um worker/retries0, incluindo os quatro
+  solares. Gate executado/aprovado integralmente; não prova a origem da instabilidade
+  histórica nem altera o resultado95/96 da segunda auditoria. 3A-1/3A-2, recovery,
+  Hoje, legado, D-036 e shell executados no conjunto. Log reconciliation-edge-global.log
+  e artefatos reconciliation-edge-global em outputs.
+- Lint/typecheck aprovados; master regenerado pelo mecanismo oficial e check aprovado.
+- Diff check e varredura dos arquivos do escopo sem padrões de segredo encontrados.
+- Revisão visual desktop/390px de calendário, diálogo/foco e dois eventos confirmados;
+  nenhum overflow horizontal. Evidências agenda-390.png, agenda-dialog-390.png e
+  reconciliation-C3/C4/C5-desktop.png em outputs.
+
+Logs: outputs/reconciliation-node-full.log, reconciliation-edge-directed.log
+e respectivos artefatos browser. Resultado global e publicação são registrados
+no fechamento abaixo, após conclusão efetiva. Falha intermediária: lint identificou
+um import não usado no novo teste; removido, lint/typecheck subsequentes aprovados.
+Nenhum retry automático, mudança solar, snapshot/tolerância/assertion enfraquecidos.
+
+A2-01 e A2-02 resolvidos nos contratos/cenários demonstrados desta unidade.
+A falha solar histórica1007 permanece de origem indeterminada; execução verde
+não prova sua causa resolvida. Leitores anteriores à D-038 continuam rejeitando
+a extensão de recibo de forma fail-closed, limitação já documentada, sem downgrade.
+Nenhum merge/auto-merge/exclusão/3B-2. Aguardará auditoria final dirigida e gate humano.

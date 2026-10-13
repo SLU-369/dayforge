@@ -2296,8 +2296,9 @@ Aplicações antigas que desconhecem a extensão falham fechadas; a aplicação
 corrigida continua lendo os fatos anteriores. Não há nova versão pública/schema.
 
 isEventCreationConfirmed compara prova, occ:n, ocorrência integral e época.
-verifyPlanningReplay verifica novamente o snapshot em transação readonly.
-O adapter usa esse resultado para publicar sucesso mesmo após resposta perdida,
+Na primeira correção, verifyPlanningReplay verificava novamente o snapshot em
+transação readonly. A reconciliação específica atual segue D-039 abaixo.
+O adapter usa a prova autoritativa para publicar sucesso mesmo após resposta perdida,
 sem nova escrita/revisão. Erros falsy continuam erros quando não existe fato próprio.
 Outro token ou fato divergente conserva conflito/formulário; guards de sessão
 e CAS permanecem. Provas antigas recuperadas não sobrevivem à troca de época do destino.
@@ -2309,6 +2310,24 @@ janela efêmera. Codecs de fatos/backup/referência permanecem estritos. A Agend
 usa o último dia do mês para sua borda final, sem truncamento de milissegundos
 nem janeiro de 10000 como data selecionável. O teste de recuperação aguarda
 o controle de importação habilitado e verifica o conjunto novamente após reload.
+
+## 13. Reconciliação de criação sob concorrência — D-039
+
+reconcileCanonicalEvent separa comprovação de um fato da autorização de uma
+mutação. Reaproveita readBackupSnapshot e a materialização/hash compartilhados
+com exportação, sem outra autoridade. Após a validação inicial, uma recaptura
+readonly consistente fornece planner, registro, proveniência e fence da testemunha.
+Valida fora da transação, prova UUID/fato/época exatos e verifica a época atual
+antes de retornar. A revisão pode avançar; a confirmação nunca incrementa nada.
+O ponto de linearização é a captura da testemunha. Alterações posteriores a essa
+captura chegam pela fila de refresh; não há perseguição ilimitada de revisões.
+
+EventCommand sempre comprova o resultado antes de publicar sucesso, mesmo que
+a resposta do commit tenha se perdido. Na sessão dirty/remote, PlannerContext
+permite apenas esse caminho readonly, mantendo os guards dos demais comandos.
+Sem prova, a intenção obsoleta não chega ao produtor. confirmedEvent preserva
+rascunhos, outros editores e bases mais recentes já observadas. Novas escritas
+mantêm o CAS original e verifyPlanningReplay global permanece inalterado.
 
 ---
 
@@ -3235,6 +3254,36 @@ na aplicação corrigida, sem migração estrutural. Leitores anteriores com cod
 estrito que desconhece o campo rejeitam o registro novo, sem descarte/downgrade;
 não se promete leitura futura por binários antigos. D-031 a D-037 ficam históricos.
 
+### D-039 — Confirmação de fato distinta de autorização de escrita (estabilização 3B-1)
+
+A2-01 revelou que confirmar o recibo de criação com um fence de revisão global
+confundia a integridade do fato imutável com a disponibilidade da antiga base para
+uma nova escrita. Uma mutação posterior legítima não revoga uma criação aplicada.
+Os contratos e decisões D-031 a D-038 permanecem, sem novo campo ou formato.
+
+Nova escrita continua exigindo época/revisão/alocador/base capturados, CAS, hash
+fora da transação, commit e readback. verifyPlanningReplay dos comandos anteriores
+permanece intacto. A criação tem reconciliação específica somente de leitura:
+valida a primeira captura, recaptura uma vez todo o conjunto em uma transação
+readonly e valida essa testemunha integralmente, incluindo hashes e unicidade.
+O recibo exato e a ocorrência integral na mesma época comprovam o fato nessa
+captura. Um guard final somente de época rejeita restore/reset durante a validação.
+Não há loop que persiga revisões, rebase ou novo commit para confirmar.
+
+A captura da testemunha é o ponto de linearização da confirmação do fato. Ela
+inclui os fatos concorrentes observados até esse ponto. Mutações que se linearizem
+depois dela seguem a invalidação/refresh normal; não invalidam o recibo anterior.
+Substituição depois do guard final é uma operação posterior à confirmação, nunca
+autorização para escrever sob a época antiga. Nenhuma leitura promete imobilizar
+outras abas depois de sua transação. Falha estrutural de validação não é ocultada;
+ausência/divergência de prova mantém erro recuperável e formulário.
+
+A fila continua única. Só criação admite confirmação readonly quando dirty/remote;
+nessa condição o produtor de nova escrita nem é chamado. Outros comandos conservam
+os guards. Confirmar o próprio evento pode liberar seu editor limpo; outro editor,
+rascunho local ou snapshot já observado mais recente não é descartado nem rebaseado.
+Recibos permanecem no registro 3, sem fonte paralela ou alteração de backup/schema.
+
 As bordas da consulta pura podem usar ISO UTC expandido para representar o
 fim exclusivo de dezembro de 9999. Isso não amplia LocalDate, instantes
 persistidos, criação ou validação histórica. Navegação para ano 10000 continua
@@ -3552,6 +3601,23 @@ esperado e compara o banco integralmente antes/depois da falha e da reabertura.
 - Recuperação estrutural aguarda seleção de arquivo habilitada, verifica sucesso,
   metadata/conjunto após reload e v1 intacto. Não usa sleeps/retries nem reduz
   assertions; importação não realizada continua causando falha do cenário.
+
+## Estabilização da confirmação da 3B-1 — A2-01/A2-02
+
+- C1–C7: commit normal ou resposta perdida, com outra criação/autosave/conclusão
+  antes da releitura, entre captura/verificação ou durante a reconciliação,
+  confirma somente o recibo próprio. Uma revisão por mutação, nenhuma por replay.
+  A testemunha inclui os fatos observados; mudanças posteriores chegam via refresh.
+- C8: restore/reset durante validação invalidam a época anterior, mesmo preservando
+  fisicamente o mesmo recibo. Campos/erro permanecem e não há sucesso falso.
+- C9/C10: outra intenção idêntica, prova ausente/divergente, fato adulterado,
+  hash inválido ou UUID duplicado não produzem sucesso nem nova escrita.
+- C11/C12: replay depois de outros eventos e sessão já remota alcançam confirmação
+  readonly; sem prova própria os guards impedem criação nova. Rascunhos e outros
+  editores permanecem, sem merge automático. Reabertura valida o conjunto físico.
+- O teste de reagendamento aguarda a nota no banco e a publicação do autosave
+  antes de capturar o diálogo. Mantém rejeição de fences obsoletos, história,
+  notas, CAS e recuperação; sem sleep/retry ou mudança no comportamento do produto.
 
 ---
 

@@ -285,6 +285,36 @@ na aplicação corrigida, sem migração estrutural. Leitores anteriores com cod
 estrito que desconhece o campo rejeitam o registro novo, sem descarte/downgrade;
 não se promete leitura futura por binários antigos. D-031 a D-037 ficam históricos.
 
+### D-039 — Confirmação de fato distinta de autorização de escrita (estabilização 3B-1)
+
+A2-01 revelou que confirmar o recibo de criação com um fence de revisão global
+confundia a integridade do fato imutável com a disponibilidade da antiga base para
+uma nova escrita. Uma mutação posterior legítima não revoga uma criação aplicada.
+Os contratos e decisões D-031 a D-038 permanecem, sem novo campo ou formato.
+
+Nova escrita continua exigindo época/revisão/alocador/base capturados, CAS, hash
+fora da transação, commit e readback. verifyPlanningReplay dos comandos anteriores
+permanece intacto. A criação tem reconciliação específica somente de leitura:
+valida a primeira captura, recaptura uma vez todo o conjunto em uma transação
+readonly e valida essa testemunha integralmente, incluindo hashes e unicidade.
+O recibo exato e a ocorrência integral na mesma época comprovam o fato nessa
+captura. Um guard final somente de época rejeita restore/reset durante a validação.
+Não há loop que persiga revisões, rebase ou novo commit para confirmar.
+
+A captura da testemunha é o ponto de linearização da confirmação do fato. Ela
+inclui os fatos concorrentes observados até esse ponto. Mutações que se linearizem
+depois dela seguem a invalidação/refresh normal; não invalidam o recibo anterior.
+Substituição depois do guard final é uma operação posterior à confirmação, nunca
+autorização para escrever sob a época antiga. Nenhuma leitura promete imobilizar
+outras abas depois de sua transação. Falha estrutural de validação não é ocultada;
+ausência/divergência de prova mantém erro recuperável e formulário.
+
+A fila continua única. Só criação admite confirmação readonly quando dirty/remote;
+nessa condição o produtor de nova escrita nem é chamado. Outros comandos conservam
+os guards. Confirmar o próprio evento pode liberar seu editor limpo; outro editor,
+rascunho local ou snapshot já observado mais recente não é descartado nem rebaseado.
+Recibos permanecem no registro 3, sem fonte paralela ou alteração de backup/schema.
+
 As bordas da consulta pura podem usar ISO UTC expandido para representar o
 fim exclusivo de dezembro de 9999. Isso não amplia LocalDate, instantes
 persistidos, criação ou validação histórica. Navegação para ano 10000 continua

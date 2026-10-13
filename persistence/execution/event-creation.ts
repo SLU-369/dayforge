@@ -1,11 +1,12 @@
 import { createOccurrence, scheduleOccurrenceId, type Flexibility, type TimedSchedule } from "../../domain/temporal/index.ts";
-import { readPlannerAuthoritySnapshot } from "../backup/export-backup-v2.ts";
-import { assertActiveDatabaseMetadata } from "../backup/integrity.ts";
+import { materializePlannerAuthoritySnapshot, readPlannerAuthoritySnapshot } from "../backup/export-backup-v2.ts";
+import { assertActiveDatabaseMetadata, readBackupSnapshot } from "../backup/integrity.ts";
+import { authorityEpoch } from "../contracts/authority-epoch.ts";
 import { assertPlanningFence, PlanningConflictError, type PlanningFence } from "../contracts/dataset-revision.ts";
 import type { LocalPersistenceRepository } from "../contracts/repository.ts";
-import { canonicalStringify, type Sha256Hasher } from "../migration/index.ts";
+import { canonicalStringify, WebCryptoSha256Hasher, type Sha256Hasher } from "../migration/index.ts";
 import { createBridgeDocument, decodeCanonicalOccurrence, decodeCreationIntentId, decodeExecutionBridge, decodeSchedule, ExecutionBridgeError, temporalEntryId } from "./bridge.ts";
-import { assertPlannerSnapshot, OccurrenceConflictError, verifyPlanningReplay } from "./repository.ts";
+import { assertPlannerSnapshot, OccurrenceConflictError } from "./repository.ts";
 
 export type EventCreationIntent = PlanningFence & Readonly<{
   creationIntentId: string;
@@ -34,6 +35,33 @@ function creationFact(options: EventCreationIntent) {
   return occurrence;
 }
 
+/** Read-only receipt confirmation, not permission to mutate the captured base.
+ * The witness transaction is the fact's linearization point. Recapture once after
+ * initial validation to include intervening writes; never chase revision changes.
+ * Hashes stay outside transactions. Replacement during validation is rejected by
+ * the final epoch guard. Ordinary later mutations cannot revoke an immutable fact.
+ */
+export async function reconcileCanonicalEvent(options: EventCreationIntent & Readonly<{
+  repository: LocalPersistenceRepository; hasher?: Sha256Hasher;
+}>) {
+  const hasher = options.hasher ?? new WebCryptoSha256Hasher();
+  const exportedAt = "1970-01-01T00:00:00.000Z";
+  const candidate = await readPlannerAuthoritySnapshot({ ...options, active: true, exportedAt, hasher });
+  const witness = await options.repository.read(tx => readBackupSnapshot(tx, true));
+  const snapshot = await materializePlannerAuthoritySnapshot(witness, exportedAt, hasher);
+  const confirmed = isEventCreationConfirmed(snapshot, options);
+  // Only the epoch is fenced here: this operation does not authorize a write.
+  const currentEpoch = await options.repository.read(async tx => {
+    const metadata = await tx.getDatabaseMetadata(); assertActiveDatabaseMetadata(metadata);
+    return authorityEpoch(metadata);
+  });
+  // candidate validation is intentional: structural failures must not be hidden
+  // by a subsequent read. The witness supplies all facts used for publication.
+  const sameAuthority = candidate.authorityEpoch === options.expectedAuthorityEpoch
+    && snapshot.authorityEpoch === options.expectedAuthorityEpoch && currentEpoch === options.expectedAuthorityEpoch;
+  return { snapshot, confirmed: confirmed && sameAuthority, sameAuthority };
+}
+
 /** Confirm only the immutable receipt AND exact fact in the original local authority. */
 export function isEventCreationConfirmed(snapshot: Awaited<ReturnType<typeof readPlannerAuthoritySnapshot>>, intent: EventCreationIntent): boolean {
   if (snapshot.authorityEpoch !== intent.expectedAuthorityEpoch || snapshot.backup.formatVersion !== 3) return false;
@@ -59,8 +87,9 @@ export async function createCanonicalEvent(options: EventCreationIntent & Readon
   const bridge = backup.payload.executionBridge.bridge;
   const replay = async (current: typeof snapshot) => {
     if (!isEventCreationConfirmed(current, options)) return false;
-    await verifyPlanningReplay(options.repository, current, options.expectedAuthorityEpoch);
-    return true;
+    const proof = await reconcileCanonicalEvent(options);
+    if (!proof.sameAuthority) throw new PlanningConflictError();
+    return proof.confirmed;
   };
   if (bridge.entries.some(entry => temporalEntryId(entry) === id || entry.kind === "canonical" && entry.creationIntentId === options.creationIntentId)) {
     if (await replay(snapshot)) return occurrence;
