@@ -255,3 +255,25 @@ limitação conforme D-036. Não infere localização nem reescreve histórico.
 
 O teste de backup antigo malformado usa envelope 2 válido, exige o erro de vínculo
 esperado e compara o banco integralmente antes/depois da falha e da reabertura.
+
+## 3B-1 — Eventos canônicos na Agenda
+
+- Criar compromisso timed independente com título, flexibilidade e fuso IANA confirmados
+  produz uma ocorrência planned, sem execução, resolução, template ou categoria
+  inferida; original/current e createdAt/updatedAt coincidem na criação.
+- Timed cruza meia-noite com datas completas e consulta em ambos os dias.
+  Recuperação de fixtures date_only/all_day comprova consulta sem horário inventado
+  e fim exclusivo. Comando/formulário não criam esses dois tipos nesta unidade.
+- Consulta de meses/datas futuros é determinística e não altera o banco.
+  Candidatos legados são explícitos, sem conversão em fatos novos.
+- Alocador é compartilhado com novos vínculos legados; IDs não colidem nem são
+  deduplicados por título/horário. Nova intenção idêntica recebe identidade própria.
+- Retry inalterado conserva o instante; concorrência equivalente aplica uma vez.
+  Outra intenção, autosave ou substituição vencedora rejeita a base antiga.
+- Erro de quota/readback reverte integralmente; formulário permanece e retry é
+  explícito. Conflito entre abas conserva campos/fence e exige revisão dos dados
+  salvos. Falha estrutural bloqueia criação e mantém recuperação disponível.
+- Reload e backup 3 preservam o evento. Restore/import/reset substituem todo o
+  conjunto com época local nova; recuperação 3/2/1 e v1 somente leitura permanecem.
+- Rota direta, teclado/Escape/foco e layout a 390px permanecem acessíveis.
+  Sem PR/merge automático, novas transições ou avanço para outra subetapa.

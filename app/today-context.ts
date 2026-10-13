@@ -113,6 +113,14 @@ function dayKey(date: string): DayKey {
   return (["dom", "seg", "ter", "qua", "qui", "sex", "sab"] as const)[day];
 }
 
+/** Read-only civil boundaries share Today's DST policy, including non-24-hour days. */
+export function readCivilDayWindow(date: string, timeZone: string) {
+  const formatter = new Intl.DateTimeFormat("en-US", { timeZone, hourCycle: "h23", year: "numeric",
+    month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+  return { startsAt: new Date(zonedEpoch(civilParts(date), formatter)).toISOString(),
+    endsBefore: new Date(zonedEpoch(civilParts(shiftDate(date, 1)), formatter)).toISOString() };
+}
+
 function entriesForDay(state: PlannerState, date: string): readonly (RoutineItem | DailyItem)[] {
   const record = state.records[date];
   if (record) {

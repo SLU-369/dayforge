@@ -20,6 +20,8 @@ import type { ExecutionRecord } from "../domain/temporal/index";
 import { PlannerWriteQueue } from "./planner-write-queue";
 import { CompletionPersistenceError, persistCompletion } from "./completion-command";
 import { persistRescheduling } from "./rescheduling-command";
+import { persistEventCreation } from "./event-command";
+import type { EventCreationIntent } from "../persistence/execution/event-creation";
 import type { ReschedulingIntent } from "../persistence/execution/rescheduling";
 import { readPlannerAuthoritySnapshot } from "../persistence/backup/export-backup-v2";
 import { createDefaultState, type PlannerState } from "./planner-data";
@@ -44,6 +46,7 @@ type PlannerContextValue = {
   state: PlannerState; executionBridge: ExecutionBridge | null; authorityEpoch: number; datasetRevision: number;
   completeOccurrence: (id: string, execution: ExecutionRecord, fence: CompletionFence) => Promise<void>;
   rescheduleOccurrence: (intent: ReschedulingIntent) => Promise<void>; completingIds: readonly string[];
+  createEvent: (intent: EventCreationIntent) => Promise<void>;
   setState: Dispatch<SetStateAction<PlannerState>>; beginEditing: () => boolean; endEditing: () => void;
   exportBackup: () => Promise<boolean>; importBackup: (raw: string) => Promise<boolean>; resetData: () => Promise<boolean>;
   ready: boolean; storageBlocked: boolean; storageWarning: string; toast: string; notify: (message: string) => void;
@@ -174,6 +177,16 @@ export function PlannerProvider({ children }: Readonly<{ children: ReactNode }>)
   const rescheduleOccurrence = useCallback((intent: ReschedulingIntent) => command(intent.occurrenceId, { kind: "rescheduling", intent }, async () => {
     await persistRescheduling({ ...intent, repository, publish }); notify("Ocorrência reagendada. A execução será registrada separadamente.");
   }), [command, repository, publish, notify]);
+  const createEvent = useCallback((intent: EventCreationIntent) => command(`occ:${intent.expectedSequence}`, { kind: "event_creation", intent }, async () => {
+    await persistEventCreation({ ...intent, repository, publish: (snapshot, applied) => {
+      if (applied) {
+        // This command owns the mutation. Retain the open form until its success is confirmed.
+        session.load({ ...snapshot, state: toPlannerState(snapshot.state) });
+        ++saveQueue.current.revision; update();
+      } else publish(snapshot);
+    } });
+    notify("Evento criado.");
+  }), [command, repository, session, publish, update, notify]);
 
   const exportBackup = useCallback(async () => {
     try { return await saveQueue.current.enqueue(async () => {
@@ -216,9 +229,9 @@ export function PlannerProvider({ children }: Readonly<{ children: ReactNode }>)
   const value = useMemo(() => {
     void renderRevision;
     return { state: session.state, executionBridge: session.persisted.executionBridge, authorityEpoch: session.persisted.authorityEpoch,
-      datasetRevision: session.persisted.datasetRevision, setState, beginEditing, endEditing, completeOccurrence, rescheduleOccurrence,
+      datasetRevision: session.persisted.datasetRevision, setState, beginEditing, endEditing, completeOccurrence, rescheduleOccurrence, createEvent,
       completingIds, exportBackup, importBackup, resetData, ready, storageBlocked, storageWarning, toast, notify };
-  }, [renderRevision, session, setState, beginEditing, endEditing, completeOccurrence, rescheduleOccurrence, completingIds, exportBackup, importBackup, resetData, ready, storageBlocked, storageWarning, toast, notify]);
+  }, [renderRevision, session, setState, beginEditing, endEditing, completeOccurrence, rescheduleOccurrence, createEvent, completingIds, exportBackup, importBackup, resetData, ready, storageBlocked, storageWarning, toast, notify]);
   return <PlannerContext.Provider value={value}>
     {storageWarning && <div role="alert" className="storage-warning">{storageWarning}</div>}
     {historicalOffsetOccurrenceIds(session.persisted.executionBridge).length > 0 && <section className="panel" style={{ padding: "1rem", margin: "1rem" }} role="note" aria-label="Compatibilidade de fusos históricos">

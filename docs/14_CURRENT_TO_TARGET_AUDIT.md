@@ -75,7 +75,12 @@ e reagendamento explícito já estão implementados e integrados; início e corr
 ## 4. Agenda
 
 ### Atual
-Calendário com baixo nível de interação/persistência funcional.
+3B-1 implementa calendário mensal navegável, consulta por data e criação explícita
+de compromissos canônicos independentes exclusivamente timed. Consulta exibe também
+date_only/all_day recuperados, sem criar horários. Fuso e flexibilidade
+são confirmados; persistência e recuperação usam a fundação integrada da 3A-2.
+Edição/exclusão, novas transições, recorrências, visão semanal e resolução de
+conflitos temporais permanecem fora desta unidade.
 
 ### Alvo
 Calendário navegável com dia/semana/mês, criação de eventos futuros, conflitos, seleção de data e itens de diferentes domínios.

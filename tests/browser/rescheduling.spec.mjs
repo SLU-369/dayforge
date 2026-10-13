@@ -139,7 +139,7 @@ test("monthly compatibility counts rescheduled planning at destination and full-
   await page.getByText("Ver dia completo", { exact: true }).click();
   await expect(page.getByRole("region", { name: "Resumo do dia", exact: true })).toContainText("0 de 1 atividades");
   await expect(page.locator(".timeline-list")).not.toContainText("Treino fictício");
-  await page.goto("/planejamento/agenda"); await expect(page.getByRole("heading", { name: "Seu ritmo ao longo do mês", exact: true })).toBeVisible();
+  await page.goto("/planejamento/agenda"); await page.getByRole("button", { name: "Ver resumo mensal", exact: true }).click(); await expect(page.getByRole("heading", { name: "Seu ritmo ao longo do mês", exact: true })).toBeVisible();
   await expect(page.locator(".metric-card").filter({ hasText: "Atividades" })).toContainText("de 1 planejadas");
   await page.goto("/hoje?date=2026-10-11"); await expect(page.getByRole("region", { name: "Próximo" })).toContainText("20:00–21:30");
   await page.getByText("Ver dia completo", { exact: true }).click(); await expect(page.locator(".timeline-list")).toContainText("90 min planejados");

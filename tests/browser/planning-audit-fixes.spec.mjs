@@ -23,21 +23,22 @@ async function importUI(page,data){
 async function exportUI(page){
  await page.goto("/configuracoes/dados-e-backup");await expect(page.getByRole("button",{name:"Exportar arquivo",exact:true})).toBeEnabled();const downloading=page.waitForEvent("download");await page.getByRole("button",{name:"Exportar arquivo",exact:true}).click();return JSON.parse(await readFile(await(await downloading).path(),"utf8"));
 }
+async function monthly(page){await page.goto("/planejamento/agenda");await page.getByRole("button",{name:"Ver resumo mensal",exact:true}).click();}
 for(const [label,kinds] of [["date_only",["date_only"]],["all_day",["all_day"]],["timed",["timed"]],["mixed",["timed","date_only","all_day"]]])
  for(const width of [1440,390])test(`monthly ${label} at ${width}px survives navigation/reload, preserves all facts and valid metrics`,async({page})=>{
   await page.setViewportSize({width,height:900});await page.clock.setFixedTime(new Date(instant));const errors=[];page.on("pageerror",e=>errors.push(e.message));
   const data=backup(kinds);decodeDayforgeBackup(data);await importUI(page,data);const saved=await read(page);
-  await page.goto("/planejamento/agenda");const heading=page.getByRole("heading",{name:"Seu ritmo ao longo do mês",exact:true});await expect(heading).toBeVisible();await expect(page.locator(".month-control strong")).toHaveText("Outubro de 2026");
+  await monthly(page);const heading=page.getByRole("heading",{name:"Seu ritmo ao longo do mês",exact:true});await expect(heading).toBeVisible();await expect(page.locator(".month-control strong")).toHaveText("Outubro de 2026");
   const omitted=kinds.filter(k=>k!=="timed").length,notice=page.getByRole("note",{name:"Limitação da projeção mensal",exact:true});
   if(omitted){await expect(notice).toContainText(`Ocorrências sem horário preservadas: ${omitted}.`);await expect(notice).toContainText("não participam da projeção horária nem dos indicadores deste mês");}
   else await expect(notice).toHaveCount(0);
   await expect(page.locator(".month-metrics")).toContainText(kinds.includes("timed")?"0min de 2h":"0min de 1h");
   const next=page.getByRole("button",{name:"Próximo mês",exact:true});await next.focus();await expect(next).toBeFocused();await page.keyboard.press("Enter");await expect(page.locator(".month-control strong")).toHaveText("Novembro de 2026");await expect(notice).toHaveCount(0);
-  await page.getByRole("button",{name:"Mês anterior",exact:true}).click();await expect(page.locator(".month-control strong")).toHaveText("Outubro de 2026");await page.reload();await expect(heading).toBeVisible();if(omitted)await expect(notice).toBeVisible();
+  await page.getByRole("button",{name:"Mês anterior",exact:true}).click();await expect(page.locator(".month-control strong")).toHaveText("Outubro de 2026");await page.reload();await page.getByRole("button",{name:"Ver resumo mensal",exact:true}).click();await expect(heading).toBeVisible();if(omitted)await expect(notice).toBeVisible();
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);expect(await read(page)).toEqual(saved);
   if(label==="mixed")await page.screenshot({path:`outputs/3a2-audit-monthly-${width}.png`,fullPage:true});
   expect((await exportUI(page)).payload).toEqual(data.payload);
-  await page.goto("/planejamento/agenda");await expect(heading).toBeVisible();await page.locator(".goal-panel textarea").fill("Meta revisada explicitamente");
+  await monthly(page);await expect(heading).toBeVisible();await page.locator(".goal-panel textarea").fill("Meta revisada explicitamente");
   await expect.poll(async()=>{const p=(await read(page)).docs.find(d=>d.id==="planner/current");return p.payload.legacy.monthlyGoals["2026-10"];} ).toBe("Meta revisada explicitamente");
   await expect(page.getByRole("status")).toContainText("Alterações salvas.");const changed=await exportUI(page);
   expect(changed.payload.executionBridge).toEqual(data.payload.executionBridge);expect(changed.payload.planner.legacy).toEqual({...data.payload.planner.legacy,monthlyGoals:{"2026-10":"Meta revisada explicitamente"}});expect(errors).toEqual([]);
@@ -59,7 +60,7 @@ for(const version of [2,3])for(const zone of ["+03:00","-03:00"])test(`Edge back
  }else {const o=data.payload.executionBridge.bridge.entries[1].occurrence;o.originalSchedule.timeZone=zone;o.currentSchedule.timeZone=zone;}
  data.payload.executionBridge.contentFingerprint=hash(data.payload.executionBridge.bridge);decodeDayforgeBackup(data);
  await importUI(page,data);const notice=page.getByRole("note",{name:"Compatibilidade de fusos históricos",exact:true});await expect(notice).toContainText("valores originais foram preservados, sem inferir uma localização");const saved=await read(page);
- await page.goto("/planejamento/agenda");await expect(page.getByRole("heading",{name:"Seu ritmo ao longo do mês",exact:true})).toBeVisible();await expect(notice).toBeVisible();await page.reload();await expect(notice).toBeVisible();expect(await read(page)).toEqual(saved);
+ await monthly(page);await expect(page.getByRole("heading",{name:"Seu ritmo ao longo do mês",exact:true})).toBeVisible();await expect(notice).toBeVisible();await page.reload();await page.getByRole("button",{name:"Ver resumo mensal",exact:true}).click();await expect(notice).toBeVisible();expect(await read(page)).toEqual(saved);
  const exported=await exportUI(page);if(version===3)expect(exported.payload).toEqual(data.payload);
  else {expect(exported.payload.planner.legacy).toEqual(data.payload.planner);const {kind,...entry}=exported.payload.executionBridge.bridge.entries[0];expect(kind).toBe("legacy_partial");expect(entry).toEqual(data.payload.executionBridge.bridge.entries[0]);}
  await page.setViewportSize({width:390,height:844});await expect(notice).toBeVisible();expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);

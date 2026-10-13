@@ -448,3 +448,29 @@ Autenticação, autorização, isolamento por usuário, sessões, proteção de 
 ## 10. Verificação arquitetural
 
 Camadas futuras devem possuir testes unitários de domínio e planner, testes de componente e acessibilidade, integração de persistência/backup/migração, E2E dos fluxos essenciais e contratos de API/segurança quando o backend existir.
+
+## 11. Produtor de eventos da Agenda — 3B-1
+
+`persistence/execution/event-creation.ts` recebe intenção explícita com título,
+flexibilidade, schedule, createdAt e fence/posição do alocador capturados. Usa
+factories e codecs estritos de criação, origem event e templateId null. O snapshot
+validado precede a preparação do hash; a transação exige metadata ativa, CAS de
+época/revisão/base e readback. Escreve somente execution/bridge e o repositório
+avança a revisão uma vez por mudança líquida. Não toca planner/current, fontes,
+procedência, geração, schema ou v1. Replay exige o fato integral e a mesma época
+em snapshot novamente verificado; não rebaseia uma intenção nova após conflito.
+
+`event-input.ts` converte apenas campos confirmados de compromissos timed, com
+datas completas e DST inequívoco. O comando também rejeita criação date_only/all_day;
+esses tipos permanecem somente na consulta e recuperação, sem horários inventados.
+`event-dialog.tsx` conserva a intenção e createdAt em retry inalterado. Contexto
+serializa criação, autosave e recuperação na fila existente; publica snapshot
+validado após sucesso ou erro. Editor aberto conserva sua base e seus campos em
+invalidações externas, enquanto sucesso próprio publica a autoridade comprovada.
+
+`agenda-view.tsx` consulta queryTemporalSnapshot, calcula o calendário em memória
+e distingue ocorrências completas de candidatos legados sem confirmação. As
+bordas civis compartilham a política de leitura DST de Hoje; a fronteira de
+criação continua estrita. Consulta nunca materializa rotina nem escreve fatos.
+Timed é apresentado no fuso de consulta; sem horário/dia inteiro preservam suas
+datas e fuso originais. Não há edição, exclusão ou transição completa nesta unidade.

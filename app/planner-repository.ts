@@ -109,7 +109,7 @@ export function downloadPlannerBackup(state: PlannerState) {
   downloadJsonBackup(state);
 }
 
-export function downloadJsonBackup(value: unknown) {
+export function downloadJsonBackup(value: unknown, filename?: string) {
   const blob = new Blob([JSON.stringify(value, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
@@ -117,7 +117,7 @@ export function downloadJsonBackup(value: unknown) {
   const date = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
 
   link.href = url;
-  link.download = `dayforge-backup-${date}.json`;
+  link.download = filename ?? `dayforge-backup-${date}.json`;
   link.click();
   URL.revokeObjectURL(url);
 }

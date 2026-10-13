@@ -7,7 +7,7 @@
 
 **Status:** Etapas 0.1, 0.2, 1.1 e 1.2A–1.2D implementadas; 2A, fundação da 2B, 2B-A, 2C-A e 2C-B concluídas e integradas; macroetapa 2 encerrada
 **Data:** 12/10/2026
-**Etapa atual:** 3A-1 integrada pela PR #16; 3A-2 — evolução lógica temporal e recuperação, implementada e validada na branch `feat/planning-model-recovery`, ainda não integrada. Produtores e 3B-1 permanecem futuros.
+**Etapa atual:** 3A-1 e 3A-2 concluídas, auditadas e integradas à main; baseline `40ed9f425b419b4ce25b20bc2e44023ea88e5b18`. 3B-1 — criação exclusivamente timed e consulta de eventos canônicos na Agenda — implementada na branch `feat/agenda-canonical-events`, sem integração. Node 452/452; Edge final global 87/88, pendente pelo teste solar 1007px. PR e merge exigem autorizações independentes; outras subetapas permanecem futuras.
 **Objetivo:** transformar as decisões de produto, UX, domínio e arquitetura discutidas até aqui em uma fonte oficial de verdade para o repositório e para o Codex.
 
 ## Como usar esta documentação
@@ -2258,6 +2258,32 @@ Autenticação, autorização, isolamento por usuário, sessões, proteção de 
 
 Camadas futuras devem possuir testes unitários de domínio e planner, testes de componente e acessibilidade, integração de persistência/backup/migração, E2E dos fluxos essenciais e contratos de API/segurança quando o backend existir.
 
+## 11. Produtor de eventos da Agenda — 3B-1
+
+`persistence/execution/event-creation.ts` recebe intenção explícita com título,
+flexibilidade, schedule, createdAt e fence/posição do alocador capturados. Usa
+factories e codecs estritos de criação, origem event e templateId null. O snapshot
+validado precede a preparação do hash; a transação exige metadata ativa, CAS de
+época/revisão/base e readback. Escreve somente execution/bridge e o repositório
+avança a revisão uma vez por mudança líquida. Não toca planner/current, fontes,
+procedência, geração, schema ou v1. Replay exige o fato integral e a mesma época
+em snapshot novamente verificado; não rebaseia uma intenção nova após conflito.
+
+`event-input.ts` converte apenas campos confirmados de compromissos timed, com
+datas completas e DST inequívoco. O comando também rejeita criação date_only/all_day;
+esses tipos permanecem somente na consulta e recuperação, sem horários inventados.
+`event-dialog.tsx` conserva a intenção e createdAt em retry inalterado. Contexto
+serializa criação, autosave e recuperação na fila existente; publica snapshot
+validado após sucesso ou erro. Editor aberto conserva sua base e seus campos em
+invalidações externas, enquanto sucesso próprio publica a autoridade comprovada.
+
+`agenda-view.tsx` consulta queryTemporalSnapshot, calcula o calendário em memória
+e distingue ocorrências completas de candidatos legados sem confirmação. As
+bordas civis compartilham a política de leitura DST de Hoje; a fronteira de
+criação continua estrita. Consulta nunca materializa rotina nem escreve fatos.
+Timed é apresentado no fuso de consulta; sem horário/dia inteiro preservam suas
+datas e fuso originais. Não há edição, exclusão ou transição completa nesta unidade.
+
 ---
 
 # 10 — Roadmap e Fluxo de Implementação
@@ -2275,7 +2301,7 @@ Camadas futuras devem possuir testes unitários de domínio e planner, testes de
 - Etapa 2C-A — contrato/recuperação do planejamento auditado: concluída e integrada pela PR #13.
 - Etapa 2C-B — reagendamento explícito e auditável em Hoje: concluída e integrada pela PR #14.
 - Macroetapa 2 encerrada; os escopos, validações e gates de suas unidades permanecem registrados abaixo.
-- Etapa 3 em andamento: 3A-1 integrada pela PR #16; 3A-2 autorizada exclusivamente como fundação temporal e recuperação. 3B-1 e produtores funcionais continuam sem autorização.
+- Etapa 3 em andamento: 3A-1 e 3A-2 concluídas, auditadas e integradas à main na baseline `40ed9f425b419b4ce25b20bc2e44023ea88e5b18`. 3B-1 autorizada apenas para criação e consulta de eventos canônicos na Agenda; PR e merge possuem gates próprios.
 - Plano da Etapa 1.2 aprovado; cada subetapa exige branch, validação, revisão e autorização próprias.
 - Nenhuma etapa funcional pode começar por consequência automática desta documentação.
 
@@ -2771,6 +2797,57 @@ passou nesta execução; a instabilidade preexistente permanece registrada, sem
 alteração visual ou do teste. D-031 a D-036 e formatos permanecem intactos.
 Correção publicada na branch da PR; integração/merge e 3B-1 aguardam aprovação.
 
+### Etapa 3B-1 — Criação e consulta de eventos canônicos na Agenda
+
+A integração da 3A-2 foi confirmada pelo usuário em 12/10/2026, na baseline
+`40ed9f425b419b4ce25b20bc2e44023ea88e5b18`. Os registros anteriores descrevem
+os gates e validações históricos antes dessa integração.
+
+Unidade autorizada na branch `feat/agenda-canonical-events`: criação explícita de
+eventos independentes e consulta em `/planejamento/agenda`, com calendário mensal,
+seleção de data e fuso de consulta. O formulário confirma título, flexibilidade,
+planejamento com início/fim completos e fuso IANA nomeado. O complemento obrigatório
+da autorização limita a criação exclusivamente a timed. Consulta e recuperação
+exibem também date_only e all_day; dia inteiro mantém fim exclusivo visível.
+O instante de criação é capturado na confirmação;
+planejamento nunca cria execução, categoria legada ou vínculo com template.
+
+A intenção captura época/revisão/posição do alocador na abertura. IDs usam o
+alocador monotônico compartilhado com vínculos legados. Retry inalterado conserva
+os fatos e o instante; replay só reconhece o fato integral na mesma autoridade.
+Intenções diferentes com título/horário iguais permanecem eventos independentes.
+CAS, hash preparado fora da transação, readback e revisão única protegem a escrita.
+A criação altera somente o registro temporal; planner legado e fontes permanecem.
+
+Consulta reutiliza queryTemporalSnapshot e não grava fatos. Datas sem horário
+mantêm sua semântica e fuso, inclusive fim exclusivo; itens legados parciais são
+identificados como candidatos quando seu planejamento não foi confirmado.
+Conflitos preservam campos e base do formulário, exigindo resolução explícita.
+Em erro, o formulário permite baixar seus campos como rascunho separado, sem
+semântica de backup/importação, antes de fechar e revisar os dados salvos.
+Falha isolada permite retry; falha estrutural bloqueia a persistência.
+O resumo mensal e o editor legado de meta permanecem acessíveis por
+`Ver resumo mensal`, preservando métricas, avisos de itens sem horário e fencing.
+
+Mantidos planner lógico 2, registro 3, backup público 3, recuperação 3/2/1,
+geração 2/schema 1, fila única, v1 somente leitura e shell aprovado.
+Fora de escopo: edição/exclusão/transições de eventos completos, recorrências,
+templates, Rotina canônica, Semana, Metas, Consistência, motor, backend e cloud.
+Commit/push seguem a autorização permanente após validação; PR, merge, deploy e
+qualquer outra subetapa exigem suas próprias autorizações.
+
+Implementação e validação local em 12/10/2026: lint/typecheck/build aprovados,
+Node 452/452 (29 novos) e Agenda Edge 11/11. A primeira rodada global Edge foi
+87/88 por helper que não reabria o resumo mensal após reload, corrigido sem
+reduzir assertions. A rodada global final foi 87/88: somente solar-review 1007px,
+`partial: center covered`, falhou. O mesmo cenário passou na primeira rodada e
+na verificação isolada da baseline 40ed9f (1/1); não houve reprodução da falha nessa
+tentativa. A instabilidade anterior continua registrada; não se declara causa
+confirmada nem gate Edge global aprovado. Cena/assertion solar não foram alteradas.
+Master/diff check, revisão de integridade, segredos/UTF-8 e visual desktop/390px
+aprovados. O relatório `3B-1_IMPLEMENTATION_REPORT.md` registra as evidências e a
+pendência para avaliação humana antes da integração. PR/merge seguem não autorizados.
+
 ## 5. Ordem de dependências
 
 - Hoje depende do núcleo temporal e não deve defini-lo dentro de componentes.
@@ -3046,6 +3123,29 @@ Não há novo campo persistido, produtor, versão de backup ou migração semân
 D-031 a D-035 permanecem registros históricos. Qualquer produtor futuro deve usar
 a fronteira estrita, nunca o parser de leitura histórica.
 
+### D-037 — Primeiro produtor de eventos independentes na Agenda (3B-1)
+
+Após integração da 3A-2, a 3B-1 autoriza exclusivamente criar compromissos timed
+canônicos independentes e consultar eventos. O domínio cria ScheduleOccurrence planned, sem template,
+com origem event e planejamento/flexibilidade explicitamente confirmados.
+Timed exige início/fim completos e inequívocos. date_only/all_day não possuem
+produtor nesta unidade, mas continuam recuperáveis e consultáveis: date_only não
+adquire horário/duração e all_day usa fim exclusivo. Toda criação nova exige IANA nomeado (D-036).
+Datas planejadas não produzem execução real ou estados terminais.
+
+Época, revisão e posição do alocador são capturadas antes da preparação. O
+comando compara a base dentro da transação e aloca occ:sequência no registro 3.
+Replay exige identidade e fato integral, inclusive createdAt, na mesma autoridade;
+não deduplica por título/horário, não atualiza automaticamente um formulário antigo
+e não avança revisão. Um retry inalterado conserva o instante confirmado.
+As versões e limites de recuperação da D-035 permanecem.
+
+A Agenda consulta o snapshot comum em memória, apresenta calendário mensal e
+detalhes por data, e distingue fatos canônicos de candidatos legados parciais.
+Novos comandos de execução, edição/exclusão, recorrência e demais subetapas
+permanecem gated. PR e merge não são consequência da autorização de implementar.
+D-031 a D-036 permanecem históricos, sem reescrita retrospectiva.
+
 ## Questões abertas antes das etapas correspondentes
 
 1. Quais limiares e pesos formam a primeira regra de risco de Entregas?
@@ -3314,6 +3414,28 @@ limitação conforme D-036. Não infere localização nem reescreve histórico.
 
 O teste de backup antigo malformado usa envelope 2 válido, exige o erro de vínculo
 esperado e compara o banco integralmente antes/depois da falha e da reabertura.
+
+## 3B-1 — Eventos canônicos na Agenda
+
+- Criar compromisso timed independente com título, flexibilidade e fuso IANA confirmados
+  produz uma ocorrência planned, sem execução, resolução, template ou categoria
+  inferida; original/current e createdAt/updatedAt coincidem na criação.
+- Timed cruza meia-noite com datas completas e consulta em ambos os dias.
+  Recuperação de fixtures date_only/all_day comprova consulta sem horário inventado
+  e fim exclusivo. Comando/formulário não criam esses dois tipos nesta unidade.
+- Consulta de meses/datas futuros é determinística e não altera o banco.
+  Candidatos legados são explícitos, sem conversão em fatos novos.
+- Alocador é compartilhado com novos vínculos legados; IDs não colidem nem são
+  deduplicados por título/horário. Nova intenção idêntica recebe identidade própria.
+- Retry inalterado conserva o instante; concorrência equivalente aplica uma vez.
+  Outra intenção, autosave ou substituição vencedora rejeita a base antiga.
+- Erro de quota/readback reverte integralmente; formulário permanece e retry é
+  explícito. Conflito entre abas conserva campos/fence e exige revisão dos dados
+  salvos. Falha estrutural bloqueia criação e mantém recuperação disponível.
+- Reload e backup 3 preservam o evento. Restore/import/reset substituem todo o
+  conjunto com época local nova; recuperação 3/2/1 e v1 somente leitura permanecem.
+- Rota direta, teclado/Escape/foco e layout a 390px permanecem acessíveis.
+  Sem PR/merge automático, novas transições ou avanço para outra subetapa.
 
 ---
 
@@ -3682,7 +3804,12 @@ e reagendamento explícito já estão implementados e integrados; início e corr
 ## 4. Agenda
 
 ### Atual
-Calendário com baixo nível de interação/persistência funcional.
+3B-1 implementa calendário mensal navegável, consulta por data e criação explícita
+de compromissos canônicos independentes exclusivamente timed. Consulta exibe também
+date_only/all_day recuperados, sem criar horários. Fuso e flexibilidade
+são confirmados; persistência e recuperação usam a fundação integrada da 3A-2.
+Edição/exclusão, novas transições, recorrências, visão semanal e resolução de
+conflitos temporais permanecem fora desta unidade.
 
 ### Alvo
 Calendário navegável com dia/semana/mês, criação de eventos futuros, conflitos, seleção de data e itens de diferentes domínios.

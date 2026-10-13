@@ -228,6 +228,29 @@ Não há novo campo persistido, produtor, versão de backup ou migração semân
 D-031 a D-035 permanecem registros históricos. Qualquer produtor futuro deve usar
 a fronteira estrita, nunca o parser de leitura histórica.
 
+### D-037 — Primeiro produtor de eventos independentes na Agenda (3B-1)
+
+Após integração da 3A-2, a 3B-1 autoriza exclusivamente criar compromissos timed
+canônicos independentes e consultar eventos. O domínio cria ScheduleOccurrence planned, sem template,
+com origem event e planejamento/flexibilidade explicitamente confirmados.
+Timed exige início/fim completos e inequívocos. date_only/all_day não possuem
+produtor nesta unidade, mas continuam recuperáveis e consultáveis: date_only não
+adquire horário/duração e all_day usa fim exclusivo. Toda criação nova exige IANA nomeado (D-036).
+Datas planejadas não produzem execução real ou estados terminais.
+
+Época, revisão e posição do alocador são capturadas antes da preparação. O
+comando compara a base dentro da transação e aloca occ:sequência no registro 3.
+Replay exige identidade e fato integral, inclusive createdAt, na mesma autoridade;
+não deduplica por título/horário, não atualiza automaticamente um formulário antigo
+e não avança revisão. Um retry inalterado conserva o instante confirmado.
+As versões e limites de recuperação da D-035 permanecem.
+
+A Agenda consulta o snapshot comum em memória, apresenta calendário mensal e
+detalhes por data, e distingue fatos canônicos de candidatos legados parciais.
+Novos comandos de execução, edição/exclusão, recorrência e demais subetapas
+permanecem gated. PR e merge não são consequência da autorização de implementar.
+D-031 a D-036 permanecem históricos, sem reescrita retrospectiva.
+
 ## Questões abertas antes das etapas correspondentes
 
 1. Quais limiares e pesos formam a primeira regra de risco de Entregas?
