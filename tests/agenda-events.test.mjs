@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import Dexie from "dexie";
 import { createHash } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { DayforgeDatabase, IndexedDbPersistenceRepository, bootstrapPlannerV2, readPlannerAuthoritySnapshot,
   createCanonicalEvent, exportDayforgeBackup, restoreDayforgeBackupV2, resetPlannerV2, saveActivePlannerV2,
   PlanningConflictError, queryTemporalSnapshot, WebCryptoSha256Hasher, canonicalStringify } from "../persistence/index.ts";
@@ -11,6 +12,9 @@ import { buildEventSchedule } from "../app/event-input.ts";
 import { persistEventCreation } from "../app/event-command.ts";
 import { PlannerWriteQueue } from "../app/planner-write-queue.ts";
 import { readCivilDayWindow, deriveTodayContext } from "../app/today-context.ts";
+import { PlannerDraftSession } from "../app/planner-draft-session.ts";
+import { decodeExecutionBridge } from "../persistence/execution/bridge.ts";
+import { parseUtcInstant, parseLocalDate } from "../domain/temporal/index.ts";
 
 const instant = "2026-10-12T12:00:00.000Z", date = "2026-10-12";
 const val = result => { assert.ok(result.ok); return result.value; };
@@ -32,7 +36,7 @@ const physical = async db => ({ docs: await db.plannerDocuments.toArray(), metad
 const fence = snapshot => ({ expectedAuthorityEpoch: snapshot.authorityEpoch, expectedDatasetRevision: snapshot.datasetRevision });
 async function intent(f, schedule = timed()) {
   const s = await read(f.repo);
-  return { ...fence(s), expectedSequence: s.backup.payload.executionBridge.bridge.nextSequence,
+  return { ...fence(s), expectedSequence: s.backup.payload.executionBridge.bridge.nextSequence, creationIntentId: randomUUID(),
     title: "Evento fictício", flexibility: "fixed", schedule, createdAt: instant };
 }
 const canonical = snapshot => snapshot.backup.payload.executionBridge.bridge.entries.filter(entry => entry.kind === "canonical");
@@ -203,4 +207,106 @@ test("one application queue coalesces equivalent creation and continues after fa
   await assert.rejects(queue.command("occ:1", { createdAt: "other" }, async () => runs++)); release(); await first; assert.equal(runs, 1);
   await assert.rejects(queue.command("occ:2", intent, async () => { throw new Error("Fixture failure"); }));
   await queue.command("occ:2", intent, async () => runs++); assert.equal(runs, 2);
+});
+
+test("independent identical intentions at the same allocator and millisecond never share replay ownership", async t => {
+  const f = await setup(t), a = await intent(f), b = await intent(f), before = await read(f.repo);
+  assert.notEqual(a.creationIntentId, b.creationIntentId);
+  const outcomes = await Promise.allSettled([createCanonicalEvent({ ...a, repository: f.repo }), createCanonicalEvent({ ...b, repository: f.other })]);
+  assert.deepEqual(outcomes.map(o => o.status).sort(), ["fulfilled", "rejected"]);
+  const once = await read(f.repo); assert.equal(canonical(once).length, 1); assert.equal(once.datasetRevision, before.datasetRevision + 1);
+  const saved = await physical(f.db), winner = outcomes[0].status === "fulfilled" ? a : b, loser = winner === a ? b : a;
+  assert.equal(canonical(once)[0].creationIntentId, winner.creationIntentId);
+  await assert.rejects(createCanonicalEvent({ ...loser, repository: f.repo })); assert.deepEqual(await physical(f.db), saved);
+  await createCanonicalEvent({ ...await intent(f), repository: f.other });
+  f.repo.close(); const reopened = await read(f.repo);
+  assert.deepEqual(canonical(reopened).map(e => e.occurrence.id), ["occ:2", "occ:3"]);
+  assert.equal(new Set(canonical(reopened).map(e => e.creationIntentId)).size, 2);
+  const backup = await exportDayforgeBackup({ repository: f.repo, active: true, exportedAt: instant });
+  await restoreDayforgeBackupV2({ repository: f.repo, backup, active: true });
+  assert.deepEqual(canonical(await read(f.repo)), canonical(reopened));
+});
+
+test("creation receipt cannot be forged, reused for a new allocation or attached retroactively", async t => {
+  const f = await setup(t), original = await intent(f); await createCanonicalEvent({ ...original, repository: f.repo });
+  const before = await physical(f.db);
+  for (const change of [{ creationIntentId: randomUUID() }, { creationIntentId: undefined }, { creationIntentId: "invalid" }, { title: "Divergência" }, { createdAt: "2026-10-12T13:00:00.000Z" }]) {
+    await assert.rejects(createCanonicalEvent({ ...original, ...change, repository: f.other })); assert.deepEqual(await physical(f.db), before);
+  }
+  await assert.rejects(createCanonicalEvent({ ...await intent(f), creationIntentId: original.creationIntentId, repository: f.repo }));
+  assert.deepEqual(await physical(f.db), before);
+  const historical = (await read(f.repo)).backup, bridge = historical.payload.executionBridge.bridge;
+  delete bridge.entries.find(e => e.kind === "canonical").creationIntentId;
+  historical.payload.executionBridge.contentFingerprint = createHash("sha256").update(canonicalStringify(bridge)).digest("hex");
+  await restoreDayforgeBackupV2({ repository: f.repo, backup: historical, active: true });
+  const legacy = await read(f.repo), saved = await physical(f.db);
+  assert.equal(Object.hasOwn(canonical(legacy)[0], "creationIntentId"), false);
+  await assert.rejects(createCanonicalEvent({ ...original, ...fence(legacy), repository: f.other }));
+  assert.deepEqual(await physical(f.db), saved);
+  const exported = await exportDayforgeBackup({ repository: f.repo, active: true, exportedAt: instant });
+  assert.equal(Object.hasOwn(exported.payload.executionBridge.bridge.entries.find(e => e.kind === "canonical"), "creationIntentId"), false);
+});
+
+test("strict registry rejects malformed and duplicate receipts without weakening historical codecs", async t => {
+  const f = await setup(t); await createCanonicalEvent({ ...await intent(f), repository: f.repo }); await createCanonicalEvent({ ...await intent(f), repository: f.repo });
+  const backup = (await read(f.repo)).backup;
+  for (const change of ["duplicate", "invalid", "extra", "null"]) {
+    const bridge = structuredClone(backup.payload.executionBridge.bridge), complete = bridge.entries.filter(e => e.kind === "canonical");
+    if (change === "duplicate") complete[1].creationIntentId = complete[0].creationIntentId;
+    if (change === "invalid") complete[0].creationIntentId = "00000000-0000-0000-0000-000000000000";
+    if (change === "extra") complete[0].technicalExtra = true;
+    if (change === "null") complete[0].creationIntentId = null;
+    assert.throws(() => decodeExecutionBridge(bridge, backup.payload.planner.legacy));
+  }
+});
+
+const repositoryProxy = (repo, overrides) => ({ open: () => repo.open(), close: () => repo.close(), read: fn => repo.read(fn), write: fn => repo.write(fn), ...overrides });
+for (const rejection of [undefined, null, false, 0, ""]) test(`falsy rejection ${JSON.stringify(rejection)} preserves the form session and allows unchanged retry`, async t => {
+  const f = await setup(t), command = await intent(f), before = await physical(f.db), snapshot = await read(f.repo);
+  const session = new PlannerDraftSession({ state: f.state, executionBridge: snapshot.backup.payload.executionBridge.bridge, authorityEpoch: snapshot.authorityEpoch, datasetRevision: snapshot.datasetRevision }); session.beginEditing();
+  const publish = (next, applied) => { assert.equal(applied, false); session.observe(next); };
+  await assert.rejects(persistEventCreation({ ...command, repository: repositoryProxy(f.repo, { write: async () => { throw rejection; } }), publish }), /Não foi possível confirmar/);
+  assert.equal(session.remote, null); assert.equal(session.openEditors, 1); assert.deepEqual(await physical(f.db), before);
+  f.repo.close(); assert.equal(canonical(await read(f.repo)).length, 0);
+  await persistEventCreation({ ...command, repository: f.repo, publish: (next, applied) => { assert.equal(applied, true); session.load(next); } });
+  assert.equal(canonical(await read(f.repo))[0].creationIntentId, command.creationIntentId); assert.equal(session.remote, null);
+});
+
+for (const rejection of [new Error("Resposta perdida após commit"), undefined, false]) test(`real commit followed by lost response ${String(rejection)} is reconciled by its receipt`, async t => {
+  const f = await setup(t), command = await intent(f), before = await read(f.repo);
+  const session = new PlannerDraftSession({ state: f.state, executionBridge: before.backup.payload.executionBridge.bridge, authorityEpoch: before.authorityEpoch, datasetRevision: before.datasetRevision }); session.beginEditing();
+  await persistEventCreation({ ...command, repository: repositoryProxy(f.repo, { write: async fn => { await f.repo.write(fn); throw rejection; } }),
+    publish: (next, applied) => { assert.equal(applied, true); session.load(next); } });
+  const once = await read(f.repo); assert.equal(canonical(once).length, 1); assert.equal(once.datasetRevision, before.datasetRevision + 1); assert.equal(session.remote, null);
+  const saved = await physical(f.db);
+  await persistEventCreation({ ...command, repository: f.other, publish: (_next, applied) => assert.equal(applied, true) });
+  assert.deepEqual(await physical(f.db), saved);
+  f.repo.close(); assert.equal(canonical(await read(f.repo))[0].creationIntentId, command.creationIntentId);
+});
+
+test("reconciliation never claims another intent's event and preserves an open editor", async t => {
+  const f = await setup(t), own = await intent(f), other = await intent(f), before = await read(f.repo);
+  const session = new PlannerDraftSession({ state: f.state, executionBridge: before.backup.payload.executionBridge.bridge, authorityEpoch: before.authorityEpoch, datasetRevision: before.datasetRevision }); session.beginEditing();
+  await createCanonicalEvent({ ...other, repository: f.other }); const saved = await physical(f.db);
+  await assert.rejects(persistEventCreation({ ...own, repository: f.repo, publish: (next, applied) => { assert.equal(applied, false); session.observe(next); } }));
+  assert.ok(session.remote); assert.equal(session.openEditors, 1); assert.deepEqual(await physical(f.db), saved);
+});
+
+test("a resolved response without the authoritative receipt cannot announce success", async t => {
+  const f = await setup(t), command = await intent(f), before = await physical(f.db);
+  await assert.rejects(persistEventCreation({ ...command, repository: repositoryProxy(f.repo, { write: async () => undefined }), publish: (_snapshot, applied) => assert.equal(applied, false) }), /Não foi possível comprovar/);
+  assert.deepEqual(await physical(f.db), before);
+});
+
+test("upper calendar read boundaries preserve December 9999 and strict persisted instants", async t => {
+  const f = await setup(t), schedule = val(createTimedSchedule({ startsAt: "9999-12-31T23:30:00.000Z", durationMinutes: 90, timeZone: "UTC" }));
+  await createCanonicalEvent({ ...await intent(f, schedule), repository: f.repo });
+  await recoverFixtures(f, [val(createDateOnlySchedule({ date: "9999-12-31", timeZone: "UTC" })), val(createAllDaySchedule({ startsOn: "9999-12-30", endsBefore: "9999-12-31", timeZone: "UTC" }))]);
+  const s = await read(f.repo), saved = await physical(f.db);
+  const query = (date, zone = "UTC") => queryTemporalSnapshot({ planner: s.backup.payload.planner, registry: s.backup.payload.executionBridge.bridge, window: readCivilDayWindow(date, zone), referenceTime: instant, displayTimeZone: zone }).filter(e => e.nature === "canonical");
+  assert.equal(query("9999-11-30").length, 0); assert.equal(query("9999-12-30").length, 1); assert.equal(query("9999-12-31").length, 2);
+  assert.equal(readCivilDayWindow("9999-12-31", "UTC").endsBefore, "+010000-01-01T00:00:00.000Z");
+  assert.equal(query("9999-12-31", "America/New_York").filter(e => e.planning.kind === "timed").length, 1);
+  assert.equal(parseUtcInstant("+010000-01-01T00:00:00.000Z").ok, false); assert.equal(parseLocalDate("10000-01-01").ok, false);
+  assert.throws(() => readCivilDayWindow("10000-01-01", "UTC")); assert.deepEqual(await physical(f.db), saved);
 });

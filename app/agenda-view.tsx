@@ -35,7 +35,7 @@ export default function AgendaView() {
     createEvent, beginEditing, endEditing } = usePlanner();
   const [zone, setZone] = useState(() => Intl.DateTimeFormat().resolvedOptions().timeZone);
   const [date, setDate] = useState(() => localPlanningTime(new Date().toISOString(), zone).slice(0, 10));
-  const [base, setBase] = useState<Pick<EventCreationIntent, "expectedAuthorityEpoch" | "expectedDatasetRevision" | "expectedSequence"> | null>(null);
+  const [base, setBase] = useState<Pick<EventCreationIntent, "expectedAuthorityEpoch" | "expectedDatasetRevision" | "expectedSequence" | "creationIntentId"> | null>(null);
   const [navigationError, setNavigationError] = useState("");
   const [showSummary, setShowSummary] = useState(false);
   const trigger = useRef<HTMLElement | null>(null);
@@ -43,13 +43,14 @@ export default function AgendaView() {
   const projection = useMemo(() => {
     if (!ready || !date || !executionBridge) return null;
     try {
-      const first = monthStart(date), next = monthStart(date, 1);
-      const monthWindow = { startsAt: readCivilDayWindow(first, zone).startsAt, endsBefore: readCivilDayWindow(next, zone).startsAt };
+      const first = monthStart(date);
+      const last = new Date(`${first}T12:00:00.000Z`); last.setUTCMonth(last.getUTCMonth() + 1, 0);
+      const count = last.getUTCDate(), lastDate = `${first.slice(0, 7)}-${String(count).padStart(2, "0")}`;
+      const monthWindow = { startsAt: readCivilDayWindow(first, zone).startsAt, endsBefore: readCivilDayWindow(lastDate, zone).endsBefore };
       const input = { planner: planningEnvelope(state), registry: executionBridge,
         referenceTime: new Date().toISOString(), displayTimeZone: zone };
       const monthItems = queryTemporalSnapshot({ ...input, window: monthWindow });
       const items = queryTemporalSnapshot({ ...input, window: readCivilDayWindow(date, zone) });
-      const count = Math.round((Date.parse(`${next}T12:00:00.000Z`) - Date.parse(`${first}T12:00:00.000Z`)) / 86400000);
       const days = Array.from({ length: count }, (_, index) => {
         const day = `${first.slice(0, 7)}-${String(index + 1).padStart(2, "0")}`, window = readCivilDayWindow(day, zone);
         return { day, count: monthItems.filter(item => item.nature === "canonical" && item.planning && scheduleIntersects(item.planning, window.startsAt, window.endsBefore)).length };
@@ -64,7 +65,7 @@ export default function AgendaView() {
   function open() {
     if (!executionBridge || !beginEditing()) return;
     trigger.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    setBase({ expectedAuthorityEpoch: authorityEpoch, expectedDatasetRevision: datasetRevision, expectedSequence: executionBridge.nextSequence });
+    setBase({ expectedAuthorityEpoch: authorityEpoch, expectedDatasetRevision: datasetRevision, expectedSequence: executionBridge.nextSequence, creationIntentId: crypto.randomUUID() });
   }
   function close() {
     setBase(null);

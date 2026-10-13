@@ -117,8 +117,12 @@ function dayKey(date: string): DayKey {
 export function readCivilDayWindow(date: string, timeZone: string) {
   const formatter = new Intl.DateTimeFormat("en-US", { timeZone, hourCycle: "h23", year: "numeric",
     month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
-  return { startsAt: new Date(zonedEpoch(civilParts(date), formatter)).toISOString(),
-    endsBefore: new Date(zonedEpoch(civilParts(shiftDate(date, 1)), formatter)).toISOString() };
+  const start = civilParts(date);
+  // A read boundary may be year 10000; it is not a new persisted LocalDate/UTC fact.
+  const next = new Date(utcEpoch(start) + 86_400_000);
+  const end = { year: next.getUTCFullYear(), month: next.getUTCMonth() + 1, day: next.getUTCDate(), hour: 0, minute: 0 };
+  return { startsAt: new Date(zonedEpoch(start, formatter)).toISOString(),
+    endsBefore: new Date(zonedEpoch(end, formatter)).toISOString() };
 }
 
 function entriesForDay(state: PlannerState, date: string): readonly (RoutineItem | DailyItem)[] {

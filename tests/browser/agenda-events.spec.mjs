@@ -171,10 +171,13 @@ test("structurally invalid authority blocks event creation and explicit recovery
   }));
   const corrupted = await read(page); await page.reload(); await expect(page.locator(".storage-warning")).toBeVisible();
   await expect(page.getByRole("button", { name: "Novo evento", exact: true })).toBeDisabled(); expect(await read(page)).toEqual(corrupted);
-  await page.goto("/configuracoes/dados-e-backup"); await expect(page.getByRole("button", { name: "Exportar arquivo", exact: true })).toBeDisabled();
+  await page.goto("/configuracoes/dados-e-backup"); await expect(page.getByRole("button", { name: "Selecionar arquivo", exact: true })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Exportar arquivo", exact: true })).toBeDisabled();
   await page.locator('input[type="file"]').setInputFiles({ name: "fictional-v1.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(state)) });
   await expect(page.getByRole("status")).toContainText("Backup importado com sucesso"); await page.goto("/planejamento/agenda");
   await expect(page.getByRole("button", { name: "Novo evento", exact: true })).toBeEnabled(); await expect(page.locator(".storage-warning")).toHaveCount(0);
+  const recovered = await read(page); await page.reload(); await expect(page.getByRole("button", { name: "Novo evento", exact: true })).toBeEnabled();
+  expect(await read(page)).toEqual(recovered);
   expect(await page.evaluate(() => localStorage.getItem("rotina-369:data:v1"))).toBe(JSON.stringify(state));
 });
 
@@ -189,4 +192,84 @@ test("calendar queries, keyboard cancel and responsive layout cause no writes", 
   await expect(page.getByLabel("Título do evento", { exact: true })).toBeFocused(); await page.screenshot({ path: "outputs/agenda-dialog-390.png", fullPage: true });
   await page.keyboard.press("Escape"); await expect(page.getByRole("dialog")).toHaveCount(0); await expect(page.getByRole("button", { name: "Novo evento", exact: true })).toBeFocused();
   expect(await read(page)).toEqual(before);
+});
+
+test("independent identical forms at one millisecond conflict, retain fields and create separately after explicit base refresh", async ({ page, context }) => {
+  await setup(page); const other = await context.newPage(); await other.clock.setFixedTime(new Date(instant));
+  await other.goto("/planejamento/agenda"); await expect(other.getByRole("button", { name: "Novo evento", exact: true })).toBeEnabled();
+  await other.getByLabel("Data consultada", { exact: true }).fill(day);
+  await open(page); await open(other); const before = await read(page); await pauseHash(page);
+  await page.getByRole("button", { name: "Criar evento", exact: true }).click(); await expect.poll(() => page.evaluate(() => window.creationHashEntered)).toBe(true);
+  await submit(other); const winner = await read(other); await page.evaluate(() => window.releaseCreationHash());
+  await expect(page.getByRole("dialog").getByRole("alert")).toBeVisible();
+  await expect(page.getByText("Evento criado.", { exact: true })).toHaveCount(0);
+  await expect(page.getByLabel("Título do evento", { exact: true })).toHaveValue("Evento fictício");
+  await expect(page.getByLabel("Flexibilidade", { exact: true })).toHaveValue("fixed");
+  await expect(page.getByLabel("Início planejado", { exact: true })).toHaveValue(`${day}T23:00`);
+  await expect(page.getByLabel("Fim planejado", { exact: true })).toHaveValue("2026-11-03T01:00");
+  await expect(page.getByLabel("Fuso IANA do evento", { exact: true })).toHaveValue("UTC");
+  expect(entries(winner)).toHaveLength(1); expect(winner.metadata.datasetRevision).toBe(before.metadata.datasetRevision + 1); expect(await read(page)).toEqual(winner);
+  await page.getByRole("button", { name: "Cancelar", exact: true }).click(); page.once("dialog", dialog => dialog.accept());
+  await page.getByRole("button", { name: "Carregar versão salva", exact: true }).click(); await expect(page.getByRole("alert", { name: "Alterações locais preservadas" })).toHaveCount(0);
+  await open(page); await submit(page); const twice = await read(page);
+  expect(entries(twice).map(e => e.occurrence.id)).toEqual(["occ:2", "occ:3"]);
+  expect(new Set(entries(twice).map(e => e.creationIntentId)).size).toBe(2); expect(entries(twice).map(e => e.occurrence.createdAt)).toEqual([instant, instant]);
+  expect(twice.metadata.datasetRevision).toBe(before.metadata.datasetRevision + 2);
+  await page.reload(); await expect(page.getByRole("button", { name: "Novo evento", exact: true })).toBeEnabled(); expect(await read(page)).toEqual(twice);
+  await page.goto("/configuracoes/dados-e-backup"); await expect(page.getByRole("button", { name: "Exportar arquivo", exact: true })).toBeEnabled();
+  const downloading = page.waitForEvent("download"); await page.getByRole("button", { name: "Exportar arquivo", exact: true }).click();
+  const backup = JSON.parse(await readFile(await (await downloading).path(), "utf8")); expect(backup.formatVersion).toBe(3); expect(backup.payload.executionBridge.bridge).toEqual(twice.bridge.payload);
+});
+
+for (const rejection of [undefined, null, false, 0, ""]) test(`falsy rejection ${JSON.stringify(rejection)} never announces success and unchanged retry preserves receipt`, async ({ page }) => {
+  await setup(page); const before = await read(page); await open(page);
+  await page.evaluate(rejection => { const original = crypto.subtle.digest.bind(crypto.subtle); let first = true;
+    crypto.subtle.digest = async (...args) => { if (first) { first = false; throw rejection; } return original(...args); };
+  }, rejection);
+  await page.getByRole("button", { name: "Criar evento", exact: true }).click(); await expect(page.getByRole("dialog")).toContainText("Não foi possível confirmar");
+  await expect(page.getByText("Evento criado.", { exact: true })).toHaveCount(0); await expect(page.getByLabel("Título do evento", { exact: true })).toHaveValue("Evento fictício");
+  await expect(page.getByLabel("Início planejado", { exact: true })).toHaveValue(`${day}T23:00`); await expect(page.getByLabel("Flexibilidade", { exact: true })).toHaveValue("fixed");
+  const downloading = page.waitForEvent("download"); await page.getByRole("button", { name: "Baixar rascunho do evento", exact: true }).click();
+  const draft = JSON.parse(await readFile(await (await downloading).path(), "utf8")); expect(draft.format).toBe("dayforge-event-draft");
+  expect(await read(page)).toEqual(before); await submit(page); const after = await read(page);
+  expect(entries(after)).toHaveLength(1); expect(entries(after)[0].creationIntentId).toBe(draft.base.creationIntentId); expect(entries(after)[0].occurrence.createdAt).toBe(instant);
+  expect(after.metadata.datasetRevision).toBe(before.metadata.datasetRevision + 1); await page.reload(); await expect(page.getByRole("button", { name: "Novo evento", exact: true })).toBeEnabled(); expect(await read(page)).toEqual(after);
+});
+
+test("a lost completion response AFTER a real IDB commit is proven by the receipt and published without a remote conflict", async ({ page }) => {
+  await setup(page); const before = await read(page); await open(page);
+  await page.evaluate(() => {
+    const original = Object.getOwnPropertyDescriptor(IDBTransaction.prototype, "oncomplete");
+    Object.defineProperty(IDBTransaction.prototype, "oncomplete", { ...original, set(handler) {
+      if (this.mode === "readwrite" && this.objectStoreNames.contains("plannerDocuments")) {
+        Object.defineProperty(IDBTransaction.prototype, "oncomplete", original);
+        original.set.call(this, function(event) {
+          // The browser has committed. Suppress Dexie's completion notification, then
+          // inject a rejected response via its existing error handler (no transaction rollback).
+          event.stopImmediatePropagation(); window.creationCommitConfirmed = true;
+          Object.defineProperty(this, "error", { value: new DOMException("Fixture lost response after commit", "UnknownError") });
+          this.onerror?.call(this, new Event("error", { cancelable: true }));
+        });
+      } else original.set.call(this, handler);
+    } });
+  });
+  await submit(page); expect(await page.evaluate(() => window.creationCommitConfirmed)).toBe(true);
+  await expect(page.getByText("Evento criado.", { exact: true })).toBeVisible(); await expect(page.getByRole("alert", { name: "Alterações locais preservadas" })).toHaveCount(0);
+  await expect(page.locator(".storage-warning")).toHaveCount(0); const after = await read(page);
+  expect(entries(after)).toHaveLength(1); expect(after.metadata.datasetRevision).toBe(before.metadata.datasetRevision + 1);
+  await page.reload(); await expect(page.getByRole("button", { name: "Novo evento", exact: true })).toBeEnabled(); expect(await read(page)).toEqual(after);
+});
+
+test("December 9999 remains queryable with 31 days, exclusive end and bounded navigation", async ({ page }) => {
+  await setup(page); await page.getByLabel("Data consultada", { exact: true }).fill("9999-12-10"); await open(page, "Último mês válido");
+  await page.getByLabel("Início planejado", { exact: true }).fill("9999-12-10T09:00"); await page.getByLabel("Fim planejado", { exact: true }).fill("9999-12-10T10:00"); await submit(page);
+  const saved = await read(page); await expect(page.getByRole("region", { name: "Eventos da data" })).toContainText("Último mês válido");
+  await expect(page.locator('button[aria-label^="Consultar 9999-12-"]')).toHaveCount(31);
+  await page.getByRole("button", { name: "Mês anterior", exact: true }).click(); await expect(page.locator('button[aria-label^="Consultar 9999-11-"]')).toHaveCount(30);
+  await page.getByRole("button", { name: "Próximo mês", exact: true }).click(); await page.getByRole("button", { name: "Próximo mês", exact: true }).click();
+  await expect(page.getByRole("alert")).toContainText("Limite do calendário alcançado"); await expect(page.locator('button[aria-label^="Consultar 9999-12-"]')).toHaveCount(31);
+  await page.getByLabel("Data consultada", { exact: true }).fill("9999-12-10"); await expect(page.getByRole("region", { name: "Eventos da data" })).toContainText("Último mês válido");
+  await page.getByRole("button", { name: /^Consultar 9999-12-31:/ }).click(); await expect(page.getByText("Nenhum evento canônico nesta data.", { exact: true })).toBeVisible();
+  expect(await read(page)).toEqual(saved); await page.reload(); await expect(page.getByRole("button", { name: "Novo evento", exact: true })).toBeEnabled();
+  await page.getByLabel("Data consultada", { exact: true }).fill("9999-12-10"); await expect(page.getByRole("region", { name: "Eventos da data" })).toContainText("Último mês válido"); expect(await read(page)).toEqual(saved);
 });

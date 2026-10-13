@@ -8,7 +8,7 @@ import { downloadJsonBackup } from "./planner-repository";
 import styles from "./agenda.module.css";
 
 export function EventDialog({ date, timeZone, base, onCreate, onClose }: {
-  date: string; timeZone: string; base: Pick<EventCreationIntent, "expectedAuthorityEpoch" | "expectedDatasetRevision" | "expectedSequence">;
+  date: string; timeZone: string; base: Pick<EventCreationIntent, "expectedAuthorityEpoch" | "expectedDatasetRevision" | "expectedSequence" | "creationIntentId">;
   onCreate: (intent: EventCreationIntent) => Promise<void>; onClose: () => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null), submitting = useRef(false);
