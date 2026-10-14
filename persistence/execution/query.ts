@@ -12,29 +12,36 @@ export type TemporalQueryItem = Readonly<{
 function civilDate(instant: string, zone: string) {
   const parts = new Intl.DateTimeFormat("en-CA", { timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date(instant));
   const get = (kind: string) => parts.find(part => part.type === kind)!.value;
-  return `${get("year")}-${get("month")}-${get("day")}`;
+  return `${get("year").padStart(4, "0")}-${get("month")}-${get("day")}`;
+}
+const civilKey = (date: string) => { const [year, month, day] = date.split("-").map(Number); return year * 10000 + month * 100 + day; };
+/** Query-only boundaries can extend past the last stored date. Persisted codecs stay strict. */
+function queryBoundary(instant: string) {
+  const epoch = Date.parse(instant);
+  return Number.isFinite(epoch) && new Date(epoch).toISOString() === instant;
 }
 export function scheduleIntersects(schedule: OccurrenceSchedule, start: string, end: string) {
-  if (schedule.kind === "timed") return schedule.startsAt < end && Date.parse(schedule.startsAt) + schedule.durationMinutes * 60000 > Date.parse(start);
+  if (schedule.kind === "timed") return Date.parse(schedule.startsAt) < Date.parse(end) && Date.parse(schedule.startsAt) + schedule.durationMinutes * 60000 > Date.parse(start);
   const from = civilDate(start, schedule.timeZone), through = civilDate(new Date(Date.parse(end) - 1).toISOString(), schedule.timeZone);
-  return schedule.kind === "date_only" ? schedule.date >= from && schedule.date <= through
-    : schedule.startsOn <= through && schedule.endsBefore > from;
+  return schedule.kind === "date_only" ? civilKey(schedule.date) >= civilKey(from) && civilKey(schedule.date) <= civilKey(through)
+    : civilKey(schedule.startsOn) <= civilKey(through) && civilKey(schedule.endsBefore) > civilKey(from);
 }
 /** Pure common query. Unconfirmed legacy candidates never acquire a fabricated schedule. */
 export function queryTemporalSnapshot(input: Readonly<{ planner: PlanningEnvelope; registry: ExecutionBridge;
   window: Readonly<{ startsAt: string; endsBefore: string }>; referenceTime: string; displayTimeZone: string }>): readonly TemporalQueryItem[] {
   const planner = decodePlanningEnvelope(input.planner), registry = decodeExecutionBridge(input.registry, planner.legacy);
-  if (registry.version !== 3 || !parseUtcInstant(input.window.startsAt).ok || !parseUtcInstant(input.window.endsBefore).ok
-    || input.window.startsAt >= input.window.endsBefore || !parseUtcInstant(input.referenceTime).ok || !parseIanaTimeZone(input.displayTimeZone).ok) throw new Error("Consulta temporal inválida.");
+  if (registry.version !== 3 || !queryBoundary(input.window.startsAt) || !queryBoundary(input.window.endsBefore)
+    || Date.parse(input.window.startsAt) >= Date.parse(input.window.endsBefore) || !parseUtcInstant(input.referenceTime).ok || !parseIanaTimeZone(input.displayTimeZone).ok) throw new Error("Consulta temporal inválida.");
   const startDate = civilDate(input.window.startsAt, input.displayTimeZone), endDate = civilDate(new Date(Date.parse(input.window.endsBefore) - 1).toISOString(), input.displayTimeZone);
-  const previous = new Date(`${startDate}T12:00:00.000Z`); previous.setUTCDate(previous.getUTCDate() - 1);
-  const firstCandidate = previous.toISOString().slice(0, 10);
+  const previous = new Date(0), [year, month, day] = startDate.split("-").map(Number);
+  previous.setUTCFullYear(year, month - 1, day - 1); previous.setUTCHours(12, 0, 0, 0);
+  const firstCandidate = previous.getUTCFullYear() * 10000 + (previous.getUTCMonth() + 1) * 100 + previous.getUTCDate();
   const result: TemporalQueryItem[] = [];
   for (const entry of registry.entries) {
     const canonical = entry.kind === "canonical";
     const planning = temporalPlanning(entry);
     if (planning ? !scheduleIntersects(planning, input.window.startsAt, input.window.endsBefore)
-      : !canonical && (entry.sourceDate < firstCandidate || entry.sourceDate > endDate)) continue;
+      : !canonical && (civilKey(entry.sourceDate) < firstCandidate || civilKey(entry.sourceDate) > civilKey(endDate))) continue;
     const execution = canonical ? entry.occurrence.execution : entry.execution;
     const pending = canonical ? entry.occurrence.status === "planned" : !entry.item.completed && !execution;
     result.push({ id: temporalEntryId(entry), nature: canonical ? "canonical" : "legacy_partial",

@@ -448,3 +448,74 @@ Autenticação, autorização, isolamento por usuário, sessões, proteção de 
 ## 10. Verificação arquitetural
 
 Camadas futuras devem possuir testes unitários de domínio e planner, testes de componente e acessibilidade, integração de persistência/backup/migração, E2E dos fluxos essenciais e contratos de API/segurança quando o backend existir.
+
+## 11. Produtor de eventos da Agenda — 3B-1
+
+`persistence/execution/event-creation.ts` recebe intenção explícita com título,
+flexibilidade, schedule, createdAt e fence/posição do alocador capturados. Usa
+factories e codecs estritos de criação, origem event e templateId null. O snapshot
+validado precede a preparação do hash; a transação exige metadata ativa, CAS de
+época/revisão/base e readback. Escreve somente execution/bridge e o repositório
+avança a revisão uma vez por mudança líquida. Não toca planner/current, fontes,
+procedência, geração, schema ou v1. Replay exige o fato integral e a mesma época
+em snapshot novamente verificado; não rebaseia uma intenção nova após conflito.
+
+`event-input.ts` converte apenas campos confirmados de compromissos timed, com
+datas completas e DST inequívoco. O comando também rejeita criação date_only/all_day;
+esses tipos permanecem somente na consulta e recuperação, sem horários inventados.
+`event-dialog.tsx` conserva a intenção e createdAt em retry inalterado. Contexto
+serializa criação, autosave e recuperação na fila existente; publica snapshot
+validado após sucesso ou erro. Editor aberto conserva sua base e seus campos em
+invalidações externas, enquanto sucesso próprio publica a autoridade comprovada.
+
+`agenda-view.tsx` consulta queryTemporalSnapshot, calcula o calendário em memória
+e distingue ocorrências completas de candidatos legados sem confirmação. As
+bordas civis compartilham a política de leitura DST de Hoje; a fronteira de
+criação continua estrita. Consulta nunca materializa rotina nem escreve fatos.
+Timed é apresentado no fuso de consulta; sem horário/dia inteiro preservam suas
+datas e fuso originais. Não há edição, exclusão ou transição completa nesta unidade.
+
+## 12. Correções pré-merge da 3B-1 — prova de intenção e fronteiras de leitura
+
+D-038 adiciona creationIntentId opcional à entrada canonical do registro 3,
+fora dos campos semânticos de ScheduleOccurrence. O comando exige o UUID v4
+injetado; o codec exige formato canônico, origem event e unicidade quando presente.
+O mesmo documento/fingerprint contém ocorrência e prova atomicamente. Ausência
+em fatos antigos é preservada, sem migração/backfill ou novo store. Export/restore
+carregam a extensão pelo codec estrito; recuperação 3/2/1 e contadores locais permanecem.
+Aplicações antigas que desconhecem a extensão falham fechadas; a aplicação
+corrigida continua lendo os fatos anteriores. Não há nova versão pública/schema.
+
+isEventCreationConfirmed compara prova, occ:n, ocorrência integral e época.
+Na primeira correção, verifyPlanningReplay verificava novamente o snapshot em
+transação readonly. A reconciliação específica atual segue D-039 abaixo.
+O adapter usa a prova autoritativa para publicar sucesso mesmo após resposta perdida,
+sem nova escrita/revisão. Erros falsy continuam erros quando não existe fato próprio.
+Outro token ou fato divergente conserva conflito/formulário; guards de sessão
+e CAS permanecem. Provas antigas recuperadas não sobrevivem à troca de época do destino.
+
+readCivilDayWindow calcula a próxima borda por aritmética civil, inclusive
+ano 10000 como limite exclusivo de leitura. queryTemporalSnapshot compara
+instantes/datas numericamente e aceita bordas ISO reais expandidas somente na
+janela efêmera. Codecs de fatos/backup/referência permanecem estritos. A Agenda
+usa o último dia do mês para sua borda final, sem truncamento de milissegundos
+nem janeiro de 10000 como data selecionável. O teste de recuperação aguarda
+o controle de importação habilitado e verifica o conjunto novamente após reload.
+
+## 13. Reconciliação de criação sob concorrência — D-039
+
+reconcileCanonicalEvent separa comprovação de um fato da autorização de uma
+mutação. Reaproveita readBackupSnapshot e a materialização/hash compartilhados
+com exportação, sem outra autoridade. Após a validação inicial, uma recaptura
+readonly consistente fornece planner, registro, proveniência e fence da testemunha.
+Valida fora da transação, prova UUID/fato/época exatos e verifica a época atual
+antes de retornar. A revisão pode avançar; a confirmação nunca incrementa nada.
+O ponto de linearização é a captura da testemunha. Alterações posteriores a essa
+captura chegam pela fila de refresh; não há perseguição ilimitada de revisões.
+
+EventCommand sempre comprova o resultado antes de publicar sucesso, mesmo que
+a resposta do commit tenha se perdido. Na sessão dirty/remote, PlannerContext
+permite apenas esse caminho readonly, mantendo os guards dos demais comandos.
+Sem prova, a intenção obsoleta não chega ao produtor. confirmedEvent preserva
+rascunhos, outros editores e bases mais recentes já observadas. Novas escritas
+mantêm o CAS original e verifyPlanningReplay global permanece inalterado.

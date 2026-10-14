@@ -38,7 +38,7 @@ export type ExecutionBridge = Readonly<{
   nextSequence: number;
   entries: readonly (OccurrenceBinding | CanonicalTemporalEntry)[];
 }>;
-export type CanonicalTemporalEntry = Readonly<{ kind: "canonical"; occurrence: ScheduleOccurrence }>;
+export type CanonicalTemporalEntry = Readonly<{ kind: "canonical"; occurrence: ScheduleOccurrence; creationIntentId?: string }>;
 export function legacyBindings(bridge?: ExecutionBridge | null): readonly OccurrenceBinding[] {
   return bridge?.entries.filter((entry): entry is OccurrenceBinding => entry.kind !== "canonical") ?? [];
 }
@@ -84,6 +84,11 @@ function fields(input: Record<string, unknown>, required: string[], optional: st
     || !Reflect.ownKeys(input).every((key) => typeof key === "string" && [...required, ...optional].includes(key))) invalid();
 }
 function string(input: unknown): string { return typeof input === "string" ? input : invalid(); }
+/** Opaque creation receipt, distinct from occ:n. Never synthesized for historical entries. */
+export function decodeCreationIntentId(input: unknown): string {
+  if (typeof input !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(input)) invalid();
+  return input;
+}
 function number(input: unknown): number { return typeof input === "number" ? input : invalid(); }
 export function bridgeJson(bridge: ExecutionBridge): JsonObject {
   // The public input has already crossed the strict bridge codec.
@@ -333,6 +338,7 @@ export function decodeCanonicalOccurrence(input: unknown, parseTimeZone: TimeZon
 function decodeTemporalRegistry(raw: Record<string, unknown>, planner: NormalizedLegacyPlannerV1): ExecutionBridge {
   if (!Array.isArray(raw.entries)) invalid();
   const legacy: unknown[] = [], canonical: CanonicalTemporalEntry[] = [];
+  const intents = new Set<string>();
   let completeStarted = false, lastSequence = 0;
   for (const input of raw.entries) {
     const entry = object(input);
@@ -340,11 +346,16 @@ function decodeTemporalRegistry(raw: Record<string, unknown>, planner: Normalize
       if (completeStarted) invalid();
       const { kind: _kind, ...binding } = entry; void _kind; legacy.push(binding);
     } else if (entry.kind === "canonical") {
-      completeStarted = true; fields(entry, ["kind", "occurrence"]);
+      completeStarted = true; fields(entry, ["kind", "occurrence"], ["creationIntentId"]);
       const occurrence = decodeCanonicalOccurrence(entry.occurrence, parseStoredTimeZone);
+      const creationIntentId = Object.hasOwn(entry, "creationIntentId") ? decodeCreationIntentId(entry.creationIntentId) : undefined;
+      if (creationIntentId !== undefined) {
+        if (occurrence.origin.kind !== "event" || intents.has(creationIntentId)) invalid();
+        intents.add(creationIntentId);
+      }
       const sequence = Number(/^occ:([1-9]\d*)$/.exec(occurrence.id)?.[1]);
       if (!Number.isSafeInteger(sequence) || sequence <= lastSequence) invalid();
-      lastSequence = sequence; canonical.push({ kind: "canonical", occurrence });
+      lastSequence = sequence; canonical.push({ kind: "canonical", occurrence, ...(creationIntentId === undefined ? {} : { creationIntentId }) });
     } else invalid();
   }
   const partial = decodeExecutionBridge({ version: 2, nextSequence: raw.nextSequence, entries: legacy }, planner);

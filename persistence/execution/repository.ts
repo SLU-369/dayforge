@@ -16,7 +16,7 @@ export class OccurrenceConflictError extends Error {
   constructor(message = "O planejamento mudou. Cancele e abra uma nova confirmação.") { super(message); this.name = "OccurrenceConflictError"; }
 }
 
-function assertSnapshot(current: PlannerDocumentRecord | null, documents: readonly PlannerDocumentRecord[], before: DayforgeBackup) {
+export function assertPlannerSnapshot(current: PlannerDocumentRecord | null, documents: readonly PlannerDocumentRecord[], before: DayforgeBackup) {
   if (documents.some(document => document.id.startsWith("planner/") && document.id !== CURRENT_PLANNER_DOCUMENT_ID)) throw new ExecutionBridgeError();
   if (documents.some((document) => document.id.startsWith("execution/") && document.id !== EXECUTION_BRIDGE_DOCUMENT_ID)) throw new ExecutionBridgeError();
   const bridge = documents.find((document) => document.id === EXECUTION_BRIDGE_DOCUMENT_ID);
@@ -87,7 +87,7 @@ export async function savePlannerWithBridge(options: Readonly<{
     assertActiveDatabaseMetadata(metadata);
     assertPlanningFence(metadata, fence);
     assertAuthorityEpoch(metadata, expectedAuthorityEpoch);
-    assertSnapshot(current, documents, before);
+    assertPlannerSnapshot(current, documents, before);
     if (before.payload.executionBridge?.contentFingerprint === document.sourceContentFingerprint
       && before.payload.provenance.contentFingerprint === fingerprint) return;
     await transaction.putPlannerDocument(document);
@@ -132,7 +132,7 @@ export async function upgradePlanningModel(options: Readonly<{ repository: Local
   if (backup.formatVersion === 3) {
     await repository.write(async (tx) => {
       assertPlanningFence(await tx.getDatabaseMetadata(), fence);
-      assertSnapshot(await tx.getPlannerDocument(CURRENT_PLANNER_DOCUMENT_ID), await tx.listPlannerDocuments(), backup);
+      assertPlannerSnapshot(await tx.getPlannerDocument(CURRENT_PLANNER_DOCUMENT_ID), await tx.listPlannerDocuments(), backup);
     }); // Also adopts missing local fence metadata without advancing a no-op revision.
     return backup.payload.executionBridge.bridge;
   }
@@ -144,7 +144,7 @@ export async function upgradePlanningModel(options: Readonly<{ repository: Local
     await repository.write(async tx => {
       const metadata = await tx.getDatabaseMetadata();
       assertPlanningFence(metadata, fence);
-      assertSnapshot(await tx.getPlannerDocument(CURRENT_PLANNER_DOCUMENT_ID), await tx.listPlannerDocuments(), backup);
+      assertPlannerSnapshot(await tx.getPlannerDocument(CURRENT_PLANNER_DOCUMENT_ID), await tx.listPlannerDocuments(), backup);
       await tx.putPlannerDocument(current); await tx.putPlannerDocument(document);
       await tx.putDatabaseMetadata({ ...metadata, authorityEpoch: fence.expectedAuthorityEpoch, executionBridgeVersion: 3,
         writeFenceVersion: 1, datasetRevision: fence.expectedDatasetRevision });
@@ -173,7 +173,7 @@ export async function upgradePlanningModel(options: Readonly<{ repository: Local
 export async function verifyPlanningReplay(repository: LocalPersistenceRepository, snapshot: Awaited<ReturnType<typeof readPlannerAuthoritySnapshot>>, epoch: number) {
   await repository.read(async (tx) => {
     assertPlanningFence(await tx.getDatabaseMetadata(), { expectedAuthorityEpoch: epoch, expectedDatasetRevision: snapshot.datasetRevision });
-    assertSnapshot(await tx.getPlannerDocument(CURRENT_PLANNER_DOCUMENT_ID), await tx.listPlannerDocuments(), snapshot.backup);
+    assertPlannerSnapshot(await tx.getPlannerDocument(CURRENT_PLANNER_DOCUMENT_ID), await tx.listPlannerDocuments(), snapshot.backup);
   });
 }
 

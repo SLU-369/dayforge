@@ -255,3 +255,64 @@ limitação conforme D-036. Não infere localização nem reescreve histórico.
 
 O teste de backup antigo malformado usa envelope 2 válido, exige o erro de vínculo
 esperado e compara o banco integralmente antes/depois da falha e da reabertura.
+
+## 3B-1 — Eventos canônicos na Agenda
+
+- Criar compromisso timed independente com título, flexibilidade e fuso IANA confirmados
+  produz uma ocorrência planned, sem execução, resolução, template ou categoria
+  inferida; original/current e createdAt/updatedAt coincidem na criação.
+- Timed cruza meia-noite com datas completas e consulta em ambos os dias.
+  Recuperação de fixtures date_only/all_day comprova consulta sem horário inventado
+  e fim exclusivo. Comando/formulário não criam esses dois tipos nesta unidade.
+- Consulta de meses/datas futuros é determinística e não altera o banco.
+  Candidatos legados são explícitos, sem conversão em fatos novos.
+- Alocador é compartilhado com novos vínculos legados; IDs não colidem nem são
+  deduplicados por título/horário. Nova intenção idêntica recebe identidade própria.
+- Retry inalterado conserva o instante; concorrência equivalente aplica uma vez.
+  Outra intenção, autosave ou substituição vencedora rejeita a base antiga.
+- Erro de quota/readback reverte integralmente; formulário permanece e retry é
+  explícito. Conflito entre abas conserva campos/fence e exige revisão dos dados
+  salvos. Falha estrutural bloqueia criação e mantém recuperação disponível.
+- Reload e backup 3 preservam o evento. Restore/import/reset substituem todo o
+  conjunto com época local nova; recuperação 3/2/1 e v1 somente leitura permanecem.
+- Rota direta, teclado/Escape/foco e layout a 390px permanecem acessíveis.
+  Sem PR/merge automático, novas transições ou avanço para outra subetapa.
+
+## Correções pré-merge da 3B-1 — F1–F5
+
+- Dois formulários independentes sobre a mesma base, com campos/createdAt iguais
+  e uma operação suspensa no hash, possuem provas distintas. Apenas a vencedora
+  recebe sucesso; a perdedora conserva todos os campos e conflito recuperável.
+  Após carregar explicitamente a base e confirmar outra criação, duas identidades
+  sobrevivem a reload e backup. Duplo clique/retry da mesma prova aplica uma vez.
+- Replay próprio após eventos posteriores é read-only. Prova divergente/reutilizada,
+  payload divergente, época substituída ou fato antigo sem prova não legitimam replay.
+  Backups anteriores continuam recuperáveis sem backfill de identidades técnicas.
+- Rejeições undefined/null/false/0/string vazia antes do commit conservam campos,
+  banco e erro, sem sucesso falso; retry conserva prova e instante. Resposta perdida
+  após commit real é reconciliada somente pela prova/fato próprios na autoridade
+  validada, sem nova revisão ou conflito remoto falso. Outra intenção não é confirmada.
+- Novembro/dezembro de 9999 continuam navegáveis e consultáveis; dia 31 conserva
+  intervalo semiaberto e fim exclusivo real. A borda de leitura no ano 10000 não
+  altera os codecs históricos nem torna essa data selecionável. Navegação inválida
+  informa o limite mantendo o mês válido visível.
+- Recuperação estrutural aguarda seleção de arquivo habilitada, verifica sucesso,
+  metadata/conjunto após reload e v1 intacto. Não usa sleeps/retries nem reduz
+  assertions; importação não realizada continua causando falha do cenário.
+
+## Estabilização da confirmação da 3B-1 — A2-01/A2-02
+
+- C1–C7: commit normal ou resposta perdida, com outra criação/autosave/conclusão
+  antes da releitura, entre captura/verificação ou durante a reconciliação,
+  confirma somente o recibo próprio. Uma revisão por mutação, nenhuma por replay.
+  A testemunha inclui os fatos observados; mudanças posteriores chegam via refresh.
+- C8: restore/reset durante validação invalidam a época anterior, mesmo preservando
+  fisicamente o mesmo recibo. Campos/erro permanecem e não há sucesso falso.
+- C9/C10: outra intenção idêntica, prova ausente/divergente, fato adulterado,
+  hash inválido ou UUID duplicado não produzem sucesso nem nova escrita.
+- C11/C12: replay depois de outros eventos e sessão já remota alcançam confirmação
+  readonly; sem prova própria os guards impedem criação nova. Rascunhos e outros
+  editores permanecem, sem merge automático. Reabertura valida o conjunto físico.
+- O teste de reagendamento aguarda a nota no banco e a publicação do autosave
+  antes de capturar o diálogo. Mantém rejeição de fences obsoletos, história,
+  notas, CAS e recuperação; sem sleep/retry ou mudança no comportamento do produto.

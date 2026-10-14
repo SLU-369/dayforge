@@ -9,6 +9,7 @@
 - `bridge.ts`: logical version 2, strict bindings/execution/planning-audit codecs, v1 conversion, allocation and reconciliation.
 - `repository.ts`: adoption, canonical execution command and compare-and-swap transactional saves.
 - `rescheduling.ts`: explicit pending-occurrence planning command, captured revision/epoch and replay of owner-bound append intents.
+- `event-creation.ts`: independent complete-event producer, captured allocator position, strict creation, transactional CAS/readback and exact replay; `query.ts` owns pure common temporal queries.
 
 ## Local Contracts
 
@@ -44,7 +45,7 @@
 
 - None.
 
-## Stage 3A-2 current contract
+## Stage 3A-2 foundation contract (historical scope)
 
 - Stage 3A-1 is integrated via PR #16. Stage 3A-2 authorizes only the versioned data foundation: planner/current logical envelope 2, execution/bridge discriminated registry 3 and public backup 3. Physical generation 2/schema 1/tables and read-only v1 remain. Earlier stage limits above are historical.
 - Preserve partial legacy entries as partial; full canonical entries use domain factories/transitions, one shared monotonic allocator and one authoritative execution/history. No new complete producer/command, template, structured goal or 3B-1 work.
@@ -52,3 +53,11 @@
 - Public export uses 3 for upgraded datasets; explicit v2 export rejects downgrade. Recovery accepts valid 3/2/1 and never imports local authority counters. Use legacyPlanner/legacyBindings adapters deliberately, retain complete entries during legacy saves, and share temporalPlanning/queryTemporalSnapshot for temporal reads. Full references require actual recoverable targets; absent future entities are not invented.
 - Today reads complete timed entities without exposing commands or assigning unknown category/actual duration. Date-only/all-day remain queryable/recoverable; hourly consumers reject them explicitly rather than fabricate timing. Keep drafts, forms, transactional fences and one write queue.
 - Run planning-model-recovery Node/Edge plus prior persistence/execution/rescheduling/write-fence regressions, full npm test, lint/typecheck, master/diff checks and relevant visual review.
+
+## Stage 3B-1 current contract
+
+- 3A-2 is integrated. createCanonicalEvent exclusively accepts timed commitments with explicit title/flexibility/schedule/createdAt and mandatory captured epoch/revision/nextSequence; reject date_only/all_day at the command boundary. New facts use strict IANA codecs, origin event and no template. Query/recovery retain all three schedule kinds without fabricated hours. Never fabricate execution/resolution/category or upgrade partial entries into complete facts.
+- Append at the captured shared allocator position, preserving all other entries and the planner/provenance. Atomic writes compare fence/base and read back; overflow, collision and failures leave the database intact. Exact retry requires the entire created occurrence and original authority, may outlive later revisions and never increments or silently rebases. A distinct new intent with identical appearance receives a new identity.
+- Full-event editing/deletion/transitions and other substages remain unauthorized. Run agenda-events Node/Edge plus existing planning/recovery and temporal regressions.
+- D-038: canonical entries optionally retain an immutable creationIntentId UUID v4, unique among event-origin entries and covered by the existing document/hash. The new producer requires it; historical absence stays absent through reads/upgrades/recovery. Replay requires the persisted receipt plus exact occurrence/original epoch, never content alone. Reject reused receipts at another allocator position. Keep logical versions/schema/tables and one authority; old strict readers reject unknown extensions safely. Query-only ISO boundaries may exceed the stored year range; factual codecs remain unchanged.
+- D-039: reconcileCanonicalEvent confirms an immutable fact using a validated initial read, one consistent readonly witness recapture and a final epoch-only guard. Validate/hash outside transactions, including uniqueness/full facts. The witness capture linearizes confirmation; later ordinary revisions do not revoke it. Replacement during validation rejects the original authority. Never relax new-write CAS or global verifyPlanningReplay, write on reconciliation, add receipt stores or chase revisions indefinitely.

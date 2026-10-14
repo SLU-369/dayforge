@@ -228,6 +228,98 @@ Não há novo campo persistido, produtor, versão de backup ou migração semân
 D-031 a D-035 permanecem registros históricos. Qualquer produtor futuro deve usar
 a fronteira estrita, nunca o parser de leitura histórica.
 
+### D-037 — Primeiro produtor de eventos independentes na Agenda (3B-1)
+
+Após integração da 3A-2, a 3B-1 autoriza exclusivamente criar compromissos timed
+canônicos independentes e consultar eventos. O domínio cria ScheduleOccurrence planned, sem template,
+com origem event e planejamento/flexibilidade explicitamente confirmados.
+Timed exige início/fim completos e inequívocos. date_only/all_day não possuem
+produtor nesta unidade, mas continuam recuperáveis e consultáveis: date_only não
+adquire horário/duração e all_day usa fim exclusivo. Toda criação nova exige IANA nomeado (D-036).
+Datas planejadas não produzem execução real ou estados terminais.
+
+Época, revisão e posição do alocador são capturadas antes da preparação. O
+comando compara a base dentro da transação e aloca occ:sequência no registro 3.
+Replay exige identidade e fato integral, inclusive createdAt, na mesma autoridade;
+não deduplica por título/horário, não atualiza automaticamente um formulário antigo
+e não avança revisão. Um retry inalterado conserva o instante confirmado.
+As versões e limites de recuperação da D-035 permanecem.
+
+A Agenda consulta o snapshot comum em memória, apresenta calendário mensal e
+detalhes por data, e distingue fatos canônicos de candidatos legados parciais.
+Novos comandos de execução, edição/exclusão, recorrência e demais subetapas
+permanecem gated. PR e merge não são consequência da autorização de implementar.
+D-031 a D-036 permanecem históricos, sem reescrita retrospectiva.
+
+### D-038 — Prova persistida de intenção e confirmação da criação (correções da 3B-1)
+
+A correção autorizada de F1–F5 distingue a intenção de criação da identidade
+occ:n e dos campos visíveis. Cada abertura explícita de formulário gera um UUID
+v4 opaco, fornecido ao comando como creationIntentId. Retry conserva esse valor;
+outro formulário recebe outro valor mesmo com todos os fatos e relógio iguais.
+O produtor recebe a identidade, não gera aleatoriedade dentro do domínio/migração.
+
+Entradas canonical do registro 3 admitem creationIntentId opcional, imutável
+nas operações normais, junto à ocorrência e coberto pelo mesmo fingerprint.
+Quando presente, exige UUID v4 canônico, origem event e unicidade no registro.
+Novas criações sempre o escrevem; leitura/upgrade/export/restore de fatos antigos
+sem prova conservam a ausência. Não existe token retroativo nem replay novo
+legitimado somente pela igualdade de um fato histórico. Não há store de recibos
+paralelo, campo semântico reutilizado ou segunda fonte de verdade.
+
+Replay exige prova, identidade, ocorrência integral e época original, com
+verificação readonly do snapshot autoritativo. Nova mutação continua exigindo
+CAS estrito de época/revisão/base/alocador. Outra intenção na mesma posição
+recebe conflito recuperável. Reutilizar uma prova em outra posição é rejeitado.
+Restore/reset conservam as regras de autoridade local e invalidam tentativas antigas.
+
+Após qualquer resposta do comando, a aplicação relê e valida a autoridade.
+Somente a prova e o fato próprios permitem anunciar sucesso, inclusive após
+commit cuja resposta se perdeu. Rejeição é um estado explícito, independente
+do valor lançado; ausência de prova conserva formulário e erro/conflito.
+Não se removem os guards globais de rascunho ou autoridade substituída.
+
+Preservados planner 2, registro 3, backup 3/recovery 3/2/1, geração 2/schema 1.
+A extensão é opcional e compatível com a leitura dos formatos/dados anteriores
+na aplicação corrigida, sem migração estrutural. Leitores anteriores com codec
+estrito que desconhece o campo rejeitam o registro novo, sem descarte/downgrade;
+não se promete leitura futura por binários antigos. D-031 a D-037 ficam históricos.
+
+### D-039 — Confirmação de fato distinta de autorização de escrita (estabilização 3B-1)
+
+A2-01 revelou que confirmar o recibo de criação com um fence de revisão global
+confundia a integridade do fato imutável com a disponibilidade da antiga base para
+uma nova escrita. Uma mutação posterior legítima não revoga uma criação aplicada.
+Os contratos e decisões D-031 a D-038 permanecem, sem novo campo ou formato.
+
+Nova escrita continua exigindo época/revisão/alocador/base capturados, CAS, hash
+fora da transação, commit e readback. verifyPlanningReplay dos comandos anteriores
+permanece intacto. A criação tem reconciliação específica somente de leitura:
+valida a primeira captura, recaptura uma vez todo o conjunto em uma transação
+readonly e valida essa testemunha integralmente, incluindo hashes e unicidade.
+O recibo exato e a ocorrência integral na mesma época comprovam o fato nessa
+captura. Um guard final somente de época rejeita restore/reset durante a validação.
+Não há loop que persiga revisões, rebase ou novo commit para confirmar.
+
+A captura da testemunha é o ponto de linearização da confirmação do fato. Ela
+inclui os fatos concorrentes observados até esse ponto. Mutações que se linearizem
+depois dela seguem a invalidação/refresh normal; não invalidam o recibo anterior.
+Substituição depois do guard final é uma operação posterior à confirmação, nunca
+autorização para escrever sob a época antiga. Nenhuma leitura promete imobilizar
+outras abas depois de sua transação. Falha estrutural de validação não é ocultada;
+ausência/divergência de prova mantém erro recuperável e formulário.
+
+A fila continua única. Só criação admite confirmação readonly quando dirty/remote;
+nessa condição o produtor de nova escrita nem é chamado. Outros comandos conservam
+os guards. Confirmar o próprio evento pode liberar seu editor limpo; outro editor,
+rascunho local ou snapshot já observado mais recente não é descartado nem rebaseado.
+Recibos permanecem no registro 3, sem fonte paralela ou alteração de backup/schema.
+
+As bordas da consulta pura podem usar ISO UTC expandido para representar o
+fim exclusivo de dezembro de 9999. Isso não amplia LocalDate, instantes
+persistidos, criação ou validação histórica. Navegação para ano 10000 continua
+fora do intervalo de datas e informa o limite sem ocultar o último mês válido.
+
 ## Questões abertas antes das etapas correspondentes
 
 1. Quais limiares e pesos formam a primeira regra de risco de Entregas?

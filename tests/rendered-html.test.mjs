@@ -69,7 +69,7 @@ test("mantém apenas uma área principal ativa por rota", async () => {
 
 test("renderiza rotas principais do novo shell", async () => {
   const routes = [
-    ["/planejamento/agenda", /Preparando seu painel/],
+    ["/planejamento/agenda", /Preparando a Agenda/],
     ["/planejamento/rotina", /Preparando seu painel/],
     ["/hoje", /Preparando seu painel/],
     ["/formacao/academico", /Faculdade com contexto/],

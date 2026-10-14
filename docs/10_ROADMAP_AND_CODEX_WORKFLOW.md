@@ -13,7 +13,7 @@
 - Etapa 2C-A — contrato/recuperação do planejamento auditado: concluída e integrada pela PR #13.
 - Etapa 2C-B — reagendamento explícito e auditável em Hoje: concluída e integrada pela PR #14.
 - Macroetapa 2 encerrada; os escopos, validações e gates de suas unidades permanecem registrados abaixo.
-- Etapa 3 em andamento: 3A-1 integrada pela PR #16; 3A-2 autorizada exclusivamente como fundação temporal e recuperação. 3B-1 e produtores funcionais continuam sem autorização.
+- Etapa 3 em andamento: 3A-1 e 3A-2 concluídas, auditadas e integradas à main na baseline `40ed9f425b419b4ce25b20bc2e44023ea88e5b18`. 3B-1 autorizada apenas para criação e consulta de eventos canônicos na Agenda; PR e merge possuem gates próprios.
 - Plano da Etapa 1.2 aprovado; cada subetapa exige branch, validação, revisão e autorização próprias.
 - Nenhuma etapa funcional pode começar por consequência automática desta documentação.
 
@@ -508,6 +508,86 @@ implementação corrigida, sem modificar a intenção original. O teste solar 10
 passou nesta execução; a instabilidade preexistente permanece registrada, sem
 alteração visual ou do teste. D-031 a D-036 e formatos permanecem intactos.
 Correção publicada na branch da PR; integração/merge e 3B-1 aguardam aprovação.
+
+### Etapa 3B-1 — Criação e consulta de eventos canônicos na Agenda
+
+A integração da 3A-2 foi confirmada pelo usuário em 12/10/2026, na baseline
+`40ed9f425b419b4ce25b20bc2e44023ea88e5b18`. Os registros anteriores descrevem
+os gates e validações históricos antes dessa integração.
+
+Unidade autorizada na branch `feat/agenda-canonical-events`: criação explícita de
+eventos independentes e consulta em `/planejamento/agenda`, com calendário mensal,
+seleção de data e fuso de consulta. O formulário confirma título, flexibilidade,
+planejamento com início/fim completos e fuso IANA nomeado. O complemento obrigatório
+da autorização limita a criação exclusivamente a timed. Consulta e recuperação
+exibem também date_only e all_day; dia inteiro mantém fim exclusivo visível.
+O instante de criação é capturado na confirmação;
+planejamento nunca cria execução, categoria legada ou vínculo com template.
+
+A intenção captura época/revisão/posição do alocador na abertura. IDs usam o
+alocador monotônico compartilhado com vínculos legados. Retry inalterado conserva
+os fatos e o instante; replay só reconhece o fato integral na mesma autoridade.
+Intenções diferentes com título/horário iguais permanecem eventos independentes.
+CAS, hash preparado fora da transação, readback e revisão única protegem a escrita.
+A criação altera somente o registro temporal; planner legado e fontes permanecem.
+
+Consulta reutiliza queryTemporalSnapshot e não grava fatos. Datas sem horário
+mantêm sua semântica e fuso, inclusive fim exclusivo; itens legados parciais são
+identificados como candidatos quando seu planejamento não foi confirmado.
+Conflitos preservam campos e base do formulário, exigindo resolução explícita.
+Em erro, o formulário permite baixar seus campos como rascunho separado, sem
+semântica de backup/importação, antes de fechar e revisar os dados salvos.
+Falha isolada permite retry; falha estrutural bloqueia a persistência.
+O resumo mensal e o editor legado de meta permanecem acessíveis por
+`Ver resumo mensal`, preservando métricas, avisos de itens sem horário e fencing.
+
+Mantidos planner lógico 2, registro 3, backup público 3, recuperação 3/2/1,
+geração 2/schema 1, fila única, v1 somente leitura e shell aprovado.
+Fora de escopo: edição/exclusão/transições de eventos completos, recorrências,
+templates, Rotina canônica, Semana, Metas, Consistência, motor, backend e cloud.
+Commit/push seguem a autorização permanente após validação; PR, merge, deploy e
+qualquer outra subetapa exigem suas próprias autorizações.
+
+Implementação e validação local em 12/10/2026: lint/typecheck/build aprovados,
+Node 452/452 (29 novos) e Agenda Edge 11/11. A primeira rodada global Edge foi
+87/88 por helper que não reabria o resumo mensal após reload, corrigido sem
+reduzir assertions. A rodada global final foi 87/88: somente solar-review 1007px,
+`partial: center covered`, falhou. O mesmo cenário passou na primeira rodada e
+na verificação isolada da baseline 40ed9f (1/1); não houve reprodução da falha nessa
+tentativa. A instabilidade anterior continua registrada; não se declara causa
+confirmada nem gate Edge global aprovado. Cena/assertion solar não foram alteradas.
+Master/diff check, revisão de integridade, segredos/UTF-8 e visual desktop/390px
+aprovados. O relatório `3B-1_IMPLEMENTATION_REPORT.md` registra as evidências e a
+pendência para avaliação humana antes da integração. PR/merge seguem não autorizados.
+
+#### Correções pré-merge — PR #18 / F1–F5
+
+A PR #18 foi aberta mediante autorização própria no HEAD a2eea6239a03bc8d14f4a8cc29376f4f9d8933e1.
+A auditoria adversarial encontrou confusão entre intenções independentes (P1),
+sucesso falso com rejeição falsy, retry bloqueado após resposta perdida,
+dezembro de 9999 não consultável (P2) e guard de readiness insuficiente (P3).
+Seu veredito foi NÃO APTO PARA MERGE. A global dessa auditoria foi 87/88 por
+recuperação; solar passou nela, mas falhou em ensaios controlados, sem causa
+confirmada. O relatório ignorado outputs/audit-pr18/REPORT.md conserva as evidências.
+
+F1–F5 foram autorizados separadamente e corrigidos sem reiniciar a unidade.
+D-038 define UUID de intenção distinto de occ:n, prova opcional no mesmo registro
+e confirmação autoritativa após qualquer resposta. Campos iguais não provam
+intenção; fatos antigos não recebem token retroativo. Calendário usa bordas reais
+de consulta no ano 10000 sem ampliar codecs históricos; recuperação aguarda
+controle de importação habilitado e compara o conjunto após reload.
+
+Validação corrigida: Node 466/466 (14 novos), recuperação Edge dirigida 1/1,
+Agenda Edge 19/19 (oito novos) e global 96/96 sem retries. Build, lint/typecheck,
+master/diff check, segredos/UTF-8 e revisão desktop/390px aprovados. A primeira
+Agenda dirigida foi 18/19 por hook que não interceptou a resposta perdida;
+foi corrigido mantendo a assertion do commit. Lint também identificou alias de
+this nesse hook; corrigido sem mudar assertions, com cenário dirigido reexecutado.
+Logs e capturas de cada execução ficam em outputs/. Não houve mudança solar.
+O 96/96 é aprovação da execução atual, não diagnóstico da falha histórica.
+
+Publicação limitada a novos commits na branch da PR existente. Nova auditoria,
+merge/exclusão de branch e 3B-2 continuam aguardando autorização humana.
 
 ## 5. Ordem de dependências
 

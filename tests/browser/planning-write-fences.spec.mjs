@@ -5,7 +5,7 @@ const date="2026-10-11",now=`${date}T12:00:00.000Z`;
 const item={id:"ficticio",title:"Atividade fictícia",start:"08:00",end:"09:00",notes:"",category:"estudo"};
 const state=()=>({version:1,routine:{seg:[item],ter:[],qua:[],qui:[],sex:[],sab:[],dom:[]},records:{[date]:{date,note:"",energy:3,items:[{...item,completed:false}]}},monthlyGoals:{}});
 async function seed(page){await page.clock.setFixedTime(new Date(now));await page.addInitScript((raw)=>{if(!localStorage.getItem("rotina-369:data:v1"))localStorage.setItem("rotina-369:data:v1",raw);},JSON.stringify(state()));}
-async function open(page,url="/hoje"){await seed(page);await page.goto(url);await expect(page.locator(".app-loading")).toHaveCount(0);await expect(page.getByRole("link",{name:"Adicionar atividade",exact:true})).toBeVisible();}
+async function open(page,url="/hoje"){await seed(page);await page.goto(url);if(url==="/planejamento/agenda")await page.getByRole("button",{name:"Ver resumo mensal",exact:true}).click();await expect(page.locator(".app-loading")).toHaveCount(0);await expect(page.getByRole("link",{name:"Adicionar atividade",exact:true})).toBeVisible();}
 const read=(page)=>page.evaluate(()=>new Promise((resolve,reject)=>{const req=indexedDB.open("dayforge-local");req.onerror=()=>reject(req.error);req.onsuccess=()=>{const db=req.result,tx=db.transaction(["metadata","plannerDocuments"],"readonly"),m=tx.objectStore("metadata").get("database"),p=tx.objectStore("plannerDocuments").get("planner/current"),b=tx.objectStore("plannerDocuments").get("execution/bridge");tx.oncomplete=()=>{db.close();resolve({metadata:m.result,planner:(p.result.payload.legacy ?? p.result.payload),bridge:b.result.payload});};tx.onerror=()=>reject(tx.error);};}));
 const notice=(page)=>page.getByRole("alert",{name:"Alterações locais preservadas",exact:true});
 async function healthy(page){await expect(page.locator(".storage-warning")).toHaveCount(0);}
@@ -23,7 +23,7 @@ test("A routine / B monthly goal: stale save conflicts, local draft survives, ex
  await b.screenshot({path:"outputs/planning-conflict-desktop.png",fullPage:true});
  await b.getByRole("button",{name:"Carregar versão salva",exact:true}).focus();await expect(b.getByRole("button",{name:"Carregar versão salva",exact:true})).toBeFocused();b.once("dialog",(d)=>d.accept());await b.keyboard.press("Enter");await expect(notice(b)).toHaveCount(0);
  await b.locator(".goal-panel textarea").fill(draft.state.monthlyGoals["2026-10"]);await expect.poll(async()=>(await read(b)).planner.monthlyGoals["2026-10"]).toBe("Meta local B");
- await b.reload();await expect(b.locator(".goal-panel textarea")).toHaveValue("Meta local B");expect((await read(b)).planner.routine.seg[0].title).toBe("Rotina vencedora A");await healthy(b);
+ await b.reload();await b.getByRole("button",{name:"Ver resumo mensal",exact:true}).click();await expect(b.locator(".goal-panel textarea")).toHaveValue("Meta local B");expect((await read(b)).planner.routine.seg[0].title).toBe("Rotina vencedora A");await healthy(b);
  expect(await b.evaluate(()=>localStorage.getItem("rotina-369:data:v1"))).toBe(JSON.stringify(state()));
 });
 

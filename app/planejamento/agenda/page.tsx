@@ -1,5 +1,5 @@
-import PlannerApp from "@/app/planner-app";
+import AgendaView from "@/app/agenda-view";
 
 export default function AgendaPage() {
-  return <PlannerApp view="mes" />;
+  return <AgendaView />;
 }

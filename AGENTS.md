@@ -47,7 +47,7 @@ When the user requests a durable behavior change, record it here or in the relev
 
 ## Project overview
 
-Dayforge is a local-first personal planning dashboard. It turns a reusable weekly routine into independent daily records, tracks completed and actual minutes, and summarizes monthly consistency, category time, energy, notes, and goals. Its frontend shell also reserves staged product areas for Formation, Gym, Nutri, and Progress without adding persistence before each domain is implemented. IndexedDB is the planner source of truth; the v1 `localStorage` payload is preserved read-only. JSON v2 export and v2/v1 import provide backup and restore.
+Dayforge is a local-first personal planning dashboard. It turns a reusable weekly routine into independent daily records, tracks completed and actual minutes, and summarizes monthly consistency, category time, energy, notes, and goals. Agenda also creates and queries independent canonical events. Its frontend shell reserves staged product areas for Formation, Gym, Nutri, and Progress without adding persistence before each domain is implemented. IndexedDB is the planner source of truth; the v1 `localStorage` payload is preserved read-only. JSON v3 export and v3/v2/v1 import provide backup and restore.
 
 The product UI and user-facing copy are in Brazilian Portuguese.
 
@@ -160,7 +160,13 @@ If a future OpenAI API integration is added, use the environment name `OPENAI_AP
 - Antes de commitar, confira o diff e arquivos adicionados para evitar segredos e dados pessoais. Relate achados concretos e corrija os que pertencem ao escopo.
 - Não reescreva histórico, rotacione credenciais ou altere infraestrutura sem autorização específica.
 
-## Stage 3A-2 current contract
+## Stage 3A-2 foundation contract (historical scope)
 
 - Stage 3A-1 is integrated via PR #16. The authorized 3A-2 foundation uses planner envelope 2, temporal registry 3 and backup 3; generation 2/schema 1/tables/read-only v1 remain. Earlier format limits are historical. See persistence/AGENTS.md and D-035 for current CAS, upgrade, identity and recovery invariants.
 - No complete producer, templates, structured goals, 3B-1, PR or merge is authorized by this unit. Preserve the shell and drafts; validate Node/Edge recovery and prior regressions before publishing the authorized branch.
+
+## Stage 3B-1 current contract
+
+- Stages 3A-1/3A-2 are audited and integrated at main baseline 40ed9f425b419b4ce25b20bc2e44023ea88e5b18. This unit authorizes independent canonical event creation and query in Agenda only. Preserve planner 2/registry 3/backup 3, recovery 3/2/1, generation 2/schema 1, read-only v1 and the approved shell.
+- Creation is exclusively timed and explicitly confirms title, flexibility, named IANA and complete start/end. Query also displays recovered date_only/all_day without inventing hours. Use domain factories, origin event/templateId null, the shared allocator, captured epoch/revision/position, transactional CAS/readback and one application queue. Unchanged retry conserves createdAt; exact replay requires the full fact and original authority. Query never writes or invents legacy semantics. See D-037 and child contracts.
+- Complete-event editing/deletion/transitions, templates, structured goals, other substages, PR, merge and deploy require their own authorization. Validate Agenda Node/Edge, recovery and prior regressions before automatic branch commit/push.

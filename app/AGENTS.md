@@ -10,6 +10,7 @@
 - The layout mounts the photographic `AppearanceBackdrop` once across route changes. Old `?scene=3d` URLs must also show this approved background; the castle model is no longer activated.
 - `planner-context.tsx` owns shared client state and persistence lifecycle.
 - `planner-draft-session.ts` owns local draft/base separation and form retention; `planning-conflict.module.css` styles only the editing conflict notice.
+- `agenda-view.tsx` owns canonical calendar/day queries; `event-dialog.tsx`, `event-input.ts` and `event-command.ts` own explicit independent-event creation and post-command publication through PlannerContext.
 - `planner-repository.ts` retains the v1 parsing and guard compatibility helpers plus JSON download; `persistence/` owns active IndexedDB storage and backup.
 - `planner-data.ts` owns only the versioned legacy v1 planner payload types, defaults, and its existing date/duration helpers. New product-domain contracts live in root `domain/`.
 - `today-context.ts` owns the pure effective planning projection with an ephemeral interval index per validated bridge snapshot; Today, full day and monthly compatibility reuse it. `today-context-view.tsx` owns Hoje presentation. Neither writes derived context.
@@ -85,7 +86,7 @@
 
 - No child AGENTS.md files are needed for the current frontend structure.
 
-## Stage 3A-2 current contract
+## Stage 3A-2 foundation contract (historical scope)
 
 - Stage 3A-1 is integrated via PR #16. Stage 3A-2 authorizes only the versioned data foundation: planner/current logical envelope 2, execution/bridge discriminated registry 3 and public backup 3. Physical generation 2/schema 1/tables and read-only v1 remain. Earlier stage limits above are historical.
 - Preserve partial legacy entries as partial; full canonical entries use domain factories/transitions, one shared monotonic allocator and one authoritative execution/history. No new complete producer/command, template, structured goal or 3B-1 work.
@@ -93,3 +94,13 @@
 - Public export uses 3 for upgraded datasets; explicit v2 export rejects downgrade. Recovery accepts valid 3/2/1 and never imports local authority counters. Use legacyPlanner/legacyBindings adapters deliberately, retain complete entries during legacy saves, and share temporalPlanning/queryTemporalSnapshot for temporal reads. Full references require actual recoverable targets; absent future entities are not invented.
 - Today reads complete timed entities without exposing commands or assigning unknown category/actual duration. Date-only/all-day remain queryable/recoverable; hourly consumers reject them explicitly rather than fabricate timing. Keep drafts, forms, transactional fences and one write queue.
 - Run planning-model-recovery Node/Edge plus prior persistence/execution/rescheduling/write-fence regressions, full npm test, lint/typecheck, master/diff checks and relevant visual review.
+
+## Stage 3B-1 current contract
+
+- 3A-2 is integrated. Agenda uses queryTemporalSnapshot without writes, shows a monthly calendar/day selection and labels partial legacy candidates explicitly. Timed displays in the query zone; date_only/all_day retain original dates/zone and exclusive end. Share read-only civil DST boundaries with Today; creation remains strict.
+- Preserve the existing monthly compatibility summary and legacy monthly-goal editor under Ver resumo mensal; their metrics, untimed limitation and write fences remain covered by prior regressions.
+- Creation exclusively accepts timed commitments and opens an editor that captures epoch/revision/allocator position. Preserve all fields/base on invalidation or action failure; never refresh the captured fence. Explicit title/flexibility/start/end/IANA confirmation builds a pending independent event. No date_only/all_day producer is authorized. Cache the intent/createdAt for unchanged retry and submit through the existing queue. Publish only validated saved facts; the command's own success may advance its editor's base, external conflicts require explicit resolution.
+- On action error, offer a separate event-form draft download before explicit close/resolution. Draft files contain raw fields/base, are not recovery backups and cannot be imported as saved events.
+- Keep complete-event transitions/edition/deletion, recurrence, global Add expansion and other routes outside this unit. Verify direct Agenda loads, keyboard/Escape/focus, 390px, two pages, quota/retry and backup 3 round-trip, plus prior recovery/execution/rescheduling/write-fence regressions.
+- D-038: each explicit event-form opening captures an opaque UUID v4 creationIntentId in addition to its fence/allocator. Preserve it on unchanged retry; independent forms never share replay by equal content/time. Publish success only after the authoritative receipt and full fact are proven, including lost responses; track rejection independently of its value. Keep session.remote/CAS guards. Calendar read boundaries may extend to year 10000 without widening persisted date/instant codecs; invalid navigation retains the last valid month. Recovery tests await an enabled import control, not disabled export/SSR.
+- D-039: event creation alone may reconcile its exact persisted receipt read-only in a dirty/remote session; never call the new-write producer in that mode. New writes and other commands retain their guards. Acknowledge a clean owned editor with the consistent witness snapshot; preserve unrelated drafts, other open editors and newer observed bases. Subsequent changes arrive through queued refresh, not revision-chasing replay.

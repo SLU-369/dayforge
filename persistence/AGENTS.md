@@ -58,7 +58,7 @@
 - `bootstrap/AGENTS.md`: cutover ordering, marker fail-safe, active planner writes, and explicit recovery.
 - `execution/AGENTS.md`: identity allocation, bindings, terminal execution, recovery and concurrency.
 
-## Stage 3A-2 current contract
+## Stage 3A-2 foundation contract (historical scope)
 
 - Stage 3A-1 is integrated via PR #16. Stage 3A-2 authorizes only the versioned data foundation: planner/current logical envelope 2, execution/bridge discriminated registry 3 and public backup 3. Physical generation 2/schema 1/tables and read-only v1 remain. Earlier stage limits above are historical.
 - Preserve partial legacy entries as partial; full canonical entries use domain factories/transitions, one shared monotonic allocator and one authoritative execution/history. No new complete producer/command, template, structured goal or 3B-1 work.
@@ -66,3 +66,10 @@
 - Public export uses 3 for upgraded datasets; explicit v2 export rejects downgrade. Recovery accepts valid 3/2/1 and never imports local authority counters. Use legacyPlanner/legacyBindings adapters deliberately, retain complete entries during legacy saves, and share temporalPlanning/queryTemporalSnapshot for temporal reads. Full references require actual recoverable targets; absent future entities are not invented.
 - Today reads complete timed entities without exposing commands or assigning unknown category/actual duration. Date-only/all-day remain queryable/recoverable; hourly consumers reject them explicitly rather than fabricate timing. Keep drafts, forms, transactional fences and one write queue.
 - Run planning-model-recovery Node/Edge plus prior persistence/execution/rescheduling/write-fence regressions, full npm test, lint/typecheck, master/diff checks and relevant visual review.
+
+## Stage 3B-1 current contract
+
+- 3A-2 is integrated. The authorized event producer exclusively creates timed commitments and writes only execution/bridge in logical registry 3. Query/recovery also preserve date_only/all_day; their creation is not authorized. Preserve planner 2, backup 3/recovery 3/2/1, generation 2/schema 1/tables, legacy provenance/sources and read-only v1.
+- event-creation captures epoch/revision/allocator position, constructs a strict independent planned occurrence and shares the monotonic allocator with legacy reconciliation. Prepare hash outside the transaction; compare active metadata/fence/full base and validate readback. One net mutation advances revision once; exact full-fact replay in the same authority is read-only. No silent rebase or deduplication by title/time.
+- Verify mixed allocation, independent connections, obsolete intent, replacements, quota/rollback/readback, reload and backup integrity before publishing. Complete transitions/templates/other producers remain gated.
+- D-038 adds only optional creationIntentId to canonical registry entries, in the same authoritative document/fingerprint. Strict UUID v4/uniqueness validation and full-fact/epoch replay preserve old data without invented receipts; backup 3 round-trips absence/presence. New writes require the proof. No structural migration, schema/table/public version change or parallel receipt store; earlier strict binaries reject the unknown extension rather than discard it.

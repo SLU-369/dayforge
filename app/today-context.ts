@@ -113,6 +113,18 @@ function dayKey(date: string): DayKey {
   return (["dom", "seg", "ter", "qua", "qui", "sex", "sab"] as const)[day];
 }
 
+/** Read-only civil boundaries share Today's DST policy, including non-24-hour days. */
+export function readCivilDayWindow(date: string, timeZone: string) {
+  const formatter = new Intl.DateTimeFormat("en-US", { timeZone, hourCycle: "h23", year: "numeric",
+    month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+  const start = civilParts(date);
+  // A read boundary may be year 10000; it is not a new persisted LocalDate/UTC fact.
+  const next = new Date(utcEpoch(start) + 86_400_000);
+  const end = { year: next.getUTCFullYear(), month: next.getUTCMonth() + 1, day: next.getUTCDate(), hour: 0, minute: 0 };
+  return { startsAt: new Date(zonedEpoch(start, formatter)).toISOString(),
+    endsBefore: new Date(zonedEpoch(end, formatter)).toISOString() };
+}
+
 function entriesForDay(state: PlannerState, date: string): readonly (RoutineItem | DailyItem)[] {
   const record = state.records[date];
   if (record) {

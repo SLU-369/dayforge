@@ -26,10 +26,16 @@ export async function readPlannerAuthoritySnapshot(options: Readonly<{
 }>) {
   const hasher = options.hasher ?? new WebCryptoSha256Hasher();
   const snapshot = await options.repository.read((transaction) => readBackupSnapshot(transaction, options.active));
+  return materializePlannerAuthoritySnapshot(snapshot, options.exportedAt, hasher);
+}
+
+/** Validate a single captured transaction outside IndexedDB (including all hashes). */
+export async function materializePlannerAuthoritySnapshot(snapshot: Awaited<ReturnType<typeof readBackupSnapshot>>,
+  exportedAt: string, hasher: Sha256Hasher) {
   const backup = decodeDayforgeBackup({
     format: "dayforge-backup",
     formatVersion: snapshot.formatVersion,
-    exportedAt: options.exportedAt,
+    exportedAt,
     exportedFrom: {
       persistenceGeneration: snapshot.databaseMetadata.persistenceGeneration,
       schemaVersion: snapshot.databaseMetadata.schemaVersion,

@@ -7,7 +7,7 @@
 
 **Status:** Etapas 0.1, 0.2, 1.1 e 1.2A–1.2D implementadas; 2A, fundação da 2B, 2B-A, 2C-A e 2C-B concluídas e integradas; macroetapa 2 encerrada
 **Data:** 12/10/2026
-**Etapa atual:** 3A-1 integrada pela PR #16; 3A-2 — evolução lógica temporal e recuperação, implementada e validada na branch `feat/planning-model-recovery`, ainda não integrada. Produtores e 3B-1 permanecem futuros.
+**Etapa atual:** 3A-1 e 3A-2 concluídas, auditadas e integradas à main; baseline `40ed9f425b419b4ce25b20bc2e44023ea88e5b18`. 3B-1 — criação exclusivamente timed e consulta de eventos canônicos na Agenda — na PR #18, sem integração. Correções autorizadas F1–F5/D-038: Node 466/466, Agenda Edge 19/19, global 96/96 sem retries. Falhas históricas 87/88 e causa solar indeterminada permanecem registradas; o resultado atual não prova sua origem. Nova avaliação independente e merge aguardam gates humanos próprios; outras subetapas permanecem futuras.
 **Objetivo:** transformar as decisões de produto, UX, domínio e arquitetura discutidas até aqui em uma fonte oficial de verdade para o repositório e para o Codex.
 
 ## Como usar esta documentação
@@ -2258,6 +2258,77 @@ Autenticação, autorização, isolamento por usuário, sessões, proteção de 
 
 Camadas futuras devem possuir testes unitários de domínio e planner, testes de componente e acessibilidade, integração de persistência/backup/migração, E2E dos fluxos essenciais e contratos de API/segurança quando o backend existir.
 
+## 11. Produtor de eventos da Agenda — 3B-1
+
+`persistence/execution/event-creation.ts` recebe intenção explícita com título,
+flexibilidade, schedule, createdAt e fence/posição do alocador capturados. Usa
+factories e codecs estritos de criação, origem event e templateId null. O snapshot
+validado precede a preparação do hash; a transação exige metadata ativa, CAS de
+época/revisão/base e readback. Escreve somente execution/bridge e o repositório
+avança a revisão uma vez por mudança líquida. Não toca planner/current, fontes,
+procedência, geração, schema ou v1. Replay exige o fato integral e a mesma época
+em snapshot novamente verificado; não rebaseia uma intenção nova após conflito.
+
+`event-input.ts` converte apenas campos confirmados de compromissos timed, com
+datas completas e DST inequívoco. O comando também rejeita criação date_only/all_day;
+esses tipos permanecem somente na consulta e recuperação, sem horários inventados.
+`event-dialog.tsx` conserva a intenção e createdAt em retry inalterado. Contexto
+serializa criação, autosave e recuperação na fila existente; publica snapshot
+validado após sucesso ou erro. Editor aberto conserva sua base e seus campos em
+invalidações externas, enquanto sucesso próprio publica a autoridade comprovada.
+
+`agenda-view.tsx` consulta queryTemporalSnapshot, calcula o calendário em memória
+e distingue ocorrências completas de candidatos legados sem confirmação. As
+bordas civis compartilham a política de leitura DST de Hoje; a fronteira de
+criação continua estrita. Consulta nunca materializa rotina nem escreve fatos.
+Timed é apresentado no fuso de consulta; sem horário/dia inteiro preservam suas
+datas e fuso originais. Não há edição, exclusão ou transição completa nesta unidade.
+
+## 12. Correções pré-merge da 3B-1 — prova de intenção e fronteiras de leitura
+
+D-038 adiciona creationIntentId opcional à entrada canonical do registro 3,
+fora dos campos semânticos de ScheduleOccurrence. O comando exige o UUID v4
+injetado; o codec exige formato canônico, origem event e unicidade quando presente.
+O mesmo documento/fingerprint contém ocorrência e prova atomicamente. Ausência
+em fatos antigos é preservada, sem migração/backfill ou novo store. Export/restore
+carregam a extensão pelo codec estrito; recuperação 3/2/1 e contadores locais permanecem.
+Aplicações antigas que desconhecem a extensão falham fechadas; a aplicação
+corrigida continua lendo os fatos anteriores. Não há nova versão pública/schema.
+
+isEventCreationConfirmed compara prova, occ:n, ocorrência integral e época.
+Na primeira correção, verifyPlanningReplay verificava novamente o snapshot em
+transação readonly. A reconciliação específica atual segue D-039 abaixo.
+O adapter usa a prova autoritativa para publicar sucesso mesmo após resposta perdida,
+sem nova escrita/revisão. Erros falsy continuam erros quando não existe fato próprio.
+Outro token ou fato divergente conserva conflito/formulário; guards de sessão
+e CAS permanecem. Provas antigas recuperadas não sobrevivem à troca de época do destino.
+
+readCivilDayWindow calcula a próxima borda por aritmética civil, inclusive
+ano 10000 como limite exclusivo de leitura. queryTemporalSnapshot compara
+instantes/datas numericamente e aceita bordas ISO reais expandidas somente na
+janela efêmera. Codecs de fatos/backup/referência permanecem estritos. A Agenda
+usa o último dia do mês para sua borda final, sem truncamento de milissegundos
+nem janeiro de 10000 como data selecionável. O teste de recuperação aguarda
+o controle de importação habilitado e verifica o conjunto novamente após reload.
+
+## 13. Reconciliação de criação sob concorrência — D-039
+
+reconcileCanonicalEvent separa comprovação de um fato da autorização de uma
+mutação. Reaproveita readBackupSnapshot e a materialização/hash compartilhados
+com exportação, sem outra autoridade. Após a validação inicial, uma recaptura
+readonly consistente fornece planner, registro, proveniência e fence da testemunha.
+Valida fora da transação, prova UUID/fato/época exatos e verifica a época atual
+antes de retornar. A revisão pode avançar; a confirmação nunca incrementa nada.
+O ponto de linearização é a captura da testemunha. Alterações posteriores a essa
+captura chegam pela fila de refresh; não há perseguição ilimitada de revisões.
+
+EventCommand sempre comprova o resultado antes de publicar sucesso, mesmo que
+a resposta do commit tenha se perdido. Na sessão dirty/remote, PlannerContext
+permite apenas esse caminho readonly, mantendo os guards dos demais comandos.
+Sem prova, a intenção obsoleta não chega ao produtor. confirmedEvent preserva
+rascunhos, outros editores e bases mais recentes já observadas. Novas escritas
+mantêm o CAS original e verifyPlanningReplay global permanece inalterado.
+
 ---
 
 # 10 — Roadmap e Fluxo de Implementação
@@ -2275,7 +2346,7 @@ Camadas futuras devem possuir testes unitários de domínio e planner, testes de
 - Etapa 2C-A — contrato/recuperação do planejamento auditado: concluída e integrada pela PR #13.
 - Etapa 2C-B — reagendamento explícito e auditável em Hoje: concluída e integrada pela PR #14.
 - Macroetapa 2 encerrada; os escopos, validações e gates de suas unidades permanecem registrados abaixo.
-- Etapa 3 em andamento: 3A-1 integrada pela PR #16; 3A-2 autorizada exclusivamente como fundação temporal e recuperação. 3B-1 e produtores funcionais continuam sem autorização.
+- Etapa 3 em andamento: 3A-1 e 3A-2 concluídas, auditadas e integradas à main na baseline `40ed9f425b419b4ce25b20bc2e44023ea88e5b18`. 3B-1 autorizada apenas para criação e consulta de eventos canônicos na Agenda; PR e merge possuem gates próprios.
 - Plano da Etapa 1.2 aprovado; cada subetapa exige branch, validação, revisão e autorização próprias.
 - Nenhuma etapa funcional pode começar por consequência automática desta documentação.
 
@@ -2771,6 +2842,86 @@ passou nesta execução; a instabilidade preexistente permanece registrada, sem
 alteração visual ou do teste. D-031 a D-036 e formatos permanecem intactos.
 Correção publicada na branch da PR; integração/merge e 3B-1 aguardam aprovação.
 
+### Etapa 3B-1 — Criação e consulta de eventos canônicos na Agenda
+
+A integração da 3A-2 foi confirmada pelo usuário em 12/10/2026, na baseline
+`40ed9f425b419b4ce25b20bc2e44023ea88e5b18`. Os registros anteriores descrevem
+os gates e validações históricos antes dessa integração.
+
+Unidade autorizada na branch `feat/agenda-canonical-events`: criação explícita de
+eventos independentes e consulta em `/planejamento/agenda`, com calendário mensal,
+seleção de data e fuso de consulta. O formulário confirma título, flexibilidade,
+planejamento com início/fim completos e fuso IANA nomeado. O complemento obrigatório
+da autorização limita a criação exclusivamente a timed. Consulta e recuperação
+exibem também date_only e all_day; dia inteiro mantém fim exclusivo visível.
+O instante de criação é capturado na confirmação;
+planejamento nunca cria execução, categoria legada ou vínculo com template.
+
+A intenção captura época/revisão/posição do alocador na abertura. IDs usam o
+alocador monotônico compartilhado com vínculos legados. Retry inalterado conserva
+os fatos e o instante; replay só reconhece o fato integral na mesma autoridade.
+Intenções diferentes com título/horário iguais permanecem eventos independentes.
+CAS, hash preparado fora da transação, readback e revisão única protegem a escrita.
+A criação altera somente o registro temporal; planner legado e fontes permanecem.
+
+Consulta reutiliza queryTemporalSnapshot e não grava fatos. Datas sem horário
+mantêm sua semântica e fuso, inclusive fim exclusivo; itens legados parciais são
+identificados como candidatos quando seu planejamento não foi confirmado.
+Conflitos preservam campos e base do formulário, exigindo resolução explícita.
+Em erro, o formulário permite baixar seus campos como rascunho separado, sem
+semântica de backup/importação, antes de fechar e revisar os dados salvos.
+Falha isolada permite retry; falha estrutural bloqueia a persistência.
+O resumo mensal e o editor legado de meta permanecem acessíveis por
+`Ver resumo mensal`, preservando métricas, avisos de itens sem horário e fencing.
+
+Mantidos planner lógico 2, registro 3, backup público 3, recuperação 3/2/1,
+geração 2/schema 1, fila única, v1 somente leitura e shell aprovado.
+Fora de escopo: edição/exclusão/transições de eventos completos, recorrências,
+templates, Rotina canônica, Semana, Metas, Consistência, motor, backend e cloud.
+Commit/push seguem a autorização permanente após validação; PR, merge, deploy e
+qualquer outra subetapa exigem suas próprias autorizações.
+
+Implementação e validação local em 12/10/2026: lint/typecheck/build aprovados,
+Node 452/452 (29 novos) e Agenda Edge 11/11. A primeira rodada global Edge foi
+87/88 por helper que não reabria o resumo mensal após reload, corrigido sem
+reduzir assertions. A rodada global final foi 87/88: somente solar-review 1007px,
+`partial: center covered`, falhou. O mesmo cenário passou na primeira rodada e
+na verificação isolada da baseline 40ed9f (1/1); não houve reprodução da falha nessa
+tentativa. A instabilidade anterior continua registrada; não se declara causa
+confirmada nem gate Edge global aprovado. Cena/assertion solar não foram alteradas.
+Master/diff check, revisão de integridade, segredos/UTF-8 e visual desktop/390px
+aprovados. O relatório `3B-1_IMPLEMENTATION_REPORT.md` registra as evidências e a
+pendência para avaliação humana antes da integração. PR/merge seguem não autorizados.
+
+#### Correções pré-merge — PR #18 / F1–F5
+
+A PR #18 foi aberta mediante autorização própria no HEAD a2eea6239a03bc8d14f4a8cc29376f4f9d8933e1.
+A auditoria adversarial encontrou confusão entre intenções independentes (P1),
+sucesso falso com rejeição falsy, retry bloqueado após resposta perdida,
+dezembro de 9999 não consultável (P2) e guard de readiness insuficiente (P3).
+Seu veredito foi NÃO APTO PARA MERGE. A global dessa auditoria foi 87/88 por
+recuperação; solar passou nela, mas falhou em ensaios controlados, sem causa
+confirmada. O relatório ignorado outputs/audit-pr18/REPORT.md conserva as evidências.
+
+F1–F5 foram autorizados separadamente e corrigidos sem reiniciar a unidade.
+D-038 define UUID de intenção distinto de occ:n, prova opcional no mesmo registro
+e confirmação autoritativa após qualquer resposta. Campos iguais não provam
+intenção; fatos antigos não recebem token retroativo. Calendário usa bordas reais
+de consulta no ano 10000 sem ampliar codecs históricos; recuperação aguarda
+controle de importação habilitado e compara o conjunto após reload.
+
+Validação corrigida: Node 466/466 (14 novos), recuperação Edge dirigida 1/1,
+Agenda Edge 19/19 (oito novos) e global 96/96 sem retries. Build, lint/typecheck,
+master/diff check, segredos/UTF-8 e revisão desktop/390px aprovados. A primeira
+Agenda dirigida foi 18/19 por hook que não interceptou a resposta perdida;
+foi corrigido mantendo a assertion do commit. Lint também identificou alias de
+this nesse hook; corrigido sem mudar assertions, com cenário dirigido reexecutado.
+Logs e capturas de cada execução ficam em outputs/. Não houve mudança solar.
+O 96/96 é aprovação da execução atual, não diagnóstico da falha histórica.
+
+Publicação limitada a novos commits na branch da PR existente. Nova auditoria,
+merge/exclusão de branch e 3B-2 continuam aguardando autorização humana.
+
 ## 5. Ordem de dependências
 
 - Hoje depende do núcleo temporal e não deve defini-lo dentro de componentes.
@@ -3046,6 +3197,98 @@ Não há novo campo persistido, produtor, versão de backup ou migração semân
 D-031 a D-035 permanecem registros históricos. Qualquer produtor futuro deve usar
 a fronteira estrita, nunca o parser de leitura histórica.
 
+### D-037 — Primeiro produtor de eventos independentes na Agenda (3B-1)
+
+Após integração da 3A-2, a 3B-1 autoriza exclusivamente criar compromissos timed
+canônicos independentes e consultar eventos. O domínio cria ScheduleOccurrence planned, sem template,
+com origem event e planejamento/flexibilidade explicitamente confirmados.
+Timed exige início/fim completos e inequívocos. date_only/all_day não possuem
+produtor nesta unidade, mas continuam recuperáveis e consultáveis: date_only não
+adquire horário/duração e all_day usa fim exclusivo. Toda criação nova exige IANA nomeado (D-036).
+Datas planejadas não produzem execução real ou estados terminais.
+
+Época, revisão e posição do alocador são capturadas antes da preparação. O
+comando compara a base dentro da transação e aloca occ:sequência no registro 3.
+Replay exige identidade e fato integral, inclusive createdAt, na mesma autoridade;
+não deduplica por título/horário, não atualiza automaticamente um formulário antigo
+e não avança revisão. Um retry inalterado conserva o instante confirmado.
+As versões e limites de recuperação da D-035 permanecem.
+
+A Agenda consulta o snapshot comum em memória, apresenta calendário mensal e
+detalhes por data, e distingue fatos canônicos de candidatos legados parciais.
+Novos comandos de execução, edição/exclusão, recorrência e demais subetapas
+permanecem gated. PR e merge não são consequência da autorização de implementar.
+D-031 a D-036 permanecem históricos, sem reescrita retrospectiva.
+
+### D-038 — Prova persistida de intenção e confirmação da criação (correções da 3B-1)
+
+A correção autorizada de F1–F5 distingue a intenção de criação da identidade
+occ:n e dos campos visíveis. Cada abertura explícita de formulário gera um UUID
+v4 opaco, fornecido ao comando como creationIntentId. Retry conserva esse valor;
+outro formulário recebe outro valor mesmo com todos os fatos e relógio iguais.
+O produtor recebe a identidade, não gera aleatoriedade dentro do domínio/migração.
+
+Entradas canonical do registro 3 admitem creationIntentId opcional, imutável
+nas operações normais, junto à ocorrência e coberto pelo mesmo fingerprint.
+Quando presente, exige UUID v4 canônico, origem event e unicidade no registro.
+Novas criações sempre o escrevem; leitura/upgrade/export/restore de fatos antigos
+sem prova conservam a ausência. Não existe token retroativo nem replay novo
+legitimado somente pela igualdade de um fato histórico. Não há store de recibos
+paralelo, campo semântico reutilizado ou segunda fonte de verdade.
+
+Replay exige prova, identidade, ocorrência integral e época original, com
+verificação readonly do snapshot autoritativo. Nova mutação continua exigindo
+CAS estrito de época/revisão/base/alocador. Outra intenção na mesma posição
+recebe conflito recuperável. Reutilizar uma prova em outra posição é rejeitado.
+Restore/reset conservam as regras de autoridade local e invalidam tentativas antigas.
+
+Após qualquer resposta do comando, a aplicação relê e valida a autoridade.
+Somente a prova e o fato próprios permitem anunciar sucesso, inclusive após
+commit cuja resposta se perdeu. Rejeição é um estado explícito, independente
+do valor lançado; ausência de prova conserva formulário e erro/conflito.
+Não se removem os guards globais de rascunho ou autoridade substituída.
+
+Preservados planner 2, registro 3, backup 3/recovery 3/2/1, geração 2/schema 1.
+A extensão é opcional e compatível com a leitura dos formatos/dados anteriores
+na aplicação corrigida, sem migração estrutural. Leitores anteriores com codec
+estrito que desconhece o campo rejeitam o registro novo, sem descarte/downgrade;
+não se promete leitura futura por binários antigos. D-031 a D-037 ficam históricos.
+
+### D-039 — Confirmação de fato distinta de autorização de escrita (estabilização 3B-1)
+
+A2-01 revelou que confirmar o recibo de criação com um fence de revisão global
+confundia a integridade do fato imutável com a disponibilidade da antiga base para
+uma nova escrita. Uma mutação posterior legítima não revoga uma criação aplicada.
+Os contratos e decisões D-031 a D-038 permanecem, sem novo campo ou formato.
+
+Nova escrita continua exigindo época/revisão/alocador/base capturados, CAS, hash
+fora da transação, commit e readback. verifyPlanningReplay dos comandos anteriores
+permanece intacto. A criação tem reconciliação específica somente de leitura:
+valida a primeira captura, recaptura uma vez todo o conjunto em uma transação
+readonly e valida essa testemunha integralmente, incluindo hashes e unicidade.
+O recibo exato e a ocorrência integral na mesma época comprovam o fato nessa
+captura. Um guard final somente de época rejeita restore/reset durante a validação.
+Não há loop que persiga revisões, rebase ou novo commit para confirmar.
+
+A captura da testemunha é o ponto de linearização da confirmação do fato. Ela
+inclui os fatos concorrentes observados até esse ponto. Mutações que se linearizem
+depois dela seguem a invalidação/refresh normal; não invalidam o recibo anterior.
+Substituição depois do guard final é uma operação posterior à confirmação, nunca
+autorização para escrever sob a época antiga. Nenhuma leitura promete imobilizar
+outras abas depois de sua transação. Falha estrutural de validação não é ocultada;
+ausência/divergência de prova mantém erro recuperável e formulário.
+
+A fila continua única. Só criação admite confirmação readonly quando dirty/remote;
+nessa condição o produtor de nova escrita nem é chamado. Outros comandos conservam
+os guards. Confirmar o próprio evento pode liberar seu editor limpo; outro editor,
+rascunho local ou snapshot já observado mais recente não é descartado nem rebaseado.
+Recibos permanecem no registro 3, sem fonte paralela ou alteração de backup/schema.
+
+As bordas da consulta pura podem usar ISO UTC expandido para representar o
+fim exclusivo de dezembro de 9999. Isso não amplia LocalDate, instantes
+persistidos, criação ou validação histórica. Navegação para ano 10000 continua
+fora do intervalo de datas e informa o limite sem ocultar o último mês válido.
+
 ## Questões abertas antes das etapas correspondentes
 
 1. Quais limiares e pesos formam a primeira regra de risco de Entregas?
@@ -3314,6 +3557,67 @@ limitação conforme D-036. Não infere localização nem reescreve histórico.
 
 O teste de backup antigo malformado usa envelope 2 válido, exige o erro de vínculo
 esperado e compara o banco integralmente antes/depois da falha e da reabertura.
+
+## 3B-1 — Eventos canônicos na Agenda
+
+- Criar compromisso timed independente com título, flexibilidade e fuso IANA confirmados
+  produz uma ocorrência planned, sem execução, resolução, template ou categoria
+  inferida; original/current e createdAt/updatedAt coincidem na criação.
+- Timed cruza meia-noite com datas completas e consulta em ambos os dias.
+  Recuperação de fixtures date_only/all_day comprova consulta sem horário inventado
+  e fim exclusivo. Comando/formulário não criam esses dois tipos nesta unidade.
+- Consulta de meses/datas futuros é determinística e não altera o banco.
+  Candidatos legados são explícitos, sem conversão em fatos novos.
+- Alocador é compartilhado com novos vínculos legados; IDs não colidem nem são
+  deduplicados por título/horário. Nova intenção idêntica recebe identidade própria.
+- Retry inalterado conserva o instante; concorrência equivalente aplica uma vez.
+  Outra intenção, autosave ou substituição vencedora rejeita a base antiga.
+- Erro de quota/readback reverte integralmente; formulário permanece e retry é
+  explícito. Conflito entre abas conserva campos/fence e exige revisão dos dados
+  salvos. Falha estrutural bloqueia criação e mantém recuperação disponível.
+- Reload e backup 3 preservam o evento. Restore/import/reset substituem todo o
+  conjunto com época local nova; recuperação 3/2/1 e v1 somente leitura permanecem.
+- Rota direta, teclado/Escape/foco e layout a 390px permanecem acessíveis.
+  Sem PR/merge automático, novas transições ou avanço para outra subetapa.
+
+## Correções pré-merge da 3B-1 — F1–F5
+
+- Dois formulários independentes sobre a mesma base, com campos/createdAt iguais
+  e uma operação suspensa no hash, possuem provas distintas. Apenas a vencedora
+  recebe sucesso; a perdedora conserva todos os campos e conflito recuperável.
+  Após carregar explicitamente a base e confirmar outra criação, duas identidades
+  sobrevivem a reload e backup. Duplo clique/retry da mesma prova aplica uma vez.
+- Replay próprio após eventos posteriores é read-only. Prova divergente/reutilizada,
+  payload divergente, época substituída ou fato antigo sem prova não legitimam replay.
+  Backups anteriores continuam recuperáveis sem backfill de identidades técnicas.
+- Rejeições undefined/null/false/0/string vazia antes do commit conservam campos,
+  banco e erro, sem sucesso falso; retry conserva prova e instante. Resposta perdida
+  após commit real é reconciliada somente pela prova/fato próprios na autoridade
+  validada, sem nova revisão ou conflito remoto falso. Outra intenção não é confirmada.
+- Novembro/dezembro de 9999 continuam navegáveis e consultáveis; dia 31 conserva
+  intervalo semiaberto e fim exclusivo real. A borda de leitura no ano 10000 não
+  altera os codecs históricos nem torna essa data selecionável. Navegação inválida
+  informa o limite mantendo o mês válido visível.
+- Recuperação estrutural aguarda seleção de arquivo habilitada, verifica sucesso,
+  metadata/conjunto após reload e v1 intacto. Não usa sleeps/retries nem reduz
+  assertions; importação não realizada continua causando falha do cenário.
+
+## Estabilização da confirmação da 3B-1 — A2-01/A2-02
+
+- C1–C7: commit normal ou resposta perdida, com outra criação/autosave/conclusão
+  antes da releitura, entre captura/verificação ou durante a reconciliação,
+  confirma somente o recibo próprio. Uma revisão por mutação, nenhuma por replay.
+  A testemunha inclui os fatos observados; mudanças posteriores chegam via refresh.
+- C8: restore/reset durante validação invalidam a época anterior, mesmo preservando
+  fisicamente o mesmo recibo. Campos/erro permanecem e não há sucesso falso.
+- C9/C10: outra intenção idêntica, prova ausente/divergente, fato adulterado,
+  hash inválido ou UUID duplicado não produzem sucesso nem nova escrita.
+- C11/C12: replay depois de outros eventos e sessão já remota alcançam confirmação
+  readonly; sem prova própria os guards impedem criação nova. Rascunhos e outros
+  editores permanecem, sem merge automático. Reabertura valida o conjunto físico.
+- O teste de reagendamento aguarda a nota no banco e a publicação do autosave
+  antes de capturar o diálogo. Mantém rejeição de fences obsoletos, história,
+  notas, CAS e recuperação; sem sleep/retry ou mudança no comportamento do produto.
 
 ---
 
@@ -3682,7 +3986,12 @@ e reagendamento explícito já estão implementados e integrados; início e corr
 ## 4. Agenda
 
 ### Atual
-Calendário com baixo nível de interação/persistência funcional.
+3B-1 implementa calendário mensal navegável, consulta por data e criação explícita
+de compromissos canônicos independentes exclusivamente timed. Consulta exibe também
+date_only/all_day recuperados, sem criar horários. Fuso e flexibilidade
+são confirmados; persistência e recuperação usam a fundação integrada da 3A-2.
+Edição/exclusão, novas transições, recorrências, visão semanal e resolução de
+conflitos temporais permanecem fora desta unidade.
 
 ### Alvo
 Calendário navegável com dia/semana/mês, criação de eventos futuros, conflitos, seleção de data e itens de diferentes domínios.
